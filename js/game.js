@@ -43,7 +43,8 @@ class Game {
       impactParticles: [],
       recoilX: 0,
       recoilY: 0,
-      qteMonsterTpCooldown: 0
+      qteMonsterTpCooldown: 0,
+      lastJumpscareTime: 0
     };
 
     this.init();
@@ -102,7 +103,8 @@ class Game {
       qteMonsterTpCooldown: 0,
       mouseX: 0,
       mouseY: 0,
-      lastTime: 0
+      lastTime: 0,
+      lastJumpscareTime: 0
     });
     this.state.keys = {};
     if (this.ui.setFullMapVisible) {
@@ -258,6 +260,7 @@ class Game {
       this.ui.missionTitle.textContent = '有什么东西醒了';
       this.ui.log(reason);
       this.ui.showToast('远处传来金属摩擦声');
+      this.audio.playSound('resources/horror-cinematic-498207.mp3', 0.6);
     }
   }
 
@@ -1103,6 +1106,7 @@ class Game {
         this.player.oxygen -= 8;
         this.player.noise = 100;
         this.ui.log('警告：未知生命体接触！');
+        this.audio.playSound('resources/injured-140224.mp3', 0.8);
       }
 
       if (monsterResult.recovering) {
@@ -1117,26 +1121,6 @@ class Game {
         this.ui.log('警报：生命体休眠恢复期结束，重新开始行动！');
       }
     }
-
-    // 6b. Drive Hunter AI (all active hunters)
-    this.hunters.forEach(h => {
-      if (!h.active || h.dead) return;
-      const hunterResult = h.update(dt, this.player, this.player.noise, this.map, this.audio, allEntities);
-      if (!hunterResult) return;
-      if (hunterResult.playerHit) {
-        this.ui.triggerDamageFlash(0.75, 130);
-        this.player.health -= 18;
-        this.player.oxygen -= 8;
-        this.player.noise = 100;
-        this.ui.log('警告：猎手接触！');
-      }
-      if (hunterResult.deaggro) {
-        this.ui.log('猎手失去了你的踪迹。');
-      }
-      if (hunterResult.burstTriggered) {
-        this.ui.showToast('猎手爆冲！');
-      }
-    });
 
     // 7. Update synthesized ambient acoustics (breathing audio removed per user specification)
     this.audio.update(this.player, this.monster, this.map, this.hunters);
