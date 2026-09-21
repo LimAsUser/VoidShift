@@ -40,7 +40,8 @@ class Game {
       impactParticles: [],
       recoilX: 0,
       recoilY: 0,
-      qteMonsterTpCooldown: 0
+      qteMonsterTpCooldown: 0,
+      lastJumpscareTime: 0
     };
 
     this.init();
@@ -77,7 +78,8 @@ class Game {
       qteMonsterTpCooldown: 0,
       mouseX: 0,
       mouseY: 0,
-      lastTime: 0
+      lastTime: 0,
+      lastJumpscareTime: 0
     });
     this.state.keys = {};
     if (this.ui.setFullMapVisible) {
@@ -229,6 +231,7 @@ class Game {
       this.ui.missionTitle.textContent = '有什么东西醒了';
       this.ui.log(reason);
       this.ui.showToast('远处传来金属摩擦声');
+      this.audio.playSound('resources/horror-cinematic-498207.mp3', 0.6);
     }
   }
 
@@ -995,6 +998,7 @@ class Game {
         this.player.oxygen -= 8;
         this.player.noise = 100;
         this.ui.log('警告：未知生命体接触！');
+        this.audio.playSound('resources/injured-140224.mp3', 0.8);
       }
 
       if (monsterResult.recovering) {
@@ -1007,6 +1011,29 @@ class Game {
         this.ui.threatStatusText.className = 'warning';
         this.ui.showToast('【警告】生命体休眠结束！已恢复行动！');
         this.ui.log('警报：生命体休眠恢复期结束，重新开始行动！');
+      }
+    }
+
+    // 6b. Jumpscare logic: trigger jumpscare if player shines flashlight directly on active monster within range with clear line-of-sight
+    if (this.monster.active && this.player.flashlight) {
+      const dx = this.monster.x - this.player.x;
+      const dy = this.monster.y - this.player.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 420) {
+        const angleToMonster = Math.atan2(dy, dx);
+        let angleDiff = angleToMonster - this.player.angle;
+        angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
+        if (Math.abs(angleDiff) < 0.5) {
+          const wallDist = this.map.rayWallDistance(this.player.x, this.player.y, Math.cos(angleToMonster), Math.sin(angleToMonster), 420);
+          if (dist < wallDist) {
+            if (this.state.elapsed - this.state.lastJumpscareTime > 15.0) {
+              this.state.lastJumpscareTime = this.state.elapsed;
+              this.audio.playSound('resources/jumpscare-94984.mp3', 0.85);
+              this.ui.showToast('⚠️ 手电强光惊动了黑暗中的生命体！');
+              this.ui.log('强光照射：未知生命体在强光直射下发出刺耳尖叫！');
+            }
+          }
+        }
       }
     }
 

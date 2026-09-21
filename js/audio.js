@@ -17,6 +17,9 @@ class AudioManager {
     this.lastStep = 0;
     this.lastVisiblePulse = 0;
     this.lastClawSound = 0;
+
+    // Ambient loop nodes
+    this.ambientSource = null;
   }
 
   /**
@@ -58,6 +61,33 @@ class AudioManager {
     this.proximityOscillator.connect(this.proximityGain);
     this.proximityOscillator.start();
 
+    // Start background white noise loop
+    this.playAmbientNoiseLoop();
+  }
+
+  /**
+   * Loads and plays the casual horror background noise in an infinite loop
+   */
+  async playAmbientNoiseLoop() {
+    if (!this.context) return;
+    try {
+      const response = await fetch('resources/casual horror background white noise-253834.mp3');
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
+      
+      this.ambientSource = this.context.createBufferSource();
+      this.ambientSource.buffer = audioBuffer;
+      this.ambientSource.loop = true;
+
+      const ambientGain = this.context.createGain();
+      ambientGain.gain.value = 0.22; // Low background white noise volume
+
+      this.ambientSource.connect(ambientGain);
+      ambientGain.connect(this.master);
+      this.ambientSource.start(0);
+    } catch (e) {
+      console.warn('Failed to load background white noise:', e);
+    }
   }
 
   /**

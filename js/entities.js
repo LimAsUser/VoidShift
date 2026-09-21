@@ -133,7 +133,7 @@ class Player {
       return false;
     }
     this.reloading = Config.player.reloadDuration;
-    audioManager.playSound('resources/dragon-studio-gun-reload-2-511308.mp3', 0.5);
+    audioManager.playSound('resources/gun-reload-2-511308.mp3', 0.5);
     return true;
   }
 
@@ -157,7 +157,7 @@ class Player {
     this.ammo -= 1;
     this.shootCooldown = Config.player.shootCooldownDuration;
     this.noise = Math.min(100, this.noise + 24);
-    audioManager.playSound('resources/u_62htdrvg4y-gun-shot-359196.mp3', 0.3);
+    audioManager.playSound('resources/gun-shot-359196.mp3', 0.3);
 
     // Calculate spread. Aiming has no spread. Not aiming has a massive random spread.
     const maxSpread = stabilized ? 0.01 : 0.38; // 0.38 radians is ~22 degrees of spread!
