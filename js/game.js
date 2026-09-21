@@ -26,14 +26,18 @@ class Game {
       lootValue: 0,
       storageItems: [],
       storageCapacity: 50,
+      hunterSettings: this._sanitizeHunterSettings(),
+      selectedDifficulty: 'medium',
+      selectedWeapon: 'pistol',
       inventory: [],
       inventoryCapacity: 12,
       elapsed: 0,
-      hunterSpawnTimer: (Config.mapScales[Config.currentScale] && Config.mapScales[Config.currentScale].hunterSpawnInterval) || 30,
+      hunterSpawnTimer: this._getHunterSettings().hunterSpawnInterval,
       huntersInitialized: false,
       extractionCalled: false,
       extracted: false,
       activeQte: null,
+      inventoryOpen: false,
       mouseX: 0,
       mouseY: 0,
       lastTime: 0,
@@ -44,7 +48,8 @@ class Game {
       recoilX: 0,
       recoilY: 0,
       qteMonsterTpCooldown: 0,
-      lastJumpscareTime: 0
+      lastJumpscareTime: 0,
+      fireHeld: false
     };
 
     this.init();
@@ -60,6 +65,125 @@ class Game {
     this.attachEventListeners();
   }
 
+  _sanitizeHunterSettings(savedSettings = null) {
+    const limits = {
+      hunters: [0, 100],
+      hunterSpawnInterval: [1, 120],
+      hunterRespawnCount: [0, 100],
+      hunterMaxHp: [1, 100]
+    };
+    const settings = {};
+
+    Object.entries(Config.mapScales).forEach(([scaleKey, defaults]) => {
+      const saved = savedSettings && savedSettings[scaleKey] ? savedSettings[scaleKey] : {};
+      settings[scaleKey] = {};
+      Object.entries(limits).forEach(([key, [min, max]]) => {
+        const parsed = saved[key] == null || saved[key] === '' ? NaN : Number(saved[key]);
+        const fallback = defaults[key];
+        settings[scaleKey][key] = Number.isFinite(parsed)
+          ? Math.max(min, Math.min(max, Math.round(parsed)))
+          : fallback;
+      });
+    });
+
+    return settings;
+  }
+
+  _getHunterSettings(scaleKey = Config.currentScale) {
+    const saved = this.state && this.state.hunterSettings && this.state.hunterSettings[scaleKey];
+    return saved || this._sanitizeHunterSettings()[scaleKey];
+  }
+
+  _buildDifficultySettings(difficultyId) {
+    const preset = Config.difficultyPresets[difficultyId];
+    if (!preset) return null;
+    const settings = {};
+    Object.entries(Config.mapScales).forEach(([scaleKey, defaults]) => {
+      settings[scaleKey] = {
+        hunters: Math.ceil(defaults.hunters * preset.hunterScale),
+        hunterSpawnInterval: Math.round(defaults.hunterSpawnInterval * preset.intervalScale),
+        hunterRespawnCount: Math.ceil(defaults.hunterRespawnCount * preset.respawnScale),
+        hunterMaxHp: preset.hunterMaxHp
+      };
+    });
+    return this._sanitizeHunterSettings(settings);
+  }
+
+  _detectDifficultyPreset(settings) {
+    for (const difficultyId of Object.keys(Config.difficultyPresets)) {
+      const presetSettings = this._buildDifficultySettings(difficultyId);
+      const matches = Object.keys(Config.mapScales).every(scaleKey => {
+        return Object.keys(presetSettings[scaleKey]).every(key => settings[scaleKey][key] === presetSettings[scaleKey][key]);
+      });
+      if (matches) return difficultyId;
+    }
+    return 'custom';
+  }
+
+  updateHunterSettingsUI() {
+    this.ui.updateHunterSettings(this._getHunterSettings(), this.state.running);
+  }
+
+  updateDifficultyUI() {
+    this.ui.updateDifficultyPreset(this.state.selectedDifficulty, this.state.running);
+  }
+
+  applyDifficultyPreset(difficultyId) {
+    if (this.state.running) return;
+    const settings = this._buildDifficultySettings(difficultyId);
+    if (!settings) return;
+    this.state.hunterSettings = settings;
+    this.state.selectedDifficulty = difficultyId;
+    this.state.hunterSpawnTimer = this._getHunterSettings().hunterSpawnInterval;
+    this.hunters = this._createHunters();
+    this.hunters.forEach(h => h.reset(this.map));
+    this._save();
+    this.updateDifficultyUI();
+    this.updateHunterSettingsUI();
+  }
+
+  updateLoadoutUI() {
+    this.ui.updateLoadout(this.state.selectedWeapon, this.state.running);
+  }
+
+  selectWeapon(weaponId) {
+    if (this.state.running || !Config.weapons[weaponId]) return;
+    this.state.selectedWeapon = weaponId;
+    this.player.setWeapon(weaponId);
+    this._save();
+    this.updateLoadoutUI();
+    this.ui.updateWeaponReadout(this.player);
+  }
+
+  updateHunterSetting(key, value) {
+    if (this.state.running) return;
+    const current = this._getHunterSettings();
+    const sanitized = this._sanitizeHunterSettings({
+      [Config.currentScale]: { ...current, [key]: value }
+    });
+    this.state.hunterSettings[Config.currentScale] = sanitized[Config.currentScale];
+    this.state.selectedDifficulty = 'custom';
+    this.state.hunterSpawnTimer = this._getHunterSettings().hunterSpawnInterval;
+    this.hunters = this._createHunters();
+    this.hunters.forEach(h => h.reset(this.map));
+    this._save();
+    this.updateDifficultyUI();
+    this.updateHunterSettingsUI();
+  }
+
+  resetHunterSettings() {
+    if (this.state.running) return;
+    const defaults = this._sanitizeHunterSettings()[Config.currentScale];
+    this.state.hunterSettings[Config.currentScale] = defaults;
+    this.state.selectedDifficulty = 'custom';
+    this.state.hunterSpawnTimer = defaults.hunterSpawnInterval;
+    this.hunters = this._createHunters();
+    this.hunters.forEach(h => h.reset(this.map));
+    this._save();
+    this.updateDifficultyUI();
+    this.updateHunterSettingsUI();
+  }
+
   _loadSave() {
     try {
       const raw = localStorage.getItem('voidshift_save');
@@ -67,6 +191,11 @@ class Game {
       const data = JSON.parse(raw);
       if (data.money != null) this.state.money = data.money;
       if (Array.isArray(data.storageItems)) this.state.storageItems = data.storageItems;
+      this.state.hunterSettings = this._sanitizeHunterSettings(data.hunterSettings);
+      this.state.selectedDifficulty = data.difficultyPreset === 'custom'
+        ? 'custom'
+        : this._detectDifficultyPreset(this.state.hunterSettings);
+      if (Config.weapons[data.selectedWeapon]) this.state.selectedWeapon = data.selectedWeapon;
     } catch (e) { /* ignore corrupt save */ }
   }
 
@@ -74,7 +203,10 @@ class Game {
     try {
       localStorage.setItem('voidshift_save', JSON.stringify({
         money: this.state.money,
-        storageItems: this.state.storageItems
+        storageItems: this.state.storageItems,
+        hunterSettings: this.state.hunterSettings,
+        difficultyPreset: this.state.selectedDifficulty,
+        selectedWeapon: this.state.selectedWeapon
       }));
     } catch (e) { /* ignore quota errors */ }
   }
@@ -94,32 +226,41 @@ class Game {
       loot: 0,
       lootValue: 0,
       elapsed: 0,
-      hunterSpawnTimer: (Config.mapScales[Config.currentScale] && Config.mapScales[Config.currentScale].hunterSpawnInterval) || 30,
+      hunterSpawnTimer: this._getHunterSettings().hunterSpawnInterval,
       huntersInitialized: false,
       extractionCalled: false,
       extracted: false,
       activeQte: null,
+      inventoryOpen: false,
       fullMapOpen: false,
       qteMonsterTpCooldown: 0,
       mouseX: 0,
       mouseY: 0,
       lastTime: 0,
-      lastJumpscareTime: 0
+      lastJumpscareTime: 0,
+      fireHeld: false
     });
     this.state.keys = {};
     if (this.ui.setFullMapVisible) {
       this.ui.setFullMapVisible(false);
     }
+    const inventoryOverlay = document.getElementById('inventoryOverlay');
+    if (inventoryOverlay) inventoryOverlay.style.display = 'none';
 
     this.map.reset(Config.currentScale);
-    this.player.reset(this.map);
+    this.player.reset(this.map, this.state.selectedWeapon);
     this.monster.reset(this.map);
     this.hunters = this._createHunters();
     this.hunters.forEach(h => h.reset(this.map));
 
     this.ui.updateResetState();
     this.ui.updateScaleButtons(Config.currentScale);
+    this.updateDifficultyUI();
+    this.updateHunterSettingsUI();
+    this.updateLoadoutUI();
     this.ui.updateTerminalsStatus(0, this.map.terminals.length);
+    this.updateStorageUI();
+    this.updateMoneyUI();
     
     // Initial UI state update
     const compositeState = {
@@ -148,10 +289,12 @@ class Game {
     if (!Config.mapScales || !Config.mapScales[scaleKey]) return;
     Config.currentScale = scaleKey;
     const scaleConfig = Config.mapScales[scaleKey];
+    this.state.hunterSpawnTimer = this._getHunterSettings(scaleKey).hunterSpawnInterval;
 
     this.ui.updateScaleButtons(scaleKey);
+    this.updateHunterSettingsUI();
     this.map.reset(scaleKey);
-    this.player.reset(this.map);
+    this.player.reset(this.map, this.state.selectedWeapon);
     this.monster.reset(this.map);
     this.hunters = this._createHunters();
     this.hunters.forEach(h => h.reset(this.map));
@@ -215,10 +358,14 @@ class Game {
 
     this.state.completed = false; 
     this.state.running = true; 
+    this.state.fireHeld = false;
     document.body.classList.add("in-dive");
     this.handleResize();
     
     this.ui.updateStartState();
+    this.updateDifficultyUI();
+    this.updateHunterSettingsUI();
+    this.updateLoadoutUI();
 
     this.state.lastTime = performance.now();
     requestAnimationFrame((now) => this.loop(now));
@@ -265,8 +412,8 @@ class Game {
   }
 
   _createHunters() {
-    const count = (Config.mapScales[Config.currentScale] && Config.mapScales[Config.currentScale].hunters) || 3;
-    return Array.from({ length: count }, (_, i) => new Hunter(i));
+    const settings = this._getHunterSettings();
+    return Array.from({ length: settings.hunters }, (_, i) => new Hunter(i, settings.hunterMaxHp));
   }
 
   activateHunter(hunter, reason) {
@@ -283,6 +430,10 @@ class Game {
   finish(success) {
     this.state.running = false; 
     this.state.completed = true; 
+    this.state.fireHeld = false;
+    this.state.inventoryOpen = false;
+    const inventoryOverlay = document.getElementById('inventoryOverlay');
+    if (inventoryOverlay) inventoryOverlay.style.display = 'none';
     document.body.classList.remove("in-dive");
     this.handleResize();
     
@@ -299,6 +450,9 @@ class Game {
     }
 
     this.ui.updateFinishState(success);
+    this.updateDifficultyUI();
+    this.updateHunterSettingsUI();
+    this.updateLoadoutUI();
     
     const compositeState = {
       oxygen: this.player.oxygen,
@@ -581,6 +735,11 @@ class Game {
       this.monster.active = true;
       this.monster.alerted = true;
       this.monster.lostTime = 0;
+      this.monster.waypoints = [];
+      this.monster.waypointTimer = 0;
+      this.monster._stuckTimer = 0;
+      this.monster._lastX = null;
+      this.monster._lastY = null;
       
       if (this.audio.calculateSpatial) {
         const spatial = this.audio.calculateSpatial(this.player.x, this.player.y, this.player.angle, this.monster.x, this.monster.y, 800);
@@ -754,11 +913,49 @@ class Game {
       const startX = this.player.x;
       const startY = this.player.y;
       const angle = result.shotAngle;
+      const wallDist = this.map.rayWallDistance(startX, startY, Math.cos(angle), Math.sin(angle), 650);
+      const rayCircleHitDistance = (entity) => {
+        const dx = entity.x - startX;
+        const dy = entity.y - startY;
+        const projection = dx * Math.cos(angle) + dy * Math.sin(angle);
+        if (projection < 0) return Infinity;
+
+        const perpendicularSq = dx * dx + dy * dy - projection * projection;
+        const hitRadius = entity.radius + 6;
+        if (perpendicularSq > hitRadius * hitRadius) return Infinity;
+
+        const hitDistance = Math.max(0, projection - Math.sqrt(hitRadius * hitRadius - perpendicularSq));
+        return hitDistance <= wallDist ? hitDistance : Infinity;
+      };
+
+      const monsterHitDistance = this.monster.active ? rayCircleHitDistance(this.monster) : Infinity;
+      let hunterTarget = null;
+      let hunterHitDistance = Infinity;
+
+      for (const hunter of this.hunters) {
+        if (!hunter.active || hunter.dead) continue;
+        const hitDistance = rayCircleHitDistance(hunter);
+        if (hitDistance >= hunterHitDistance) continue;
+        hunterTarget = hunter;
+        hunterHitDistance = hitDistance;
+      }
+
+      if (hunterTarget && hunterHitDistance <= monsterHitDistance) {
+        result.hit = false;
+        result.traceLength = hunterHitDistance;
+      } else {
+        hunterTarget = null;
+        result.hit = monsterHitDistance < Infinity;
+        result.distance = result.hit ? monsterHitDistance : 0;
+        if (result.hit) result.toMonster = Math.atan2(this.monster.y - startY, this.monster.x - startX);
+        result.traceLength = result.hit ? monsterHitDistance : wallDist;
+      }
+
       const endX = startX + Math.cos(angle) * result.traceLength;
       const endY = startY + Math.sin(angle) * result.traceLength;
 
       // Apply screen recoil in the EXACT opposite direction of the fired shot
-      const recoilIntensity = this.state.stabilized ? 16 : 28; // Hip fire has stronger recoil kickback
+      const recoilIntensity = this.state.stabilized ? this.player.weapon.recoilAim : this.player.weapon.recoilHip;
       this.state.recoilX += -Math.cos(angle) * recoilIntensity;
       this.state.recoilY += -Math.sin(angle) * recoilIntensity;
 
@@ -777,8 +974,9 @@ class Game {
       });
 
       // Spawn bright energetic impact sparks at target destination
-      const sparkCount = result.hit ? 22 : 8;
-      const sparkColor = result.hit ? '#e8754e' : '#75ddd0';
+      const hitTarget = result.hit || !!hunterTarget;
+      const sparkCount = hitTarget ? 22 : 8;
+      const sparkColor = hitTarget ? '#e8754e' : '#75ddd0';
       for (let index = 0; index < sparkCount; index++) {
         const sparkAngle = angle + Math.PI + (Math.random() - 0.5) * 1.5; // Backwards reflection spread
         const sparkSpeed = 50 + Math.random() * 120;
@@ -819,38 +1017,29 @@ class Game {
           const hitSpatial = this.audio.calculateSpatial(this.player.x, this.player.y, this.player.angle, this.monster.x, this.monster.y, 650);
           this.audio.playSpatialTone(88, 0.18, 0.22, 'sawtooth', hitSpatial.pan, Math.max(0.5, hitSpatial.distanceGain), hitSpatial.isBehind);
         }
+      } else if (hunterTarget) {
+        const hitResult = hunterTarget.registerHit();
+        if (hitResult.hit) {
+          const knockX = hunterTarget.x + Math.cos(angle) * 30;
+          const knockY = hunterTarget.y + Math.sin(angle) * 30;
+          if (!this.map.blocked(knockX, hunterTarget.y, hunterTarget.radius)) hunterTarget.x = knockX;
+          if (!this.map.blocked(hunterTarget.x, knockY, hunterTarget.radius)) hunterTarget.y = knockY;
+          hunterTarget.waypoints = [];
+          hunterTarget.waypointTimer = 0;
+          if (hitResult.dead) {
+            this.ui.showToast('猎手已被击毙！');
+            this.ui.log('威胁消除：猎手生命体已击毙。');
+            this.audio.playSpatialTone(55, 0.3, 0.6, 'sawtooth', 0, 1, false);
+          } else {
+            this.audio.playSpatialTone(120, 0.15, 0.2, 'square', 0, 1, false);
+          }
+        }
       } else {
         this.ui.log('枪声在走廊里回响。');
         this.ui.showToast('未命中');
       }
 
-    // Hunter hit detection (check all hunters, nearest hit wins)
-    if (result.fired) {
-      const startX = this.player.x;
-      const startY = this.player.y;
-      const angle = result.shotAngle;
-      const wallDist = this.map.rayWallDistance(startX, startY, Math.cos(angle), Math.sin(angle), 650);
-      this.hunters.forEach(h => {
-        if (!h.active || h.dead) return;
-        const toHA = Math.atan2(h.y - startY, h.x - startX);
-        const hDist = Math.hypot(h.x - startX, h.y - startY);
-        const angleDiff = Math.abs(((toHA - angle) + Math.PI * 3) % (Math.PI * 2) - Math.PI);
-        if (angleDiff < 0.18 && hDist < wallDist + h.radius + 12 && hDist < result.traceLength) {
-          const hitResult = h.registerHit();
-          if (hitResult.hit) {
-            result.traceLength = hDist;
-            if (hitResult.dead) {
-              this.ui.showToast('猎手已被击毙！');
-              this.ui.log('威胁消除：猎手生命体已击毙。');
-              this.audio.playSpatialTone(55, 0.3, 0.6, 'sawtooth', 0, 1, false);
-            } else {
-              this.ui.showToast(`猎手受创 (${hitResult.hpLeft}/3)`);
-              this.audio.playSpatialTone(120, 0.15, 0.2, 'square', 0, 1, false);
-            }
-          }
-        }
-      });
-    }
+      if (this.player.ammo === 0 && this.player.reserveAmmo > 0) this.player.reload(this.audio);
     } else if (result.reason === 'empty') {
       this.audio.playTone(180, 0.04, 0.08, 'square');
       this.ui.showToast('弹药耗尽 (按 R 换弹)');
@@ -956,6 +1145,12 @@ class Game {
       this.ui.log('恢复：高压电击麻痹硬直结束，行动能力恢复。');
     }
 
+    if (this.state.activeQte || this.state.fullMapOpen || this.state.inventoryOpen || this.player.stunned > 0) {
+      this.state.fireHeld = false;
+    } else if (this.state.fireHeld && this.player.weapon.automatic && this.player.ammo > 0 && this.player.reloading <= 0) {
+      this.shoot();
+    }
+
     // 1a. Update active QTE security console countdown timer (10s time limit)
     if (this.state.activeQte) {
       this.state.activeQte.timeLeft = Math.max(0, this.state.activeQte.timeLeft - dt);
@@ -1056,9 +1251,9 @@ class Game {
     }
 
     // Respawn timer: revive killed hunters every interval
-    const scaleConf = Config.mapScales[Config.currentScale];
-    const respawnInterval = (scaleConf && scaleConf.hunterSpawnInterval) || 10;
-    const respawnCount = (scaleConf && scaleConf.hunterRespawnCount) || 1;
+    const hunterSettings = this._getHunterSettings();
+    const respawnInterval = hunterSettings.hunterSpawnInterval;
+    const respawnCount = hunterSettings.hunterRespawnCount;
     if (this.state.huntersInitialized) {
       this.state.hunterSpawnTimer -= dt;
       if (this.state.hunterSpawnTimer <= 0) {
@@ -1070,7 +1265,8 @@ class Game {
           const sp = h.getFarSpawnPoint(this.player.x, this.player.y, this.map);
           if (sp) { h.x = sp.x; h.y = sp.y; }
           h.dead = false;
-          h.hp = Config.hunter.maxHp;
+          h.maxHp = hunterSettings.hunterMaxHp;
+          h.hp = h.maxHp;
           h.active = false;
           this.activateHunter(h, '设施深处传来稳定的踏步声。');
         }
@@ -1122,6 +1318,28 @@ class Game {
       }
     }
 
+    // 6b. Drive Hunter AI (all active hunters)
+    this.hunters.forEach(h => {
+      if (h.dead && h.deathFade > 0) {
+        h.deathFade = Math.max(0, h.deathFade - dt / 1.2);
+      }
+      if (!h.active || h.dead) return;
+      const hunterResult = h.update(dt, this.player, this.player.noise, this.map, this.audio, allEntities);
+      if (!hunterResult) return;
+
+      if (hunterResult.playerHit) {
+        this.ui.triggerDamageFlash(0.75, 130);
+        this.player.health -= 18;
+        this.player.oxygen -= 8;
+        this.player.noise = 100;
+        this.ui.log('警告：猎手接触！');
+      }
+
+      if (hunterResult.deaggro) {
+        this.ui.log('猎手失去了你的踪迹。');
+      }
+    });
+
     // 7. Update synthesized ambient acoustics (breathing audio removed per user specification)
     this.audio.update(this.player, this.monster, this.map, this.hunters);
 
@@ -1163,10 +1381,16 @@ class Game {
   updateStorageUI() {
     const grid = document.getElementById('storageGrid');
     grid.innerHTML = '';
-    this.state.storageItems.forEach(() => {
+    this.state.storageItems.forEach(item => {
       const el = document.createElement('div');
       el.className = 'storage-item';
-      el.textContent = '■';
+      el.textContent = item.name || '■';
+      el.title = item.name || '';
+      el.style.fontSize = '10px';
+      el.style.overflow = 'hidden';
+      el.style.textOverflow = 'ellipsis';
+      el.style.whiteSpace = 'nowrap';
+      el.style.cursor = 'default';
       grid.appendChild(el);
     });
     document.getElementById('storageStats').textContent = `${this.state.storageItems.length} / ${this.state.storageCapacity}`;
@@ -1217,12 +1441,17 @@ class Game {
       if (key === 'b') {
         const inv = document.getElementById('inventoryOverlay');
         inv.style.display = (inv.style.display === 'none' || inv.style.display === '') ? 'block' : 'none';
-        if (inv.style.display === 'block') this.updateInventoryUI();
+        this.state.inventoryOpen = inv.style.display === 'block';
+        if (this.state.inventoryOpen) {
+          this.state.fireHeld = false;
+          this.updateInventoryUI();
+        }
       }
       if (key === 'm') this.toggleFullMap();
       
       // Removed Space key firing: Fire is strictly restricted to M1 (Mouse left click)
-      if ((e.key === 'Enter' || e.code === 'Space') && !this.state.running) {
+      const editingControl = e.target && ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName);
+      if ((e.key === 'Enter' || e.code === 'Space') && !this.state.running && !editingControl) {
         e.preventDefault();
         this.start();
       }
@@ -1238,6 +1467,8 @@ class Game {
 
     const gameCanvas = document.getElementById('gameCanvas');
     const visionCanvas = document.getElementById('visionCanvas');
+    const isInteractiveControl = (target) => !!(target && target.closest && target.closest('button, input, select, textarea, label, #inventoryOverlay'));
+    const isGameSurface = (target) => target === gameCanvas || target === visionCanvas;
 
     const fireIfAllowed = (target) => {
       const now = performance.now();
@@ -1252,6 +1483,7 @@ class Game {
       }
       if (this.state.fullMapOpen) return; // Disallow firing while viewing full tactical map
       if (this.state.activeQte) return; // Disallow firing while operating security console
+      if (this.state.inventoryOpen) return; // Disallow firing while viewing inventory
       if (this.player.stunned > 0) return; // Disallow firing while stunned
       this.shoot();
     };
@@ -1260,6 +1492,7 @@ class Game {
       if (typeof e.buttons === 'number') {
         const leftNow = (e.buttons & 1) !== 0;
         const rightNow = (e.buttons & 2) !== 0;
+        this.state.fireHeld = leftNow && this.state.running && isGameSurface(e.target);
 
         // Detect Left Click button press edge (transition from false to true)
         if (leftNow && !isLeftDown) {
@@ -1286,12 +1519,11 @@ class Game {
     });
 
     window.addEventListener('mousedown', e => {
-      if (e.target && (e.target.tagName === 'BUTTON' || e.target.closest('button'))) {
-        return;
-      }
+      if (isInteractiveControl(e.target)) return;
       if (e.button === 0) {
         e.preventDefault();
         isLeftDown = true;
+        this.state.fireHeld = this.state.running && isGameSurface(e.target);
         fireIfAllowed(e.target);
       } else if (e.button === 2) {
         e.preventDefault();
@@ -1303,6 +1535,7 @@ class Game {
     window.addEventListener('mouseup', e => {
       if (e.button === 0) {
         isLeftDown = false;
+        this.state.fireHeld = false;
       } else if (e.button === 2) {
         isRightDown = false;
         this.setStableAim(false);
@@ -1311,11 +1544,10 @@ class Game {
     });
 
     window.addEventListener('pointerdown', e => {
-      if (e.target && (e.target.tagName === 'BUTTON' || e.target.closest('button'))) {
-        return;
-      }
+      if (isInteractiveControl(e.target)) return;
       if (e.button === 0) {
         isLeftDown = true;
+        this.state.fireHeld = this.state.running && isGameSurface(e.target);
         fireIfAllowed(e.target);
       } else if (e.button === 2) {
         isRightDown = true;
@@ -1326,6 +1558,7 @@ class Game {
     window.addEventListener('pointerup', e => {
       if (e.button === 0) {
         isLeftDown = false;
+        this.state.fireHeld = false;
       } else if (e.button === 2) {
         isRightDown = false;
         this.setStableAim(false);
@@ -1335,6 +1568,7 @@ class Game {
 
     window.addEventListener('contextmenu', e => e.preventDefault());
     window.addEventListener('dragstart', e => e.preventDefault());
+    window.addEventListener('blur', () => { this.state.fireHeld = false; });
     
     // Unlock AudioContext on first user gesture
     window.addEventListener('pointerdown', () => this.audio.ensureAudio(), { passive: true });
@@ -1346,6 +1580,14 @@ class Game {
         this.start();
       }
     });
+
+    Object.entries(this.ui.hunterSettingInputs).forEach(([key, input]) => {
+      if (!input) return;
+      input.addEventListener('change', () => this.updateHunterSetting(key, input.value));
+    });
+    if (this.ui.resetHunterSettingsButton) {
+      this.ui.resetHunterSettingsButton.addEventListener('click', () => this.resetHunterSettings());
+    }
 
     this.ui.prompt.addEventListener('click', () => {
       this.audio.ensureAudio();
@@ -1398,9 +1640,18 @@ window.addEventListener('DOMContentLoaded', () => {
   
   // Expose global tab switcher
   window.switchTab = (tab) => {
-    document.getElementById('briefingContent').style.display = tab === 'briefing' ? 'block' : 'none';
-    document.getElementById('storageContent').style.display = tab === 'storage' ? 'block' : 'none';
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.textContent === (tab === 'briefing' ? '简报' : '仓库')));
+    const contentIds = {
+      briefing: 'briefingContent',
+      storage: 'storageContent',
+      loadout: 'loadoutContent'
+    };
+    if (!contentIds[tab]) return;
+    Object.entries(contentIds).forEach(([key, id]) => {
+      document.getElementById(id).style.display = key === tab ? 'block' : 'none';
+    });
+    document.querySelectorAll('.safehouse-tabs .tab-btn').forEach(button => {
+      button.classList.toggle('active', button.dataset.tab === tab);
+    });
   };
 });
 

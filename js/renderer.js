@@ -394,8 +394,11 @@ class Renderer {
     // Hunter entities (teal, wall-following pathfinders)
     if (hunters && Array.isArray(hunters)) {
       hunters.forEach(hunter => {
-        if (!hunter || !hunter.active || hunter.dead) return;
+        if (!hunter) return;
+        const fadingDeath = hunter.dead && hunter.deathFade > 0;
+        if (!hunter.active && !fadingDeath) return;
         ctx.save();
+        if (fadingDeath) ctx.globalAlpha = hunter.deathFade;
         ctx.translate(hunter.x, hunter.y);
         ctx.rotate(hunter.angle);
         // Teal aura
