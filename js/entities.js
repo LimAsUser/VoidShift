@@ -232,6 +232,69 @@ function buildPursuitWaypoints(mapManager, fromX, fromY, targetX, targetY) {
   return waypoints;
 }
 
+function isDirectPathClear(mapManager, fromX, fromY, targetX, targetY, radius) {
+  const distance = Math.hypot(targetX - fromX, targetY - fromY);
+  const steps = Math.max(1, Math.ceil(distance / Math.max(8, radius * 0.75)));
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const x = fromX + (targetX - fromX) * t;
+    const y = fromY + (targetY - fromY) * t;
+    if (mapManager.blocked(x, y, radius)) return false;
+  }
+  return true;
+}
+
+function buildLocalGridPath(mapManager, fromX, fromY, targetX, targetY, radius, maxDistance) {
+  if (isDirectPathClear(mapManager, fromX, fromY, targetX, targetY, radius)) return [];
+
+  const cellSize = 28;
+  const maxCells = Math.ceil((maxDistance + 140) / cellSize);
+  const directions = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const queue = [{ gx: 0, gy: 0 }];
+  const parents = new Map([['0,0', null]]);
+  let head = 0;
+  let destinationKey = null;
+
+  while (head < queue.length && queue.length <= 1600) {
+    const current = queue[head++];
+    const currentKey = `${current.gx},${current.gy}`;
+    const currentX = fromX + current.gx * cellSize;
+    const currentY = fromY + current.gy * cellSize;
+
+    if (Math.hypot(targetX - currentX, targetY - currentY) <= cellSize * 1.5 &&
+        isDirectPathClear(mapManager, currentX, currentY, targetX, targetY, radius)) {
+      destinationKey = currentKey;
+      break;
+    }
+
+    for (const [dx, dy] of directions) {
+      const gx = current.gx + dx;
+      const gy = current.gy + dy;
+      if (Math.abs(gx) > maxCells || Math.abs(gy) > maxCells) continue;
+      const key = `${gx},${gy}`;
+      if (parents.has(key)) continue;
+
+      const nextX = fromX + gx * cellSize;
+      const nextY = fromY + gy * cellSize;
+      if (!isDirectPathClear(mapManager, currentX, currentY, nextX, nextY, radius)) continue;
+      parents.set(key, currentKey);
+      queue.push({ gx, gy });
+    }
+  }
+
+  if (!destinationKey) return [];
+  const path = [];
+  let key = destinationKey;
+  while (key && parents.get(key) !== null) {
+    const [gx, gy] = key.split(',').map(Number);
+    path.push({ x: fromX + gx * cellSize, y: fromY + gy * cellSize });
+    key = parents.get(key);
+  }
+  path.reverse();
+  path.push({ x: targetX, y: targetY });
+  return path;
+}
+
 function getPursuitTarget(entity, dt, mapManager, targetX, targetY, refreshInterval) {
   entity.waypointTimer -= dt;
   if (entity.waypointTimer <= 0 || entity.waypoints.length === 0) {
@@ -312,6 +375,10 @@ function recoverStuckPursuer(entity, dt, mapManager) {
 
   entity.waypoints = [];
   entity.waypointTimer = 0;
+  if (Array.isArray(entity.localPath)) {
+    entity.localPath = [];
+    entity.localRepathTimer = 0;
+  }
   entity._stuckTimer = 0;
   entity._lastX = null;
   entity._lastY = null;
@@ -525,8 +592,7 @@ class Monster {
 
     // Chasing state machine
     if (this.alerted) {
-      const target = getPursuitTarget(this, dt, mapManager, player.x, player.y, Config.monster.waypointRefresh);
-      const angle = Math.atan2(target.y - this.y, target.x - this.x);
+      const angle = Math.atan2(player.y - this.y, player.x - this.x);
       const nextX = this.x + Math.cos(angle) * Config.monster.speed * dt;
       const nextY = this.y + Math.sin(angle) * Config.monster.speed * dt;
       const crossingWall = mapManager.blocked(nextX, this.y, this.radius) || mapManager.blocked(this.x, nextY, this.radius);
@@ -537,8 +603,9 @@ class Monster {
           ? Config.monster.wallChokeSpeed
           : Config.monster.speed;
 
-      moveWithAvoidance(this, mapManager, target.x, target.y, monsterSpeed, dt);
-      if (this.stagger <= 0) recoverStuckPursuer(this, dt, mapManager);
+      this.x += Math.cos(angle) * monsterSpeed * dt;
+      this.y += Math.sin(angle) * monsterSpeed * dt;
+      this.angle = angle;
     }
 
     // Patrol roaming when de-aggroed
@@ -625,6 +692,8 @@ class Hunter {
     // Pathfinding state
     this.waypoints = [];
     this.waypointTimer = 0;
+    this.localPath = [];
+    this.localRepathTimer = (this.spawnIndex % 10) * 0.1;
     // Stuck detection
     this._stuckTimer = 0;
     this._lastX = null;
@@ -656,6 +725,8 @@ class Hunter {
     this.burstCooldown = 1.8;
     this.waypoints = [];
     this.waypointTimer = 0;
+    this.localPath = [];
+    this.localRepathTimer = (this.spawnIndex % 10) * 0.1;
     this._stuckTimer = 0;
     this._lastX = null;
     this._lastY = null;
@@ -672,6 +743,8 @@ class Hunter {
     this.hp--;
     this.stagger = 0.25;
     this.burstTimer = 0;
+    this.localPath = [];
+    this.localRepathTimer = 0;
     if (this.hp <= 0) {
       this.dead = true;
       this.active = false;
@@ -695,11 +768,8 @@ class Hunter {
     if (this.burstCooldown > 0) this.burstCooldown -= dt;
     if (this.slowTimer > 0) this.slowTimer -= dt;
 
-    // Detection — LOS blocks visual range; noise travels through walls
-    const toPlayerAngle = Math.atan2(dy, dx);
-    const wallDist = mapManager.rayWallDistance(this.x, this.y, Math.cos(toPlayerAngle), Math.sin(toPlayerAngle), distance + 10);
-    const hasLOS = wallDist >= distance - this.radius;
-    const canSense = (hasLOS && distance < Config.hunter.alertDistance) || noiseLevel > Config.hunter.triggerNoiseThreshold;
+    // Nearby players can be tracked around corners; loud noise still carries beyond visual range
+    const canSense = distance < Config.hunter.alertDistance || noiseLevel > Config.hunter.triggerNoiseThreshold;
 
     if (!this.alerted && canSense) {
       this.alerted = true;
@@ -716,6 +786,8 @@ class Hunter {
           this.lostTime = 0;
           this.waypoints = [];
           this.waypointTimer = 0;
+          this.localPath = [];
+          this.localRepathTimer = 0;
           this._stuckTimer = 0;
           this._lastX = null;
           this._lastY = null;
@@ -725,7 +797,38 @@ class Hunter {
     }
 
     if (this.alerted && this.stagger <= 0) {
-      const target = getPursuitTarget(this, dt, mapManager, player.x, player.y, Config.hunter.waypointRefresh);
+      this.localRepathTimer -= dt;
+      if (distance <= Config.hunter.alertDistance && this.localRepathTimer <= 0) {
+        this.localRepathTimer = 1;
+        const hunterRoom = mapManager.getRoomAt(this.x, this.y);
+        const playerRoom = mapManager.getRoomAt(player.x, player.y);
+        if (hunterRoom && hunterRoom === playerRoom) {
+          this.localPath = buildLocalGridPath(
+            mapManager,
+            this.x,
+            this.y,
+            player.x,
+            player.y,
+            this.radius,
+            Config.hunter.alertDistance
+          );
+          this.waypoints = [];
+          this.waypointTimer = 0;
+        } else {
+          this.localPath = [];
+        }
+      } else if (distance > Config.hunter.alertDistance) {
+        this.localPath = [];
+        this.localRepathTimer = (this.spawnIndex % 10) * 0.1;
+      }
+
+      while (this.localPath.length > 0 &&
+             Math.hypot(this.localPath[0].x - this.x, this.localPath[0].y - this.y) < 18) {
+        this.localPath.shift();
+      }
+
+      const target = this.localPath[0] ||
+        getPursuitTarget(this, dt, mapManager, player.x, player.y, Config.hunter.waypointRefresh);
 
       // Speed
       const speed = this.slowTimer > 0 ? Config.hunter.slowSpeed : Config.hunter.speed;
@@ -746,6 +849,8 @@ class Hunter {
         if (sp) { this.x = sp.x; this.y = sp.y; }
         this.waypoints = [];
         this.waypointTimer = 0;
+        this.localPath = [];
+        this.localRepathTimer = 0;
         this._stuckTimer = 0;
         this._lastX = null;
         this._lastY = null;

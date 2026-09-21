@@ -17,14 +17,14 @@ const Config = {
 
   // Facility Scale Presets: Small (12), Medium (18), Large (24)
   mapScales: {
-    small: { id: 'small', label: '小型 (12 舱)', cols: 4, rows: 3, roomCount: 12, quota: 420, terminals: 3, hunters: 24, hunterSpawnInterval: 10, hunterRespawnCount: 1, hunterMaxHp: 2 },
-    medium: { id: 'medium', label: '中型 (18 舱)', cols: 6, rows: 3, roomCount: 18, quota: 780, terminals: 3, hunters: 32, hunterSpawnInterval: 10, hunterRespawnCount: 2, hunterMaxHp: 2 },
-    large: { id: 'large', label: '大型 (24 舱)', cols: 6, rows: 4, roomCount: 24, quota: 1200, terminals: 4, hunters: 50, hunterSpawnInterval: 10, hunterRespawnCount: 3, hunterMaxHp: 2 }
+    small: { id: 'small', label: '小型 (12 舱)', cols: 4, rows: 3, roomCount: 12, quota: 420, terminals: 3, hunters: 24, hunterSpawnInterval: 30, hunterRespawnCount: 1, hunterMaxHp: 2 },
+    medium: { id: 'medium', label: '中型 (18 舱)', cols: 6, rows: 3, roomCount: 18, quota: 780, terminals: 3, hunters: 32, hunterSpawnInterval: 30, hunterRespawnCount: 2, hunterMaxHp: 2 },
+    large: { id: 'large', label: '大型 (24 舱)', cols: 6, rows: 4, roomCount: 24, quota: 1200, terminals: 4, hunters: 50, hunterSpawnInterval: 30, hunterRespawnCount: 3, hunterMaxHp: 2 }
   },
   currentScale: 'small',
 
   difficultyPresets: {
-    easy: { id: 'easy', label: '简单', hunterScale: 0.5, respawnScale: 0.5, intervalScale: 2, hunterMaxHp: 1 },
+    easy: { id: 'easy', label: '简单', hunterScale: 0.5, respawnScale: 0.5, intervalScale: 1, hunterMaxHp: 1 },
     medium: { id: 'medium', label: '中等', hunterScale: 1, respawnScale: 1, intervalScale: 1, hunterMaxHp: 2 },
     hard: { id: 'hard', label: '困难', hunterScale: 1, respawnScale: 1, intervalScale: 1, hunterMaxHp: 5 }
   },

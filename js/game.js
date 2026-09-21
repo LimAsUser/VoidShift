@@ -191,10 +191,15 @@ class Game {
       const data = JSON.parse(raw);
       if (data.money != null) this.state.money = data.money;
       if (Array.isArray(data.storageItems)) this.state.storageItems = data.storageItems;
-      this.state.hunterSettings = this._sanitizeHunterSettings(data.hunterSettings);
-      this.state.selectedDifficulty = data.difficultyPreset === 'custom'
-        ? 'custom'
-        : this._detectDifficultyPreset(this.state.hunterSettings);
+      if (Config.difficultyPresets[data.difficultyPreset]) {
+        this.state.hunterSettings = this._buildDifficultySettings(data.difficultyPreset);
+        this.state.selectedDifficulty = data.difficultyPreset;
+      } else {
+        this.state.hunterSettings = this._sanitizeHunterSettings(data.hunterSettings);
+        this.state.selectedDifficulty = data.difficultyPreset === 'custom'
+          ? 'custom'
+          : this._detectDifficultyPreset(this.state.hunterSettings);
+      }
       if (Config.weapons[data.selectedWeapon]) this.state.selectedWeapon = data.selectedWeapon;
     } catch (e) { /* ignore corrupt save */ }
   }
