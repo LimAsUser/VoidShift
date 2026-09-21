@@ -1072,13 +1072,14 @@ class Game {
     if (!event) return;
     this.lastPointerEvent = event;
     const rect = this.ui.frame.getBoundingClientRect();
-    const scaleX = rect.width / Config.VIEW_W;
-    const scaleY = rect.height / Config.VIEW_H;
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
+    const w = rect.width || Config.VIEW_W;
+    const h = rect.height || Config.VIEW_H;
+    const scale = Math.max(w / Config.VIEW_W, h / Config.VIEW_H);
+    const centerX = rect.left + w / 2;
+    const centerY = rect.top + h / 2;
 
-    const screenOffsetX = (event.clientX - centerX) / scaleX;
-    const screenOffsetY = (event.clientY - centerY) / scaleY;
+    const screenOffsetX = (event.clientX - centerX) / scale;
+    const screenOffsetY = (event.clientY - centerY) / scale;
 
     const lookX = this.state.stabilized ? Math.max(-90, Math.min(90, screenOffsetX * 0.22)) : 0;
     const lookY = this.state.stabilized ? Math.max(-70, Math.min(70, screenOffsetY * 0.22)) : 0;
@@ -1088,13 +1089,11 @@ class Game {
     this.state.cameraLookY = lookY;
     this.state.cameraZoom = aimZoom;
 
-    // Use uniform base coordinates center offsets to translate screen client mouse into world coordinates.
-    // This perfectly matches the new 2D context-level applyCamera transforms (preventing offset drift).
-    const lookOffsetPxX = lookX * scaleX;
-    const lookOffsetPxY = lookY * scaleY;
+    const lookOffsetPxX = lookX * scale;
+    const lookOffsetPxY = lookY * scale;
     
-    this.state.mouseX = this.player.x + (event.clientX - (centerX - lookOffsetPxX)) / (scaleX * aimZoom);
-    this.state.mouseY = this.player.y + (event.clientY - (centerY - lookOffsetPxY)) / (scaleY * aimZoom);
+    this.state.mouseX = this.player.x + (event.clientX - (centerX - lookOffsetPxX)) / (scale * aimZoom);
+    this.state.mouseY = this.player.y + (event.clientY - (centerY - lookOffsetPxY)) / (scale * aimZoom);
 
     this.player.angle = Math.atan2(this.state.mouseY - this.player.y, this.state.mouseX - this.player.x);
     
