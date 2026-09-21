@@ -1,0 +1,238 @@
+/**
+ * VOID SHIFT // RECOVERY OPERATIONS PROTOCOL
+ * UI Manager (DOM Reference & Interface Controller)
+ */
+
+class UIManager {
+  constructor() {
+    // Canvas elements & context
+    this.canvas = document.querySelector('#gameCanvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.visionCanvas = document.querySelector('#visionCanvas');
+    this.visionCtx = this.visionCanvas.getContext('2d');
+    this.miniMap = document.querySelector('#miniMap');
+    this.miniCtx = this.miniMap.getContext('2d');
+
+    // Containers and frames
+    this.frame = document.querySelector('#gameFrame');
+    this.startButton = document.querySelector('#startButton');
+    this.prompt = document.querySelector('#centerPrompt');
+    this.missionTitle = document.querySelector('#missionTitle');
+    this.contractState = document.querySelector('#contractState');
+    this.logText = document.querySelector('#logText');
+    this.clock = document.querySelector('#clock');
+    this.predictedValue = document.querySelector('#predictedValue');
+    this.missionState = document.querySelector('#missionState');
+    this.resultTitle = document.querySelector('#resultTitle');
+    this.toast = document.querySelector('#gameToast');
+    this.damageFlash = document.querySelector('#damageFlash');
+    this.hudOverlay = document.querySelector('#hudOverlay');
+    this.hudOxygen = document.querySelector('#hudOxygen');
+    this.hudHealth = document.querySelector('#hudHealth');
+    this.hudAmmo = document.querySelector('#hudAmmo');
+    this.hudNoise = document.querySelector('#hudNoise');
+
+    // Telemetry Gauges
+    this.oxygenBar = document.querySelector('#oxygenBar');
+    this.oxygenText = document.querySelector('#oxygenText');
+    this.healthBar = document.querySelector('#healthBar');
+    this.healthText = document.querySelector('#healthText');
+    this.staminaBar = document.querySelector('#staminaBar');
+    this.staminaText = document.querySelector('#staminaText');
+    this.noiseBar = document.querySelector('#noiseBar');
+    this.noiseText = document.querySelector('#noiseText');
+
+    // Stat readings
+    this.lootValueText = document.querySelector('#lootValue');
+    this.lootCountText = document.querySelector('#lootCount');
+    this.extractStatusText = document.querySelector('#extractStatus');
+    this.threatStatusText = document.querySelector('#threatStatus');
+    this.weaponStatusText = document.querySelector('#weaponStatus');
+    this.ammoStatusText = document.querySelector('#ammoStatus');
+
+    this.toastTimeout = null;
+  }
+
+  /**
+   * Appends a log line to the diagnostic field log
+   */
+  log(message) {
+    this.logText.textContent = `> ${message}`;
+  }
+
+  /**
+   * Displays a temporary middle-screen alert overlay
+   */
+  showToast(message) {
+    if (this.toastTimeout) {
+      clearTimeout(this.toastTimeout);
+    }
+    this.toast.textContent = message;
+    this.toast.classList.add('show');
+    this.toastTimeout = setTimeout(() => {
+      this.toast.classList.remove('show');
+    }, 1500);
+  }
+
+  /**
+   * Trigger a damage/impact screen flash effect
+   */
+  triggerDamageFlash(opacity = 0.75, duration = 130) {
+    this.damageFlash.style.transition = 'none';
+    this.damageFlash.style.opacity = opacity;
+    
+    // Force a reflow
+    this.damageFlash.offsetHeight;
+
+    this.damageFlash.style.transition = `opacity ${duration}ms ease-out`;
+    this.damageFlash.style.opacity = '0';
+  }
+
+  /**
+   * Configures canvas sizes and calculates scaling factor on window resize
+   */
+  resize(viewW, viewH) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    this.frame.style.minHeight = '0';
+    this.frame.style.flex = '0 0 auto';
+    const frameWidth = this.frame.getBoundingClientRect().width;
+    this.frame.style.height = `${frameWidth * viewH / viewW}px`;
+    const rect = this.frame.getBoundingClientRect();
+
+    this.canvas.width = rect.width * dpr;
+    this.canvas.height = rect.height * dpr;
+    this.visionCanvas.width = rect.width * dpr;
+    this.visionCanvas.height = rect.height * dpr;
+    this.miniMap.width = 168 * dpr;
+    this.miniMap.height = 112 * dpr;
+
+    this.canvas.style.position = 'absolute';
+    this.canvas.style.inset = '0';
+    this.canvas.style.width = `${rect.width}px`;
+    this.canvas.style.height = `${rect.height}px`;
+
+    this.visionCanvas.style.position = 'absolute';
+    this.visionCanvas.style.inset = '0';
+    this.visionCanvas.style.zIndex = '2';
+    this.visionCanvas.style.pointerEvents = 'none';
+    this.visionCanvas.style.width = `${rect.width}px`;
+    this.visionCanvas.style.height = `${rect.height}px`;
+
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.visionCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.miniCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    return { rect, dpr };
+  }
+
+  /**
+   * Resets all UI states and buttons to wait for diving
+   */
+  updateResetState() {
+    this.startButton.disabled = false;
+    this.startButton.innerHTML = '开始下潜 <b>↘</b>';
+    this.prompt.style.display = 'grid';
+    this.missionTitle.textContent = '等待下潜';
+    this.contractState.textContent = '通讯稳定';
+    this.missionState.textContent = '未开始';
+    this.resultTitle.textContent = '今晚的账单还没写完';
+    this.extractStatusText.textContent = '等待呼叫';
+    this.extractStatusText.className = '';
+    this.threatStatusText.textContent = '未知';
+    this.threatStatusText.className = 'warning';
+    this.oxygenText.style.color = '';
+  }
+
+  /**
+   * Configures UI states when starting a mission run
+   */
+  updateStartState() {
+    this.prompt.style.display = 'none';
+    this.hudOverlay.style.display = 'flex';
+    this.startButton.disabled = true;
+    this.startButton.textContent = '任务进行中';
+    this.missionTitle.textContent = '探索中';
+    this.missionState.textContent = '进行中';
+    this.contractState.textContent = '正在下潜';
+    this.log('舱门关闭。祝你带够氧气。');
+  }
+
+  /**
+   * Configures UI states when calling the extraction beacon
+   */
+  updateExtractionCalledState() {
+    this.extractStatusText.textContent = '已呼叫 / 30秒';
+    this.extractStatusText.className = 'warning';
+    this.contractState.textContent = '撤离信标已激活';
+    this.missionTitle.textContent = '撤离舱已呼叫';
+    this.log('撤离舱收到信号。回到入口。');
+    this.showToast('撤离信标已激活');
+  }
+
+  /**
+   * Configures UI states on mission complete/fail
+   */
+  updateFinishState(success) {
+    this.startButton.disabled = false;
+    this.startButton.innerHTML = '重新下潜 <b>↘</b>';
+    this.hudOverlay.style.display = 'none';
+    this.missionState.textContent = success ? '已撤离' : '任务失败';
+    this.missionTitle.textContent = success ? '安全返回' : '信号中断';
+    this.contractState.textContent = success ? '回收完成' : '通讯丢失';
+    this.resultTitle.textContent = success ? '带着战利品回家' : '这趟没有人来接你';
+
+    this.prompt.style.display = 'grid';
+    this.prompt.querySelector('strong').textContent = success ? '任务完成' : '任务失败';
+    this.prompt.querySelector('small').textContent = success ? '点击左侧按钮开始下一轮' : '重新下潜，再试一次';
+
+    this.log(success ? '舱门已锁定。结算数据上传中。' : '生命体征丢失。');
+  }
+
+  /**
+   * Redraws gauge statistics based on updated game states
+   */
+  update(gameState, player, monster) {
+    this.oxygenBar.style.width = `${Math.max(0, gameState.oxygen)}%`;
+    this.oxygenText.textContent = `${Math.max(0, Math.ceil(gameState.oxygen))}%`;
+    this.hudOxygen.textContent = `O2: ${Math.ceil(gameState.oxygen)}%`;
+
+    if (gameState.oxygen < 25) {
+      this.oxygenText.style.color = 'var(--rust)';
+      this.hudOxygen.style.color = 'var(--rust)';
+    } else {
+      this.oxygenText.style.color = '';
+      this.hudOxygen.style.color = '';
+    }
+
+    this.healthBar.style.width = `${Math.max(0, gameState.health)}%`;
+    this.healthText.textContent = `${Math.max(0, Math.ceil(gameState.health))}%`;
+    this.hudHealth.textContent = `HP: ${Math.ceil(gameState.health)}%`;
+
+    this.staminaBar.style.width = `${Math.max(0, gameState.stamina)}%`;
+    this.staminaText.textContent = `${Math.max(0, Math.ceil(gameState.stamina))}%`;
+
+    this.noiseBar.style.width = `${Math.max(5, gameState.noise)}%`;
+    this.noiseText.textContent = gameState.noise > 70 ? '危险' : gameState.noise > 30 ? '注意' : '安静';
+    this.hudNoise.textContent = `NOISE: ${gameState.noise > 70 ? '高' : gameState.noise > 30 ? '注意' : '静'}`;
+
+    this.lootValueText.textContent = `¥ ${gameState.lootValue}`;
+    this.lootCountText.textContent = `${gameState.loot} / 6`;
+    this.predictedValue.textContent = `¥ ${gameState.lootValue}`;
+
+    this.clock.textContent = new Date(gameState.elapsed * 1000).toISOString().substring(14, 19);
+
+    this.threatStatusText.textContent = monster.alerted ? '已锁定' : monster.active ? '脱战' : '未知';
+    this.threatStatusText.className = monster.alerted ? 'warning' : 'ok';
+
+    this.ammoStatusText.textContent = gameState.reloading > 0 ? '换弹中' : `${player.ammo} / ${player.reserveAmmo}`;
+    this.hudAmmo.textContent = `AMMO: ${gameState.reloading > 0 ? 'RELOADING' : `${player.ammo} / ${player.reserveAmmo}`}`;
+    
+    this.weaponStatusText.textContent = gameState.reloading > 0 
+      ? '换弹中' 
+      : player.shootCooldown > 0 
+        ? `冷却 ${player.shootCooldown.toFixed(1)}s` 
+        : '手枪 / 就绪';
+    this.weaponStatusText.className = player.shootCooldown > 0 || gameState.reloading > 0 ? 'warning' : 'ok';
+  }
+}

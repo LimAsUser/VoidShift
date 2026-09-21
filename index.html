@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0b0d0d" />
+  <title>VOID SHIFT // 废墟回收协议</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="brand"><div class="brand-icon">VS</div><div><p class="kicker">NIGHT SHIFT / CONTRACT 07</p><h1>VOID <span>SHIFT</span></h1></div></div>
+      <div class="contract-state"><i></i><span id="contractState">通讯稳定</span></div>
+    </header>
+
+    <section class="game-layout">
+      <aside class="briefing-panel panel">
+        <div class="panel-title"><span>01</span><div><p class="kicker">RECOVERY BRIEF</p><h2>任务简报</h2></div></div>
+        
+        <div class="market-panel" style="margin-bottom:20px;">
+          <div class="contract-row"><span>余额</span><strong id="moneyDisplay">¥ 1000</strong></div>
+          <button class="tab-btn" onclick="game.buyAmmo()">购买弹药 (¥50)</button>
+        </div>
+
+        <div class="safehouse-tabs">
+          <button class="tab-btn active" onclick="switchTab('briefing')">简报</button>
+          <button class="tab-btn" onclick="switchTab('storage')">仓库</button>
+        </div>
+
+        <div id="briefingContent">
+          <div class="location-stamp"><span class="stamp-label">LOCATION</span><strong>ARCADIA-9</strong><small>废弃气象观测站</small></div>
+          <div class="objective"><span class="objective-icon">◈</span><div><p>当前目标</p><strong>收集并撤离废料</strong></div></div>
+          <div class="contract-row"><span>本轮报价</span><strong id="quotaValue">¥ 420</strong></div>
+          <div class="contract-row"><span>已回收价值</span><strong id="lootValue">¥ 0</strong></div>
+          <div class="contract-row"><span>携带物</span><strong id="lootCount">0 / 6</strong></div>
+        </div>
+
+        <div id="storageContent" style="display:none;">
+          <div class="storage-stats"><span>仓库容量</span><strong id="storageStats">0 / 50</strong></div>
+          <div class="storage-grid" id="storageGrid"></div>
+        </div>
+
+        <!-- Inventory Overlay (Press B) -->
+        <div id="inventoryOverlay" class="panel" style="display:none; position:absolute; inset:20px; z-index:10; padding:20px;">
+          <div class="panel-title"><h2>背包 (B 键关闭)</h2></div>
+          <div class="storage-grid" id="inventoryGrid"></div>
+          <button class="action-button" onclick="game.sellInventory()">出售全部物资</button>
+        </div>
+
+        <div class="side-note"><span>!</span><p>灯光会暴露你的位置。噪音会吸引附近的东西。</p></div>
+        <button id="startButton" class="action-button">开始下潜 <b>↘</b></button>
+      </aside>
+
+      <section class="game-panel panel">
+        <div class="game-header"><div><p class="kicker">LIVE FEED / CAM 01</p><h2 id="missionTitle">等待下潜</h2></div><div class="coordinates"><span id="clock">00:00</span><small>LOCAL TIME</small></div></div>
+        <div class="game-frame" id="gameFrame">
+          <canvas id="gameCanvas" aria-label="废墟探索游戏区域"></canvas>
+          <canvas id="visionCanvas" aria-hidden="true"></canvas>
+          <canvas id="miniMap" aria-label="任务小地图"></canvas>
+          <div class="scanlines"></div>
+          
+          <!-- In-game HUD -->
+          <div class="hud-overlay" id="hudOverlay" style="display:none;">
+            <div class="hud-stat">
+              <span id="hudOxygen">O2: 100%</span>
+              <span id="hudHealth">HP: 100%</span>
+            </div>
+            <div class="hud-stat">
+              <span id="hudAmmo">AMMO: 6 / 24</span>
+              <span id="hudNoise">NOISE: 静</span>
+            </div>
+          </div>
+
+          <div class="center-prompt" id="centerPrompt"><span class="prompt-mark">△</span><strong>点击开始任务</strong><small>WASD 移动 · 鼠标照明 · E 拾取</small></div>
+          <div class="damage-flash" id="damageFlash"></div>
+          <div class="game-toast" id="gameToast"></div>
+        </div>
+        <div class="game-footer"><span><b class="key">WASD</b> 移动</span><span><b class="key">F</b> 手电筒</span><span><b class="key">E</b> 交互 / 回收</span><span><b class="key">左键 / 空格</b> 开枪</span><span><b class="key">Q</b> 换弹</span><span><b class="key">R</b> 呼叫撤离</span><span class="signal"><i></i> SIGNAL 84%</span></div>
+      </section>
+
+      <aside class="status-panel panel">
+        <div class="panel-title"><span>02</span><div><p class="kicker">SUIT TELEMETRY</p><h2>生存状态</h2></div></div>
+        <div class="gauge-block"><div class="gauge-label"><span>氧气余量</span><strong id="oxygenText">100%</strong></div><div class="gauge"><i id="oxygenBar"></i></div></div>
+        <div class="gauge-block"><div class="gauge-label"><span>生命值</span><strong id="healthText">100%</strong></div><div class="gauge health"><i id="healthBar"></i></div></div>
+        <div class="gauge-block"><div class="gauge-label"><span>体力</span><strong id="staminaText">100%</strong></div><div class="gauge stamina"><i id="staminaBar"></i></div></div>
+        <div class="gauge-block"><div class="gauge-label"><span>噪音等级</span><strong id="noiseText">安静</strong></div><div class="gauge noise"><i id="noiseBar"></i></div></div>
+        <div class="status-list"><div><span>装备</span><strong class="ok">手电筒 / 正常</strong></div><div><span>武器</span><strong id="weaponStatus" class="ok">手枪 / 就绪</strong></div><div><span>弹药</span><strong id="ammoStatus" class="ok">6 / 24</strong></div><div><span>撤离舱</span><strong id="extractStatus">等待呼叫</strong></div><div><span>威胁</span><strong id="threatStatus" class="warning">未知</strong></div></div>
+        <div class="log-box"><p class="kicker">FIELD LOG</p><div id="logText">> 等待操作员确认...</div></div>
+        <div class="legend"><span><i class="legend-dot loot"></i> 可回收物</span><span><i class="legend-dot danger"></i> 未知生命体</span></div>
+      </aside>
+    </section>
+
+    <section class="result-strip panel"><div><p class="kicker">CONTRACT OUTCOME</p><h2 id="resultTitle">今晚的账单还没写完</h2></div><div class="result-metric"><span>预测结算</span><strong id="predictedValue">¥ 0</strong></div><div class="result-metric"><span>航程状态</span><strong id="missionState">未开始</strong></div></section>
+    <footer><span>VOID SHIFT <b>•</b> RECOVERY OPERATIONS DIVISION</span><span>DEMO BUILD 0.7</span></footer>
+  </main>
+  <script src="js/config.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/entities.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/renderer.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
