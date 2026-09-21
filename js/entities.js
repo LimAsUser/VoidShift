@@ -385,45 +385,20 @@ class Monster {
 
     // Chasing state machine
     if (this.alerted && (distance < 300 || noiseLevel > Config.monster.triggerNoiseThreshold)) {
-      // Triggers transient speed burst acceleration at intermediate bounds
-      if (this.burstTimer <= 0 && this.burstCooldown <= 0 && this.slowTimer <= 0 && distance > 105 && distance < 430) {
-        this.burstTimer = Config.monster.burstDuration;
-        this.burstCooldown = Config.monster.burstCooldownDuration;
-        result.burstTriggered = true;
-        if (audioManager.calculateSpatial) {
-          const spatial = audioManager.calculateSpatial(player.x, player.y, player.angle, this.x, this.y, 650);
-          audioManager.playSpatialTone(180, 0.22, 0.22, 'sawtooth', spatial.pan, Math.max(0.4, spatial.distanceGain), spatial.isBehind);
-        } else {
-          audioManager.playTone(180, 0.16, 0.14, 'sawtooth');
-        }
-      }
-
       const angle = Math.atan2(player.y - this.y, player.x - this.x);
       const nextX = this.x + Math.cos(angle) * Config.monster.speed * dt;
       const nextY = this.y + Math.sin(angle) * Config.monster.speed * dt;
       const crossingWall = mapManager.blocked(nextX, this.y, this.radius) || mapManager.blocked(this.x, nextY, this.radius);
 
-      const monsterSpeed = this.stagger > 0 
-        ? 0 
-        : this.burstTimer > 0 
-          ? Config.monster.burstSpeed 
-          : this.slowTimer > 0 
-            ? Config.monster.slowSpeed 
-            : crossingWall 
-              ? Config.monster.wallChokeSpeed 
-              : Config.monster.speed;
+      const monsterSpeed = this.stagger > 0
+        ? 0
+        : crossingWall
+          ? Config.monster.wallChokeSpeed
+          : Config.monster.speed;
 
       this.x += Math.cos(angle) * monsterSpeed * dt;
       this.y += Math.sin(angle) * monsterSpeed * dt;
       this.angle = angle;
-
-      if (this.burstTimer > 0) {
-        this.burstTimer = Math.max(0, this.burstTimer - dt);
-        if (this.burstTimer === 0) {
-          this.slowTimer = Config.monster.burstSlowDuration;
-          result.burstFinished = true;
-        }
-      }
     }
 
     // Patrol roaming when de-aggroed
@@ -567,8 +542,11 @@ class Hunter {
     if (this.burstCooldown > 0) this.burstCooldown -= dt;
     if (this.slowTimer > 0) this.slowTimer -= dt;
 
-    // Detection
-    const canSense = distance < Config.hunter.alertDistance || noiseLevel > Config.hunter.triggerNoiseThreshold;
+    // Detection — LOS blocks visual range; noise travels through walls
+    const toPlayerAngle = Math.atan2(dy, dx);
+    const wallDist = mapManager.rayWallDistance(this.x, this.y, Math.cos(toPlayerAngle), Math.sin(toPlayerAngle), distance + 10);
+    const hasLOS = wallDist >= distance - this.radius;
+    const canSense = (hasLOS && distance < Config.hunter.alertDistance) || noiseLevel > Config.hunter.triggerNoiseThreshold;
 
     if (!this.alerted && canSense) {
       this.alerted = true;
@@ -626,26 +604,26 @@ class Hunter {
         targetY = this.waypoints[0].y;
       }
 
-      // Burst trigger
-      if (this.burstTimer <= 0 && this.burstCooldown <= 0 && distance > 105 && distance < 430) {
-        this.burstTimer = Config.hunter.burstDuration;
-        this.burstCooldown = Config.hunter.burstCooldownDuration;
-        this.slowTimer = 0;
-        result.burstTriggered = true;
-      }
-
       // Speed
-      let speed = Config.hunter.speed;
-      if (this.burstTimer > 0) speed = Config.hunter.burstSpeed;
-      else if (this.slowTimer > 0) speed = Config.hunter.slowSpeed;
+      const speed = this.slowTimer > 0 ? Config.hunter.slowSpeed : Config.hunter.speed;
 
-      // Move toward target using axis-separated sliding (NO wall phasing)
+      // Move toward target; steer around walls by probing ±30°/±60°/±90° when blocked
       const moveAngle = Math.atan2(targetY - this.y, targetX - this.x);
       this.angle = moveAngle;
-      const nx = this.x + Math.cos(moveAngle) * speed * dt;
-      const ny = this.y + Math.sin(moveAngle) * speed * dt;
-      if (!mapManager.blocked(nx, this.y, this.radius)) this.x = nx;
-      if (!mapManager.blocked(this.x, ny, this.radius)) this.y = ny;
+      const step = speed * dt;
+      const steerOffsets = [0, Math.PI / 6, -Math.PI / 6, Math.PI / 3, -Math.PI / 3, Math.PI / 2, -Math.PI / 2];
+      for (const offset of steerOffsets) {
+        const a = moveAngle + offset;
+        const nx = this.x + Math.cos(a) * step;
+        const ny = this.y + Math.sin(a) * step;
+        const canX = !mapManager.blocked(nx, this.y, this.radius);
+        const canY = !mapManager.blocked(this.x, ny, this.radius);
+        if (canX || canY) {
+          if (canX) this.x = nx;
+          if (canY) this.y = ny;
+          break;
+        }
+      }
 
       // Hard clamp to world bounds (prevents spawning outside map)
       const bpad = this.radius + 12;

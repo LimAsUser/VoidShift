@@ -29,6 +29,8 @@ class Game {
       inventory: [],
       inventoryCapacity: 12,
       elapsed: 0,
+      hunterSpawnTimer: (Config.mapScales[Config.currentScale] && Config.mapScales[Config.currentScale].hunterSpawnInterval) || 20,
+      hunterSpawnIndex: 0,
       extractionCalled: false,
       extracted: false,
       activeQte: null,
@@ -71,6 +73,8 @@ class Game {
       loot: 0,
       lootValue: 0,
       elapsed: 0,
+      hunterSpawnTimer: (Config.mapScales[Config.currentScale] && Config.mapScales[Config.currentScale].hunterSpawnInterval) || 20,
+      hunterSpawnIndex: 0,
       extractionCalled: false,
       extracted: false,
       activeQte: null,
@@ -981,11 +985,32 @@ class Game {
         (!this.monster.alerted && (this.player.noise > Config.monster.triggerNoiseThreshold || this.state.loot >= 2))) {
       this.activateMonster(this.player.noise > Config.monster.triggerNoiseThreshold ? '脚步声在走廊里回响。' : '墙后传来沉重的呼吸声。');
     }
-    this.hunters.forEach((h, i) => {
-      if (!h.active && !h.dead && this.state.elapsed > 10 + i * 8) {
-        this.activateHunter(h, `设施深处传来稳定的踏步声。`);
+    // Timer-based hunter spawning: one at a time, not near player
+    if (this.state.hunterSpawnIndex < this.hunters.length) {
+      this.state.hunterSpawnTimer -= dt;
+      if (this.state.hunterSpawnTimer <= 0) {
+        // Find next un-activated hunter that is far from the player
+        let spawned = false;
+        const scaleConf = Config.mapScales[Config.currentScale];
+        const interval = (scaleConf && scaleConf.hunterSpawnInterval) || 30;
+        for (let i = this.state.hunterSpawnIndex; i < this.hunters.length; i++) {
+          const h = this.hunters[i];
+          if (!h.active && !h.dead) {
+            const spawnDist = Math.hypot(h.x - this.player.x, h.y - this.player.y);
+            if (spawnDist > 350 || this.map.monsterSpawns.length === 0) {
+              this.activateHunter(h, `设施深处传来稳定的踏步声。`);
+              this.state.hunterSpawnIndex = i + 1;
+              this.state.hunterSpawnTimer = interval;
+              spawned = true;
+              break;
+            }
+          }
+        }
+        if (!spawned) {
+          this.state.hunterSpawnTimer = 5;
+        }
       }
-    });
+    }
 
     // 6. Drive monster pathfinding & AI updates
     const monsterResult = this.monster.update(dt, this.player, this.player.noise, this.map, this.audio);

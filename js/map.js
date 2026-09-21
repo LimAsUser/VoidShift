@@ -525,15 +525,17 @@ class MapManager {
     this.extractionPoint = { x: airlock.center.x + 35, y: airlock.center.y + 35 };
     this.exitExtractionPoint = { x: exitRoom.center.x, y: exitRoom.center.y };
 
-    // Monster spawns in distant rooms
+    // Monster spawns in distant rooms — use validated interior points (not raw center)
     placedRooms.forEach(room => {
       if (room.type === 'airlock') return;
       if (Vec2.dist(room.center, this.spawnPoint) > 480) {
-        this.monsterSpawns.push({ x: room.center.x, y: room.center.y });
+        const safePoint = this._findSafeRoomPoint(room);
+        this.monsterSpawns.push(safePoint);
       }
     });
     if (this.monsterSpawns.length === 0) {
-      this.monsterSpawns.push({ x: exitRoom.center.x, y: exitRoom.center.y });
+      const safePoint = this._findSafeRoomPoint(exitRoom);
+      this.monsterSpawns.push(safePoint);
     }
 
     // Security Override QTE Terminals
@@ -569,6 +571,45 @@ class MapManager {
   /**
    * Finds a safe wall-mounted or pillar-mounted position strictly inside the room polygon
    */
+  /**
+   * Returns a point guaranteed to be inside the room polygon and not blocked.
+   * Falls back to grid search for L-shape/triangle rooms where center may be outside polygon.
+   */
+  _findSafeRoomPoint(room) {
+    const pad = 22; // radius(15) + buffer
+    const hasPolygon = room.vertices && room.vertices.length >= 3;
+
+    // Try center first
+    if (hasPolygon) {
+      if (pointInPolygon(room.center.x, room.center.y, room.vertices) &&
+          !this.blocked(room.center.x, room.center.y, pad)) {
+        return { x: room.center.x, y: room.center.y };
+      }
+    } else if (!this.blocked(room.center.x, room.center.y, pad)) {
+      return { x: room.center.x, y: room.center.y };
+    }
+
+    // Grid search within polygon AABB
+    const minX = hasPolygon ? Math.min(...room.vertices.map(v => v.x)) : room.x;
+    const maxX = hasPolygon ? Math.max(...room.vertices.map(v => v.x)) : room.x + room.w;
+    const minY = hasPolygon ? Math.min(...room.vertices.map(v => v.y)) : room.y;
+    const maxY = hasPolygon ? Math.max(...room.vertices.map(v => v.y)) : room.y + room.h;
+
+    for (let gx = minX + 40; gx < maxX - 40; gx += 30) {
+      for (let gy = minY + 40; gy < maxY - 40; gy += 30) {
+        if (hasPolygon && !pointInPolygon(gx, gy, room.vertices)) continue;
+        if (this.blocked(gx, gy, pad)) continue;
+        return { x: gx, y: gy };
+      }
+    }
+
+    // Last resort: return center clamped to world bounds
+    return {
+      x: Math.max(pad, Math.min(this.worldW - pad, room.center.x)),
+      y: Math.max(pad, Math.min(this.worldH - pad, room.center.y))
+    };
+  }
+
   findWallMountedTerminalPos(room) {
     if (!room.vertices || room.vertices.length < 3) {
       return { x: room.center.x, y: room.center.y };

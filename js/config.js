@@ -17,9 +17,9 @@ const Config = {
 
   // Facility Scale Presets: Small (12), Medium (18), Large (24)
   mapScales: {
-    small: { id: 'small', label: '小型 (12 舱)', cols: 4, rows: 3, roomCount: 12, quota: 420, terminals: 3, hunters: 3 },
-    medium: { id: 'medium', label: '中型 (18 舱)', cols: 6, rows: 3, roomCount: 18, quota: 780, terminals: 3, hunters: 6 },
-    large: { id: 'large', label: '大型 (24 舱)', cols: 6, rows: 4, roomCount: 24, quota: 1200, terminals: 4, hunters: 10 }
+    small: { id: 'small', label: '小型 (12 舱)', cols: 4, rows: 3, roomCount: 12, quota: 420, terminals: 3, hunters: 3, hunterSpawnInterval: 20 },
+    medium: { id: 'medium', label: '中型 (18 舱)', cols: 6, rows: 3, roomCount: 18, quota: 780, terminals: 3, hunters: 6, hunterSpawnInterval: 15 },
+    large: { id: 'large', label: '大型 (24 舱)', cols: 6, rows: 4, roomCount: 24, quota: 1200, terminals: 4, hunters: 10, hunterSpawnInterval: 10 }
   },
   currentScale: 'small',
 
@@ -61,30 +61,22 @@ const Config = {
     spawnX: 1600,
     spawnY: 1100,
     radius: 15,
-    speed: 145,
-    slowSpeed: 48,
-    wallChokeSpeed: 42,
+    speed: 96,
+    slowSpeed: 32,
+    wallChokeSpeed: 28,
     patrolSpeedScale: 20,
     alertDistance: 380,
     alertDeaggroTimeout: 4,
-    burstSpeed: 330,
-    burstDuration: 0.72,
-    burstCooldownDuration: 5.5,
-    burstSlowDuration: 1.0,
     triggerNoiseThreshold: 48
   },
 
   hunter: {
     radius: 15,
-    speed: 145,
-    slowSpeed: 48,
+    speed: 96,
+    slowSpeed: 32,
     patrolSpeedScale: 20,
     alertDistance: 380,
     alertDeaggroTimeout: 4,
-    burstSpeed: 330,
-    burstDuration: 0.72,
-    burstCooldownDuration: 5.5,
-    burstSlowDuration: 1.0,
     triggerNoiseThreshold: 48,
     maxHp: 3,
     waypointRefresh: 0.5
