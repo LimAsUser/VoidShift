@@ -74,6 +74,22 @@ const Config = {
     triggerNoiseThreshold: 48
   },
 
+  hunter: {
+    radius: 15,
+    speed: 145,
+    slowSpeed: 48,
+    patrolSpeedScale: 20,
+    alertDistance: 380,
+    alertDeaggroTimeout: 4,
+    burstSpeed: 330,
+    burstDuration: 0.72,
+    burstCooldownDuration: 5.5,
+    burstSlowDuration: 1.0,
+    triggerNoiseThreshold: 48,
+    maxHp: 3,
+    waypointRefresh: 0.5
+  },
+
   extraction: {
     x: 140,
     y: 140,
