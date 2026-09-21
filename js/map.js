@@ -521,9 +521,11 @@ class MapManager {
     });
 
     // Spawns
-    this.spawnPoint = { x: airlock.center.x, y: airlock.center.y };
-    this.extractionPoint = { x: airlock.center.x + 35, y: airlock.center.y + 35 };
-    this.exitExtractionPoint = { x: exitRoom.center.x, y: exitRoom.center.y };
+    const airlockSafe = this._findSafeRoomPoint(airlock);
+    const exitSafe = this._findSafeRoomPoint(exitRoom);
+    this.spawnPoint = { x: airlockSafe.x, y: airlockSafe.y };
+    this.extractionPoint = { x: airlockSafe.x + 35, y: airlockSafe.y + 35 };
+    this.exitExtractionPoint = { x: exitSafe.x, y: exitSafe.y };
 
     // Monster spawns in distant rooms — use validated interior points (not raw center)
     placedRooms.forEach(room => {

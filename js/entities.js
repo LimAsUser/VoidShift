@@ -331,7 +331,7 @@ class Monster {
   /**
    * Process monster intelligence and path tracing
    */
-  update(dt, player, noiseLevel, mapManager, audioManager) {
+  update(dt, player, noiseLevel, mapManager, audioManager, others) {
     if (!this.active) return null;
 
     const distance = Math.hypot(this.x - player.x, this.y - player.y);
@@ -408,6 +408,26 @@ class Monster {
       const patrolY = this.y + Math.sin(this.patrolAngle) * Config.monster.patrolSpeedScale * dt;
       if (!mapManager.blocked(patrolX, this.y, this.radius)) this.x = patrolX;
       if (!mapManager.blocked(this.x, patrolY, this.radius)) this.y = patrolY;
+    }
+
+    // Separation from hunters — sideways-only so narrow corridors stay passable
+    if (others) {
+      for (const other of others) {
+        if (other === this || !other.active) continue;
+        const sdx = this.x - other.x;
+        const sdy = this.y - other.y;
+        const sd = Math.hypot(sdx, sdy);
+        const minSep = this.radius + (other.radius || this.radius) + 2;
+        if (sd < minSep && sd > 0.01) {
+          const dot = (sdx / sd) * Math.cos(this.angle) + (sdy / sd) * Math.sin(this.angle);
+          if (Math.abs(dot) > 0.7) continue;
+          const push = (minSep - sd) / sd * 0.3;
+          const px = this.x + sdx * push;
+          const py = this.y + sdy * push;
+          if (!mapManager.blocked(px, this.y, this.radius)) this.x = px;
+          if (!mapManager.blocked(this.x, py, this.radius)) this.y = py;
+        }
+      }
     }
 
     // Contact / Damage trigger
@@ -528,7 +548,7 @@ class Hunter {
     this.waypoints.push({ x: playerX, y: playerY, isDoor: false, door: null });
   }
 
-  update(dt, player, noiseLevel, mapManager, audioManager) {
+  update(dt, player, noiseLevel, mapManager, audioManager, others) {
     if (!this.active || this.dead) return null;
 
     const result = {};
@@ -607,23 +627,25 @@ class Hunter {
       // Speed
       const speed = this.slowTimer > 0 ? Config.hunter.slowSpeed : Config.hunter.speed;
 
-      // Move toward target; steer around walls by probing ±30°/±60°/±90° when blocked
+      // Move toward target — probe 9 angles, pick the one that makes the most progress
       const moveAngle = Math.atan2(targetY - this.y, targetX - this.x);
       this.angle = moveAngle;
       const step = speed * dt;
-      const steerOffsets = [0, Math.PI / 6, -Math.PI / 6, Math.PI / 3, -Math.PI / 3, Math.PI / 2, -Math.PI / 2];
-      for (const offset of steerOffsets) {
+      const probeOffsets = [0, Math.PI/6, -Math.PI/6, Math.PI/3, -Math.PI/3, Math.PI/2, -Math.PI/2, 2*Math.PI/3, -2*Math.PI/3];
+      let bestScore = -Infinity, bestNx = this.x, bestNy = this.y;
+      for (const offset of probeOffsets) {
         const a = moveAngle + offset;
-        const nx = this.x + Math.cos(a) * step;
-        const ny = this.y + Math.sin(a) * step;
-        const canX = !mapManager.blocked(nx, this.y, this.radius);
-        const canY = !mapManager.blocked(this.x, ny, this.radius);
-        if (canX || canY) {
-          if (canX) this.x = nx;
-          if (canY) this.y = ny;
-          break;
-        }
+        const rx = !mapManager.blocked(this.x + Math.cos(a) * step, this.y, this.radius)
+          ? this.x + Math.cos(a) * step : this.x;
+        const ry = !mapManager.blocked(this.x, this.y + Math.sin(a) * step, this.radius)
+          ? this.y + Math.sin(a) * step : this.y;
+        if (rx === this.x && ry === this.y) continue;
+        // Score: prefer directions that reduce distance to target; penalise large steering angles
+        const score = -Math.hypot(targetX - rx, targetY - ry) - Math.abs(offset) * 10;
+        if (score > bestScore) { bestScore = score; bestNx = rx; bestNy = ry; }
       }
+      this.x = bestNx;
+      this.y = bestNy;
 
       // Hard clamp to world bounds (prevents spawning outside map)
       const bpad = this.radius + 12;
@@ -637,7 +659,7 @@ class Hunter {
         this._lastX = this.x; this._lastY = this.y; this._stuckTimer = 0;
       } else {
         this._stuckTimer += dt;
-        if (this._stuckTimer > 2.0) {
+        if (this._stuckTimer > 0.8) {
           this.waypoints = [];
           this.waypointTimer = 0;
           this._stuckTimer = 0;
@@ -662,6 +684,27 @@ class Hunter {
       const patrolY = this.y + Math.sin(this.patrolAngle) * Config.hunter.patrolSpeedScale * dt;
       if (!mapManager.blocked(patrolX, this.y, this.radius)) this.x = patrolX;
       if (!mapManager.blocked(this.x, patrolY, this.radius)) this.y = patrolY;
+    }
+
+    // Separation: only push sideways relative to travel direction so corridor queues flow through
+    if (others) {
+      for (const other of others) {
+        if (other === this || !other.active) continue;
+        const sdx = this.x - other.x;
+        const sdy = this.y - other.y;
+        const sd = Math.hypot(sdx, sdy);
+        const minSep = this.radius + (other.radius || this.radius) + 2;
+        if (sd < minSep && sd > 0.01) {
+          // Dot product along my travel direction — skip if mostly ahead/behind (corridor case)
+          const dot = (sdx / sd) * Math.cos(this.angle) + (sdy / sd) * Math.sin(this.angle);
+          if (Math.abs(dot) > 0.7) continue;
+          const push = (minSep - sd) / sd * 0.3;
+          const px = this.x + sdx * push;
+          const py = this.y + sdy * push;
+          if (!mapManager.blocked(px, this.y, this.radius)) this.x = px;
+          if (!mapManager.blocked(this.x, py, this.radius)) this.y = py;
+        }
+      }
     }
 
     return result;

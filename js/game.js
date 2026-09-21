@@ -1045,7 +1045,8 @@ class Game {
     }
 
     // 6. Drive monster pathfinding & AI updates
-    const monsterResult = this.monster.update(dt, this.player, this.player.noise, this.map, this.audio);
+    const allEntities = [this.monster, ...this.hunters];
+    const monsterResult = this.monster.update(dt, this.player, this.player.noise, this.map, this.audio, allEntities);
     if (monsterResult) {
       if (monsterResult.deaggro) {
         this.ui.threatStatusText.textContent = '脱战';
@@ -1089,7 +1090,7 @@ class Game {
     // 6b. Drive Hunter AI (all active hunters)
     this.hunters.forEach(h => {
       if (!h.active || h.dead) return;
-      const hunterResult = h.update(dt, this.player, this.player.noise, this.map, this.audio);
+      const hunterResult = h.update(dt, this.player, this.player.noise, this.map, this.audio, allEntities);
       if (!hunterResult) return;
       if (hunterResult.playerHit) {
         this.ui.triggerDamageFlash(0.75, 130);

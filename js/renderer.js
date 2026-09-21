@@ -417,19 +417,6 @@ class Renderer {
         ctx.fillRect(7, -3, 4, 3);
         ctx.restore();
 
-        // HP dots above hunter
-        ctx.save();
-        ctx.translate(hunter.x, hunter.y - 42);
-        for (let i = 0; i < hunter.hp; i++) {
-          ctx.fillStyle = '#4ecdc4';
-          ctx.shadowColor = '#4ecdc4';
-          ctx.shadowBlur = 6;
-          ctx.beginPath();
-          ctx.arc(-8 + i * 8, 0, 4, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.shadowBlur = 0;
-        ctx.restore();
       });
     }
 
