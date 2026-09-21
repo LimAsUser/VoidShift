@@ -23,42 +23,47 @@
       <div class="safehouse-panel panel">
         <div class="panel-title"><span>01</span><div><p class="kicker">CONTRACT BRIEFING</p><h2>任务简报与部署</h2></div></div>
         
-        <div class="location-stamp"><span class="stamp-label">LOCATION</span><strong>ARCADIA-9</strong><small>废弃气象观测站</small></div>
-        <div class="objective"><span class="objective-icon">◈</span><div><p>当前目标</p><strong>搜刮废料，重写终端，呼叫撤离舱</strong></div></div>
-        
-        <div class="map-scale-section">
-          <div class="scale-header">
-            <span class="scale-label">FACILITY SCALE</span>
-            <strong id="currentScaleText">小型 (12 舱)</strong>
-          </div>
-          <div class="scale-btn-group">
-            <button class="scale-btn active" id="scaleBtnSmall" onclick="game.setMapScale('small')">小 12舱</button>
-            <button class="scale-btn" id="scaleBtnMedium" onclick="game.setMapScale('medium')">中 18舱</button>
-            <button class="scale-btn" id="scaleBtnLarge" onclick="game.setMapScale('large')">大 24舱</button>
-          </div>
+        <div class="market-panel" style="margin-bottom:20px;">
+          <div class="contract-row"><span>余额</span><strong id="moneyDisplay">¥ 1000</strong></div>
+          <button class="tab-btn" onclick="game.buyAmmo()">购买弹药 (¥50)</button>
         </div>
 
-        <div class="contract-row"><span>本轮报价</span><strong id="quotaValue">¥ 420</strong></div>
-
-        <button id="startButton" class="action-button" style="margin-top:20px;">开始下潜 <b>↘</b></button>
-      </div>
-
-      <!-- Panel 2: Storage & Armory Hub -->
-      <div class="safehouse-panel panel">
-        <div class="panel-title"><span>02</span><div><p class="kicker">SAFEHOUSE HUB</p><h2>仓库与战备备战</h2></div></div>
-        
-        <div class="market-panel" style="margin-bottom:15px; display:flex; justify-content:space-between; align-items:center;">
-          <div class="contract-row" style="border:none; padding:0;"><span>资金余额</span><strong id="moneyDisplay" style="font-size:18px; color:var(--acid);">¥ 1000</strong></div>
-          <button class="action-button" onclick="game.buyAmmo()" style="width:auto; padding:8px 14px; font-size:11px;">购买弹药 (¥50)</button>
+        <div class="safehouse-tabs">
+          <button class="tab-btn active" onclick="switchTab('briefing')">简报</button>
+          <button class="tab-btn" onclick="switchTab('storage')">仓库</button>
         </div>
 
-        <div class="storage-stats" style="margin-top:15px; display:flex; justify-content:space-between;"><span>仓库容量</span><strong id="storageStats">0 / 50</strong></div>
-        <div class="storage-grid" id="storageGrid" style="margin-top:10px;"></div>
-        <button class="action-button" onclick="game.sellStorage()" style="margin-top:15px; font-size:11px;">出售仓库全部物资 <b>↘</b></button>
+        <div id="briefingContent">
+          <div class="map-scale-section">
+            <div class="scale-header">
+              <span class="scale-label">FACILITY SCALE</span>
+              <strong id="currentScaleText">小型 (12 舱)</strong>
+            </div>
+            <div class="scale-btn-group">
+              <button class="scale-btn active" id="scaleBtnSmall" onclick="game.setMapScale('small')">小 12舱</button>
+              <button class="scale-btn" id="scaleBtnMedium" onclick="game.setMapScale('medium')">中 18舱</button>
+              <button class="scale-btn" id="scaleBtnLarge" onclick="game.setMapScale('large')">大 24舱</button>
+            </div>
+          </div>
+          <div class="map-test-section">
+            <button class="test-reveal-btn" id="testRevealBtn" onclick="game.toggleRevealMap()" title="快捷键 M">
+              <span class="test-icon">👁</span>
+              <span id="testRevealText">调试：全图揭示 / 迷雾切换 (M)</span>
+            </button>
+          </div>
+          <div class="location-stamp"><span class="stamp-label">LOCATION</span><strong>ARCADIA-9</strong><small>废弃气象观测站</small></div>
+          <div class="objective"><span class="objective-icon">◈</span><div><p>当前目标</p><strong>收集并撤离废料</strong></div></div>
+          <div class="contract-row"><span>本轮报价</span><strong id="quotaValue">¥ 420</strong></div>
+          <div class="contract-row"><span>已回收价值</span><strong id="lootValue">¥ 0</strong></div>
+          <div class="contract-row"><span>携带物</span><strong id="lootCount">0 / 6</strong></div>
+          <div class="contract-row"><span>安全重写终端</span><strong id="terminalsStatus" style="color:#f5a623;">0 / 3</strong></div>
+        </div>
 
-        <div class="side-note" style="margin-top:20px;"><span>!</span><p>提示：探照灯会暴露你的位置，枪声与撞门脚步的噪音会唤醒暗处的生物。</p></div>
-      </div>
-    </div>
+        <div id="storageContent" style="display:none;">
+          <div class="storage-stats"><span>仓库容量</span><strong id="storageStats">0 / 50</strong></div>
+          <div class="storage-grid" id="storageGrid"></div>
+          <button class="action-button" onclick="game.sellStorage()" style="margin-top: 15px; font-size: 11px;">出售仓库全部物资 <b>↘</b></button>
+        </div>
 
     <section class="game-layout" style="display:none;">
       <aside class="briefing-panel panel" style="display:none;"></aside>

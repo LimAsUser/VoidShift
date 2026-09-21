@@ -17,11 +17,17 @@ const Config = {
 
   // Facility Scale Presets: Small (12), Medium (18), Large (24)
   mapScales: {
-    small: { id: 'small', label: '小型 (12 舱)', cols: 4, rows: 3, roomCount: 12, quota: 420, terminals: 3, hunters: 24, hunterSpawnInterval: 10, hunterRespawnCount: 1 },
-    medium: { id: 'medium', label: '中型 (18 舱)', cols: 6, rows: 3, roomCount: 18, quota: 780, terminals: 3, hunters: 32, hunterSpawnInterval: 10, hunterRespawnCount: 2 },
-    large: { id: 'large', label: '大型 (24 舱)', cols: 6, rows: 4, roomCount: 24, quota: 1200, terminals: 4, hunters: 50, hunterSpawnInterval: 10, hunterRespawnCount: 3 }
+    small: { id: 'small', label: '小型 (12 舱)', cols: 4, rows: 3, roomCount: 12, quota: 420, terminals: 3, hunters: 24, hunterSpawnInterval: 10, hunterRespawnCount: 1, hunterMaxHp: 2 },
+    medium: { id: 'medium', label: '中型 (18 舱)', cols: 6, rows: 3, roomCount: 18, quota: 780, terminals: 3, hunters: 32, hunterSpawnInterval: 10, hunterRespawnCount: 2, hunterMaxHp: 2 },
+    large: { id: 'large', label: '大型 (24 舱)', cols: 6, rows: 4, roomCount: 24, quota: 1200, terminals: 4, hunters: 50, hunterSpawnInterval: 10, hunterRespawnCount: 3, hunterMaxHp: 2 }
   },
   currentScale: 'small',
+
+  difficultyPresets: {
+    easy: { id: 'easy', label: '简单', hunterScale: 0.5, respawnScale: 0.5, intervalScale: 2, hunterMaxHp: 1 },
+    medium: { id: 'medium', label: '中等', hunterScale: 1, respawnScale: 1, intervalScale: 1, hunterMaxHp: 2 },
+    hard: { id: 'hard', label: '困难', hunterScale: 1, respawnScale: 1, intervalScale: 1, hunterMaxHp: 5 }
+  },
 
   // Calculated dynamic world dimensions
   get WORLD_W() {
@@ -48,13 +54,42 @@ const Config = {
     spawnY: 180,
     radius: 10,
     speed: 120,
-    maxAmmo: 1000,
+    maxAmmo: 6,
     maxReserveAmmo: 9000,
     reloadDuration: 1.2,
     shootCooldownDuration: 0.38,
     ammoPrice: 50,
     noiseDecayStill: 12,
     noiseDecayMoving: 7
+  },
+
+  weapons: {
+    pistol: {
+      id: 'pistol',
+      label: '手枪',
+      maxAmmo: 6,
+      shootCooldownDuration: 0.38,
+      reloadDuration: 1.2,
+      hipSpread: 0.38,
+      aimSpread: 0.01,
+      shotNoise: 24,
+      recoilAim: 16,
+      recoilHip: 28,
+      automatic: false
+    },
+    smg: {
+      id: 'smg',
+      label: '冲锋枪',
+      maxAmmo: 30,
+      shootCooldownDuration: 0.1,
+      reloadDuration: 1.8,
+      hipSpread: 0.52,
+      aimSpread: 0.04,
+      shotNoise: 18,
+      recoilAim: 2,
+      recoilHip: 4,
+      automatic: true
+    }
   },
 
   monster: {
@@ -67,7 +102,8 @@ const Config = {
     patrolSpeedScale: 20,
     alertDistance: 380,
     alertDeaggroTimeout: 4,
-    triggerNoiseThreshold: 48
+    triggerNoiseThreshold: 48,
+    waypointRefresh: 0.5
   },
 
   hunter: {

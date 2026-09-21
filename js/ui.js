@@ -82,6 +82,23 @@ class UIManager {
     };
     this.currentScaleText = document.querySelector('#currentScaleText');
     this.quotaDisplay = document.querySelector('#quotaValue');
+    this.hunterSettingInputs = {
+      hunters: document.querySelector('#hunterInitialCount'),
+      hunterSpawnInterval: document.querySelector('#hunterRespawnInterval'),
+      hunterRespawnCount: document.querySelector('#hunterRespawnCount'),
+      hunterMaxHp: document.querySelector('#hunterMaxHp')
+    };
+    this.resetHunterSettingsButton = document.querySelector('#resetHunterSettings');
+    this.difficultyButtons = {
+      easy: document.querySelector('#difficultyEasy'),
+      medium: document.querySelector('#difficultyMedium'),
+      hard: document.querySelector('#difficultyHard')
+    };
+    this.currentDifficultyText = document.querySelector('#currentDifficultyText');
+    this.loadoutButtons = {
+      pistol: document.querySelector('#loadoutPistol'),
+      smg: document.querySelector('#loadoutSmg')
+    };
 
     this.toastTimeout = null;
   }
@@ -105,6 +122,49 @@ class UIManager {
         }
       });
     }
+  }
+
+  updateHunterSettings(settings, disabled = false) {
+    Object.entries(this.hunterSettingInputs).forEach(([key, input]) => {
+      if (!input) return;
+      input.value = settings[key];
+      input.disabled = disabled;
+    });
+    if (this.resetHunterSettingsButton) {
+      this.resetHunterSettingsButton.disabled = disabled;
+    }
+  }
+
+  updateDifficultyPreset(selectedDifficulty, disabled = false) {
+    Object.entries(this.difficultyButtons).forEach(([difficultyId, button]) => {
+      if (!button) return;
+      button.classList.toggle('active', difficultyId === selectedDifficulty);
+      button.disabled = disabled;
+    });
+    if (this.currentDifficultyText) {
+      const preset = Config.difficultyPresets[selectedDifficulty];
+      this.currentDifficultyText.textContent = preset ? preset.label : '自定义';
+    }
+  }
+
+  updateLoadout(selectedWeapon, disabled = false) {
+    Object.entries(this.loadoutButtons).forEach(([weaponId, button]) => {
+      if (!button) return;
+      button.classList.toggle('active', weaponId === selectedWeapon);
+      button.disabled = disabled;
+    });
+  }
+
+  updateWeaponReadout(player) {
+    const reloading = player.reloading > 0;
+    this.ammoStatusText.textContent = reloading ? '换弹中' : `${player.ammo} / ${player.reserveAmmo}`;
+    this.hudAmmo.textContent = `AMMO: ${reloading ? 'RELOADING' : `${player.ammo} / ${player.reserveAmmo}`}`;
+    this.weaponStatusText.textContent = reloading
+      ? `${player.weapon.label} / 换弹中`
+      : player.shootCooldown > 0
+        ? `${player.weapon.label} / 冷却 ${player.shootCooldown.toFixed(1)}s`
+        : `${player.weapon.label} / 就绪`;
+    this.weaponStatusText.className = player.shootCooldown > 0 || reloading ? 'warning' : 'ok';
   }
 
   /**
@@ -454,14 +514,6 @@ class UIManager {
     this.threatStatusText.textContent = monster.alerted ? '已锁定' : monster.active ? '脱战' : '未知';
     this.threatStatusText.className = monster.alerted ? 'warning' : 'ok';
 
-    this.ammoStatusText.textContent = gameState.reloading > 0 ? '换弹中' : `${player.ammo} / ${player.reserveAmmo}`;
-    this.hudAmmo.textContent = `AMMO: ${gameState.reloading > 0 ? 'RELOADING' : `${player.ammo} / ${player.reserveAmmo}`}`;
-    
-    this.weaponStatusText.textContent = gameState.reloading > 0 
-      ? '换弹中' 
-      : player.shootCooldown > 0 
-        ? `冷却 ${player.shootCooldown.toFixed(1)}s` 
-        : '手枪 / 就绪';
-    this.weaponStatusText.className = player.shootCooldown > 0 || gameState.reloading > 0 ? 'warning' : 'ok';
+    this.updateWeaponReadout(player);
   }
 }
