@@ -450,3 +450,211 @@ class Monster {
     return result;
   }
 }
+
+class Hunter {
+  constructor() {
+    this.reset();
+  }
+
+  reset(mapManager) {
+    if (mapManager && mapManager.monsterSpawns && mapManager.monsterSpawns.length > 1) {
+      const sp = mapManager.monsterSpawns[1];
+      this.x = sp.x; this.y = sp.y;
+    } else if (mapManager && mapManager.monsterSpawns && mapManager.monsterSpawns.length > 0) {
+      const sp = mapManager.monsterSpawns[0];
+      this.x = sp.x; this.y = sp.y;
+    } else {
+      this.x = 800; this.y = 800;
+    }
+    this.radius = Config.hunter.radius;
+    this.active = false;
+    this.alerted = false;
+    this.dead = false;
+    this.hp = Config.hunter.maxHp;
+    this.angle = 0;
+    this.lostTime = 0;
+    this.patrolAngle = 0;
+    this.burstTimer = 0;
+    this.burstCooldown = 0;
+    this.slowTimer = 0;
+    this.stagger = 0;
+    // Pathfinding state
+    this.waypoints = [];
+    this.waypointTimer = 0;
+  }
+
+  getFarSpawnPoint(playerX, playerY, mapManager) {
+    if (!mapManager.monsterSpawns || !mapManager.monsterSpawns.length) return null;
+    const playerRoom = mapManager.getRoomAt(playerX, playerY);
+    let candidates = mapManager.monsterSpawns.filter(sp => {
+      const spRoom = mapManager.getRoomAt(sp.x, sp.y);
+      return spRoom !== playerRoom;
+    });
+    if (!candidates.length) candidates = mapManager.monsterSpawns;
+    const dx = (sp) => sp.x - playerX;
+    const dy = (sp) => sp.y - playerY;
+    const far = candidates.filter(sp => Math.sqrt(dx(sp)**2 + dy(sp)**2) > 380);
+    const pool = far.length ? far : candidates;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  activate(playerX, playerY, reason, audioManager, mapManager, playerAngle) {
+    if (this.active || this.dead) return null;
+    const sp = this.getFarSpawnPoint(playerX, playerY, mapManager);
+    if (sp) { this.x = sp.x; this.y = sp.y; }
+    this.active = true;
+    this.alerted = false;
+    this.burstCooldown = 1.8;
+    this.waypoints = [];
+    this.waypointTimer = 0;
+    if (audioManager) {
+      const toHunterAngle = Math.atan2(this.y - playerY, this.x - playerX);
+      const pan = Math.sin(toHunterAngle - playerAngle);
+      audioManager.playSpatialTone(78, 0.18, 0.9, 'sawtooth', pan, 0.8, false);
+    }
+    return { activated: true };
+  }
+
+  registerHit() {
+    if (this.dead || !this.active) return { hit: false };
+    this.hp--;
+    this.stagger = 0.25;
+    this.burstTimer = 0;
+    if (this.hp <= 0) {
+      this.dead = true;
+      this.active = false;
+      return { hit: true, dead: true };
+    }
+    return { hit: true, dead: false, hpLeft: this.hp };
+  }
+
+  _buildWaypoints(mapManager, playerX, playerY) {
+    const hunterRoom = mapManager.getRoomAt(this.x, this.y);
+    const playerRoom = mapManager.getRoomAt(playerX, playerY);
+    if (!hunterRoom || !playerRoom) {
+      // Fallback: just go directly toward player
+      this.waypoints = [{ x: playerX, y: playerY, isDoor: false, door: null }];
+      return;
+    }
+    const path = bfsRoomPath(hunterRoom, playerRoom);
+    this.waypoints = [];
+    for (const step of path) {
+      const door = step.door;
+      const mx = door.p1 ? (door.p1.x + door.p2.x) / 2 : (door.x + door.w / 2);
+      const my = door.p1 ? (door.p1.y + door.p2.y) / 2 : (door.y + door.h / 2);
+      this.waypoints.push({ x: mx, y: my, isDoor: true, door });
+      this.waypoints.push({ x: step.room.center.x, y: step.room.center.y, isDoor: false, door: null });
+    }
+    // Final target: player position
+    this.waypoints.push({ x: playerX, y: playerY, isDoor: false, door: null });
+  }
+
+  update(dt, player, noiseLevel, mapManager, audioManager) {
+    if (!this.active || this.dead) return null;
+
+    const result = {};
+    const dx = player.x - this.x;
+    const dy = player.y - this.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // Timers
+    if (this.stagger > 0) this.stagger -= dt;
+    if (this.burstTimer > 0) this.burstTimer -= dt;
+    if (this.burstCooldown > 0) this.burstCooldown -= dt;
+    if (this.slowTimer > 0) this.slowTimer -= dt;
+
+    // Detection
+    const canSense = distance < Config.hunter.alertDistance || noiseLevel > Config.hunter.triggerNoiseThreshold;
+
+    if (!this.alerted && canSense) {
+      this.alerted = true;
+      this.lostTime = 0;
+    }
+
+    if (this.alerted) {
+      if (canSense) {
+        this.lostTime = 0;
+      } else {
+        this.lostTime += dt;
+        if (this.lostTime > Config.hunter.alertDeaggroTimeout) {
+          this.alerted = false;
+          this.lostTime = 0;
+          this.waypoints = [];
+          result.deaggro = true;
+        }
+      }
+    }
+
+    if (this.alerted && this.stagger <= 0) {
+      // Repath timer
+      this.waypointTimer -= dt;
+      if (this.waypointTimer <= 0 || this.waypoints.length === 0) {
+        this.waypointTimer = Config.hunter.waypointRefresh;
+        this._buildWaypoints(mapManager, player.x, player.y);
+      }
+
+      // Advance past waypoints we've reached
+      while (this.waypoints.length > 0) {
+        const wp = this.waypoints[0];
+        const wpDist = Math.sqrt((wp.x - this.x) ** 2 + (wp.y - this.y) ** 2);
+        if (wpDist < 20) {
+          // Auto-open closed door
+          if (wp.isDoor && wp.door && !wp.door.open) {
+            mapManager.toggleDoor(wp.door, this.x, this.y);
+          }
+          this.waypoints.shift();
+        } else {
+          break;
+        }
+      }
+
+      // Get move target
+      let targetX = player.x;
+      let targetY = player.y;
+      if (this.waypoints.length > 0) {
+        targetX = this.waypoints[0].x;
+        targetY = this.waypoints[0].y;
+      }
+
+      // Burst trigger
+      if (this.burstTimer <= 0 && this.burstCooldown <= 0 && distance > 105 && distance < 430) {
+        this.burstTimer = Config.hunter.burstDuration;
+        this.burstCooldown = Config.hunter.burstCooldownDuration;
+        this.slowTimer = 0;
+        result.burstTriggered = true;
+      }
+
+      // Speed
+      let speed = Config.hunter.speed;
+      if (this.burstTimer > 0) speed = Config.hunter.burstSpeed;
+      else if (this.slowTimer > 0) speed = Config.hunter.slowSpeed;
+
+      // Move toward target using axis-separated sliding (NO wall phasing)
+      const moveAngle = Math.atan2(targetY - this.y, targetX - this.x);
+      this.angle = moveAngle;
+      const nx = this.x + Math.cos(moveAngle) * speed * dt;
+      const ny = this.y + Math.sin(moveAngle) * speed * dt;
+      if (!mapManager.blocked(nx, this.y, this.radius)) this.x = nx;
+      if (!mapManager.blocked(this.x, ny, this.radius)) this.y = ny;
+
+      // Contact damage
+      if (distance < 28) {
+        result.playerHit = true;
+        const sp = this.getFarSpawnPoint(player.x, player.y, mapManager);
+        if (sp) { this.x = sp.x; this.y = sp.y; }
+        this.waypoints = [];
+        this.waypointTimer = 0;
+      }
+
+    } else if (!this.alerted && this.stagger <= 0) {
+      // Patrol: spiral pattern with wall sliding
+      this.patrolAngle += dt * 0.35;
+      const patrolX = this.x + Math.cos(this.patrolAngle) * Config.hunter.patrolSpeedScale * dt;
+      const patrolY = this.y + Math.sin(this.patrolAngle) * Config.hunter.patrolSpeedScale * dt;
+      if (!mapManager.blocked(patrolX, this.y, this.radius)) this.x = patrolX;
+      if (!mapManager.blocked(this.x, patrolY, this.radius)) this.y = patrolY;
+    }
+
+    return result;
+  }
+}
