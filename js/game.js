@@ -29,8 +29,8 @@ class Game {
       inventory: [],
       inventoryCapacity: 12,
       elapsed: 0,
-      hunterSpawnTimer: (Config.mapScales[Config.currentScale] && Config.mapScales[Config.currentScale].hunterSpawnInterval) || 20,
-      hunterSpawnIndex: 0,
+      hunterSpawnTimer: (Config.mapScales[Config.currentScale] && Config.mapScales[Config.currentScale].hunterSpawnInterval) || 30,
+      huntersInitialized: false,
       extractionCalled: false,
       extracted: false,
       activeQte: null,
@@ -73,8 +73,8 @@ class Game {
       loot: 0,
       lootValue: 0,
       elapsed: 0,
-      hunterSpawnTimer: (Config.mapScales[Config.currentScale] && Config.mapScales[Config.currentScale].hunterSpawnInterval) || 20,
-      hunterSpawnIndex: 0,
+      hunterSpawnTimer: (Config.mapScales[Config.currentScale] && Config.mapScales[Config.currentScale].hunterSpawnInterval) || 30,
+      huntersInitialized: false,
       extractionCalled: false,
       extracted: false,
       activeQte: null,
@@ -1017,30 +1017,36 @@ class Game {
         (!this.monster.alerted && (this.player.noise > Config.monster.triggerNoiseThreshold || this.state.loot >= 2))) {
       this.activateMonster(this.player.noise > Config.monster.triggerNoiseThreshold ? '脚步声在走廊里回响。' : '墙后传来沉重的呼吸声。');
     }
-    // Timer-based hunter spawning: one at a time, not near player
-    if (this.state.hunterSpawnIndex < this.hunters.length) {
-      this.state.hunterSpawnTimer -= dt;
-      if (this.state.hunterSpawnTimer <= 0) {
-        // Find next un-activated hunter that is far from the player
-        let spawned = false;
-        const scaleConf = Config.mapScales[Config.currentScale];
-        const interval = (scaleConf && scaleConf.hunterSpawnInterval) || 30;
-        for (let i = this.state.hunterSpawnIndex; i < this.hunters.length; i++) {
-          const h = this.hunters[i];
-          if (!h.active && !h.dead) {
-            const spawnDist = Math.hypot(h.x - this.player.x, h.y - this.player.y);
-            if (spawnDist > 350 || this.map.monsterSpawns.length === 0) {
-              this.activateHunter(h, `设施深处传来稳定的踏步声。`);
-              this.state.hunterSpawnIndex = i + 1;
-              this.state.hunterSpawnTimer = interval;
-              spawned = true;
-              break;
-            }
+    // Activate ALL hunters immediately at game start (after 3s, not near player)
+    if (this.state.elapsed > 3 && !this.state.huntersInitialized) {
+      this.hunters.forEach(h => {
+        if (!h.active && !h.dead) {
+          const dist = Math.hypot(h.x - this.player.x, h.y - this.player.y);
+          if (dist > 300 || this.map.monsterSpawns.length === 0) {
+            this.activateHunter(h, '设施深处传来稳定的踏步声。');
           }
         }
-        if (!spawned) {
-          this.state.hunterSpawnTimer = 5;
+      });
+      this.state.huntersInitialized = true;
+    }
+
+    // Respawn timer: revive killed hunters every interval
+    const scaleConf = Config.mapScales[Config.currentScale];
+    const respawnInterval = (scaleConf && scaleConf.hunterSpawnInterval) || 30;
+    if (this.state.huntersInitialized) {
+      this.state.hunterSpawnTimer -= dt;
+      if (this.state.hunterSpawnTimer <= 0) {
+        const dead = this.hunters.filter(h => h.dead);
+        if (dead.length > 0) {
+          const h = dead[Math.floor(Math.random() * dead.length)];
+          const sp = h.getFarSpawnPoint(this.player.x, this.player.y, this.map);
+          if (sp) { h.x = sp.x; h.y = sp.y; }
+          h.dead = false;
+          h.hp = Config.hunter.maxHp;
+          h.active = false;
+          this.activateHunter(h, '设施深处传来稳定的踏步声。');
         }
+        this.state.hunterSpawnTimer = respawnInterval;
       }
     }
 
