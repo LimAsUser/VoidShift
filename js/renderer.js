@@ -78,9 +78,9 @@ class Renderer {
   }
 
   /**
-   * Draws base game world (walls, player, items, monster)
+   * Draws base game world (walls, player, items, monster, hunter)
    */
-  draw(player, monster, mapManager, gameState) {
+  draw(player, monster, mapManager, gameState, hunter) {
     const ctx = this.ui.ctx;
     const w = this.ui.canvas.clientWidth;
     const h = this.ui.canvas.clientHeight;
@@ -389,6 +389,45 @@ class Renderer {
         ctx.fillText(`⚡休眠瘫痪 ${monster.recoverTimer.toFixed(1)}s⚡`, 0, -42);
         ctx.restore();
       }
+    }
+
+    // Hunter entity (teal, wall-following pathfinder)
+    if (hunter && hunter.active && !hunter.dead) {
+      ctx.save();
+      ctx.translate(hunter.x, hunter.y);
+      ctx.rotate(hunter.angle);
+      // Teal aura
+      ctx.fillStyle = 'rgba(78,205,196,.18)';
+      ctx.beginPath();
+      ctx.arc(0, 0, 31, 0, Math.PI * 2);
+      ctx.fill();
+      // Arrow body (teal)
+      ctx.fillStyle = '#2db8b0';
+      ctx.beginPath();
+      ctx.moveTo(17, 0);
+      ctx.lineTo(-12, -11);
+      ctx.lineTo(-8, 0);
+      ctx.lineTo(-12, 11);
+      ctx.closePath();
+      ctx.fill();
+      // Eye
+      ctx.fillStyle = '#a0f0eb';
+      ctx.fillRect(7, -3, 4, 3);
+      ctx.restore();
+
+      // HP dots above hunter
+      ctx.save();
+      ctx.translate(hunter.x, hunter.y - 42);
+      for (let i = 0; i < hunter.hp; i++) {
+        ctx.fillStyle = '#4ecdc4';
+        ctx.shadowColor = '#4ecdc4';
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.arc(-8 + i * 8, 0, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+      ctx.restore();
     }
 
     // Player entity
