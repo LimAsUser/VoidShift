@@ -54,8 +54,28 @@ class Game {
    */
   init() {
     this.handleResize();
+    this._loadSave();
     this.reset();
     this.attachEventListeners();
+  }
+
+  _loadSave() {
+    try {
+      const raw = localStorage.getItem('voidshift_save');
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data.money != null) this.state.money = data.money;
+      if (Array.isArray(data.storageItems)) this.state.storageItems = data.storageItems;
+    } catch (e) { /* ignore corrupt save */ }
+  }
+
+  _save() {
+    try {
+      localStorage.setItem('voidshift_save', JSON.stringify({
+        money: this.state.money,
+        storageItems: this.state.storageItems
+      }));
+    } catch (e) { /* ignore quota errors */ }
   }
 
   /**
@@ -272,6 +292,7 @@ class Game {
       this.state.storageItems.push(...this.state.inventory);
       this.state.inventory = [];
       this.updateStorageUI();
+      this._save();
     }
 
     this.ui.updateFinishState(success);
@@ -653,6 +674,7 @@ class Game {
     this.ui.showToast(`成功出售仓库所有物资，获得 ¥ ${totalValue}`);
     this.updateStorageUI();
     this.updateMoneyUI();
+    this._save();
   }
 
   updateMoneyUI() {
@@ -1032,13 +1054,16 @@ class Game {
 
     // Respawn timer: revive killed hunters every interval
     const scaleConf = Config.mapScales[Config.currentScale];
-    const respawnInterval = (scaleConf && scaleConf.hunterSpawnInterval) || 30;
+    const respawnInterval = (scaleConf && scaleConf.hunterSpawnInterval) || 10;
+    const respawnCount = (scaleConf && scaleConf.hunterRespawnCount) || 1;
     if (this.state.huntersInitialized) {
       this.state.hunterSpawnTimer -= dt;
       if (this.state.hunterSpawnTimer <= 0) {
         const dead = this.hunters.filter(h => h.dead);
-        if (dead.length > 0) {
+        const toRevive = Math.min(respawnCount, dead.length);
+        for (let i = 0; i < toRevive; i++) {
           const h = dead[Math.floor(Math.random() * dead.length)];
+          dead.splice(dead.indexOf(h), 1);
           const sp = h.getFarSpawnPoint(this.player.x, this.player.y, this.map);
           if (sp) { h.x = sp.x; h.y = sp.y; }
           h.dead = false;
@@ -1227,12 +1252,17 @@ class Game {
     let isLeftDown = false;
     let isRightDown = false;
 
-    const fireIfAllowed = () => {
+    const gameCanvas = document.getElementById('gameCanvas');
+    const visionCanvas = document.getElementById('visionCanvas');
+
+    const fireIfAllowed = (target) => {
       const now = performance.now();
       if (now - lastM1FireTime < 60) return; // Debounce multi-event triggers
       lastM1FireTime = now;
 
       if (!this.state.running) {
+        // Only start when clicking the actual game canvas, not UI panels
+        if (target && target !== gameCanvas && target !== visionCanvas) return;
         this.start();
         return;
       }
@@ -1249,7 +1279,7 @@ class Game {
 
         // Detect Left Click button press edge (transition from false to true)
         if (leftNow && !isLeftDown) {
-          fireIfAllowed();
+          fireIfAllowed(e.target);
         }
         isLeftDown = leftNow;
 
@@ -1278,7 +1308,7 @@ class Game {
       if (e.button === 0) {
         e.preventDefault();
         isLeftDown = true;
-        fireIfAllowed();
+        fireIfAllowed(e.target);
       } else if (e.button === 2) {
         e.preventDefault();
         isRightDown = true;
@@ -1302,7 +1332,7 @@ class Game {
       }
       if (e.button === 0) {
         isLeftDown = true;
-        fireIfAllowed();
+        fireIfAllowed(e.target);
       } else if (e.button === 2) {
         isRightDown = true;
         this.setStableAim(true);
