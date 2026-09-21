@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=4" />
 </head>
 <body>
   <main class="app-shell">
@@ -60,13 +60,7 @@
         <div id="storageContent" style="display:none;">
           <div class="storage-stats"><span>仓库容量</span><strong id="storageStats">0 / 50</strong></div>
           <div class="storage-grid" id="storageGrid"></div>
-        </div>
-
-        <!-- Inventory Overlay (Press B) -->
-        <div id="inventoryOverlay" class="panel" style="display:none; position:absolute; inset:20px; z-index:10; padding:20px;">
-          <div class="panel-title"><h2>背包 (B 键关闭)</h2></div>
-          <div class="storage-grid" id="inventoryGrid"></div>
-          <button class="action-button" onclick="game.sellInventory()">出售全部物资</button>
+          <button class="action-button" onclick="game.sellStorage()" style="margin-top: 15px; font-size: 11px;">出售仓库全部物资 <b>↘</b></button>
         </div>
 
         <div class="side-note"><span>!</span><p>灯光会暴露你的位置。噪音会吸引附近的东西。</p></div>
@@ -76,6 +70,16 @@
       <section class="game-panel panel">
         <div class="game-header"><div><p class="kicker">LIVE FEED / CAM 01</p><h2 id="missionTitle">等待下潜</h2></div><div class="coordinates"><span id="clock">00:00</span><small>LOCAL TIME</small></div></div>
         <div class="game-frame" id="gameFrame">
+          
+          <!-- 干净、优雅的背包 (B键切换) -->
+          <div id="inventoryOverlay" class="panel" style="display:none; position:absolute; top:50%; right:50px; transform:translateY(-50%); z-index:100; width:300px; padding:20px; background:rgba(19,23,23,0.95); border:1px solid var(--acid);">
+            <div class="inventory-header" style="display:flex; justify-content:space-between; align-items:center;">
+              <h2 style="margin:0; font-size:18px; color:var(--acid);">背包 (B 键关闭)</h2>
+              <button class="action-button" onclick="game.sortInventory()" style="padding:4px 8px; font-size:11px; width:auto;">排序</button>
+            </div>
+            <div class="storage-grid" id="inventoryGrid" style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:15px;"></div>
+            <div id="itemDesc" class="item-desc" style="margin-top:15px; padding:10px; background:var(--bg); border:1px solid var(--line); font-size:11px; color:var(--muted); min-height:45px;">选择道具以查看描述...</div>
+          </div>
           <canvas id="gameCanvas" aria-label="废墟探索游戏区域"></canvas>
           <canvas id="visionCanvas" aria-hidden="true"></canvas>
           <!-- 4x4 Mini Radar Container -->
@@ -208,6 +212,7 @@
   <script src="js/entities.js"></script>
   <script src="js/map.js"></script>
   <script src="js/renderer.js"></script>
-  <script src="js/game.js"></script>
+  <script src="js/game.js?v=4"></script>
 </body>
 </html>
+

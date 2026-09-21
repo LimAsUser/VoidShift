@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VOID SHIFT // ??????</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app-shell" id="safehouseView">
+    <section class="game-layout">
+        <aside class="briefing-panel panel">
+            <h1>????</h1>
+            <button id="startButton" class="action-button">????</button>
+            <div id="storageGrid" class="storage-grid"></div>
+        </aside>
+    </section>
+  </main>
+  
+  <div id="gameView" class="view-layer" style="display:none;">
+    <div class="game-panel-fullscreen" id="gameFrame">
+        <canvas id="gameCanvas"></canvas>
+        <div id="inventoryOverlay" class="inventory-modal" style="display:none;">
+            <h2>??</h2>
+            <div id="inventoryGrid" class="storage-grid"></div>
+            <div id="itemDesc">????</div>
+        </div>
+    </div>
+  </div>
+  <script src="js/config.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
