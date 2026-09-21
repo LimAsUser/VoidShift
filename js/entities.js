@@ -452,16 +452,17 @@ class Monster {
 }
 
 class Hunter {
-  constructor() {
+  constructor(spawnIndex = 0) {
+    this.spawnIndex = spawnIndex;
     this.reset();
   }
 
   reset(mapManager) {
-    if (mapManager && mapManager.monsterSpawns && mapManager.monsterSpawns.length > 1) {
-      const sp = mapManager.monsterSpawns[1];
+    if (mapManager && mapManager.monsterSpawns && mapManager.monsterSpawns.length > this.spawnIndex) {
+      const sp = mapManager.monsterSpawns[this.spawnIndex];
       this.x = sp.x; this.y = sp.y;
     } else if (mapManager && mapManager.monsterSpawns && mapManager.monsterSpawns.length > 0) {
-      const sp = mapManager.monsterSpawns[0];
+      const sp = mapManager.monsterSpawns[Math.floor(Math.random() * mapManager.monsterSpawns.length)];
       this.x = sp.x; this.y = sp.y;
     } else {
       this.x = 800; this.y = 800;
@@ -481,6 +482,10 @@ class Hunter {
     // Pathfinding state
     this.waypoints = [];
     this.waypointTimer = 0;
+    // Stuck detection
+    this._stuckTimer = 0;
+    this._lastX = null;
+    this._lastY = null;
   }
 
   getFarSpawnPoint(playerX, playerY, mapManager) {
@@ -532,7 +537,6 @@ class Hunter {
     const hunterRoom = mapManager.getRoomAt(this.x, this.y);
     const playerRoom = mapManager.getRoomAt(playerX, playerY);
     if (!hunterRoom || !playerRoom) {
-      // Fallback: just go directly toward player
       this.waypoints = [{ x: playerX, y: playerY, isDoor: false, door: null }];
       return;
     }
@@ -542,8 +546,8 @@ class Hunter {
       const door = step.door;
       const mx = door.p1 ? (door.p1.x + door.p2.x) / 2 : (door.x + door.w / 2);
       const my = door.p1 ? (door.p1.y + door.p2.y) / 2 : (door.y + door.h / 2);
+      // Only door midpoints — skip room centers (l_shape/triangle centers can be inside walls)
       this.waypoints.push({ x: mx, y: my, isDoor: true, door });
-      this.waypoints.push({ x: step.room.center.x, y: step.room.center.y, isDoor: false, door: null });
     }
     // Final target: player position
     this.waypoints.push({ x: playerX, y: playerY, isDoor: false, door: null });
@@ -593,15 +597,21 @@ class Hunter {
         this._buildWaypoints(mapManager, player.x, player.y);
       }
 
-      // Advance past waypoints we've reached
+      // Pre-open closed doors before physically reaching them
+      // blocked() stops movement at ~23px from a closed door segment, so open at 50px
+      if (this.waypoints.length > 0) {
+        const wp0 = this.waypoints[0];
+        if (wp0.isDoor && wp0.door && !wp0.door.open) {
+          const d0 = Math.sqrt((wp0.x - this.x) ** 2 + (wp0.y - this.y) ** 2);
+          if (d0 < 50) mapManager.toggleDoor(wp0.door, this.x, this.y);
+        }
+      }
+
+      // Advance past waypoints we've reached (30px threshold)
       while (this.waypoints.length > 0) {
         const wp = this.waypoints[0];
         const wpDist = Math.sqrt((wp.x - this.x) ** 2 + (wp.y - this.y) ** 2);
-        if (wpDist < 20) {
-          // Auto-open closed door
-          if (wp.isDoor && wp.door && !wp.door.open) {
-            mapManager.toggleDoor(wp.door, this.x, this.y);
-          }
+        if (wpDist < 30) {
           this.waypoints.shift();
         } else {
           break;
@@ -637,6 +647,26 @@ class Hunter {
       if (!mapManager.blocked(nx, this.y, this.radius)) this.x = nx;
       if (!mapManager.blocked(this.x, ny, this.radius)) this.y = ny;
 
+      // Hard clamp to world bounds (prevents spawning outside map)
+      const bpad = this.radius + 12;
+      this.x = Math.max(bpad, Math.min(Config.WORLD_W - bpad, this.x));
+      this.y = Math.max(bpad, Math.min(Config.WORLD_H - bpad, this.y));
+
+      // Stuck detection: if barely moved in 2s, force repath
+      if (this._lastX === null) { this._lastX = this.x; this._lastY = this.y; }
+      const moved = Math.hypot(this.x - this._lastX, this.y - this._lastY);
+      if (moved > 8) {
+        this._lastX = this.x; this._lastY = this.y; this._stuckTimer = 0;
+      } else {
+        this._stuckTimer += dt;
+        if (this._stuckTimer > 2.0) {
+          this.waypoints = [];
+          this.waypointTimer = 0;
+          this._stuckTimer = 0;
+          this._lastX = null;
+        }
+      }
+
       // Contact damage
       if (distance < 28) {
         result.playerHit = true;
@@ -644,6 +674,7 @@ class Hunter {
         if (sp) { this.x = sp.x; this.y = sp.y; }
         this.waypoints = [];
         this.waypointTimer = 0;
+        this._lastX = null;
       }
 
     } else if (!this.alerted && this.stagger <= 0) {

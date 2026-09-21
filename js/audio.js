@@ -315,19 +315,19 @@ class AudioManager {
   /**
    * Updates proximity rumble, heartbeat audio cues, and directional panning
    */
-  update(player, monster, mapManager, hunter) {
-    // Pick the nearest active threat to drive proximity audio
-    const hunterActive = hunter && hunter.active && !hunter.dead;
+  update(player, monster, mapManager, hunters) {
+    // Pick the nearest active threat (ghost or any hunter) to drive proximity audio
+    const activeHunters = (hunters && Array.isArray(hunters))
+      ? hunters.filter(h => h.active && !h.dead)
+      : [];
     let activeThreat = null;
-    if (monster.active && hunterActive) {
-      const mDist = Math.hypot(monster.x - player.x, monster.y - player.y);
-      const hDist = Math.hypot(hunter.x - player.x, hunter.y - player.y);
-      activeThreat = mDist <= hDist ? monster : hunter;
-    } else if (monster.active) {
-      activeThreat = monster;
-    } else if (hunterActive) {
-      activeThreat = hunter;
-    }
+    const candidates = monster.active ? [monster, ...activeHunters] : activeHunters;
+    candidates.forEach(c => {
+      const d = Math.hypot(c.x - player.x, c.y - player.y);
+      if (!activeThreat || d < Math.hypot(activeThreat.x - player.x, activeThreat.y - player.y)) {
+        activeThreat = c;
+      }
+    });
 
     if (!this.context || !activeThreat) {
       if (this.proximityGain) {

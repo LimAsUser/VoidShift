@@ -17,9 +17,9 @@ const Config = {
 
   // Facility Scale Presets: Small (12), Medium (18), Large (24)
   mapScales: {
-    small: { id: 'small', label: '小型 (12 舱)', cols: 4, rows: 3, roomCount: 12, quota: 420, terminals: 3 },
-    medium: { id: 'medium', label: '中型 (18 舱)', cols: 6, rows: 3, roomCount: 18, quota: 780, terminals: 3 },
-    large: { id: 'large', label: '大型 (24 舱)', cols: 6, rows: 4, roomCount: 24, quota: 1200, terminals: 4 }
+    small: { id: 'small', label: '小型 (12 舱)', cols: 4, rows: 3, roomCount: 12, quota: 420, terminals: 3, hunters: 3 },
+    medium: { id: 'medium', label: '中型 (18 舱)', cols: 6, rows: 3, roomCount: 18, quota: 780, terminals: 3, hunters: 6 },
+    large: { id: 'large', label: '大型 (24 舱)', cols: 6, rows: 4, roomCount: 24, quota: 1200, terminals: 4, hunters: 10 }
   },
   currentScale: 'small',
 
