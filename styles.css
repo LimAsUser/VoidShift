@@ -452,3 +452,133 @@
   color: var(--acid);
   font-size: 10px;
 }
+
+/* ==========================================================================
+   VOID SHIFT STATE LAYOUT AND DIVE MODE REFACTOR
+   ========================================================================== */
+
+/* 1. STATE: SAFEhouse / MAIN MENU MODE (body:not(.in-dive)) */
+body:not(.in-dive) .game-panel {
+  display: none !important;
+}
+
+body:not(.in-dive) .status-panel {
+  display: none !important;
+}
+
+body:not(.in-dive) .topbar {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 24px;
+}
+
+body:not(.in-dive) .game-layout {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  min-height: 75vh !important;
+  padding: 20px !important;
+  margin: 0 auto !important;
+  max-width: 900px !important;
+}
+
+body:not(.in-dive) .briefing-panel {
+  flex: 1 !important;
+  width: 100% !important;
+  max-width: 600px !important;
+  padding: 40px 30px !important;
+  border: 1px solid var(--acid) !important;
+  background: rgba(19, 23, 23, 0.95) !important;
+  box-shadow: 0 0 30px rgba(215, 243, 107, 0.15) !important;
+}
+
+/* 2. STATE: LIVE DIVE MODE (body.in-dive) */
+body.in-dive {
+  overflow: hidden !important;
+  background: #000 !important;
+}
+
+body.in-dive .topbar,
+body.in-dive .result-strip,
+body.in-dive footer {
+  display: none !important;
+}
+
+body.in-dive .app-shell {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  height: 100vh !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+body.in-dive .game-layout {
+  display: block !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+body.in-dive .briefing-panel {
+  display: none !important;
+}
+
+body.in-dive .status-panel {
+  display: none !important;
+}
+
+body.in-dive .game-panel {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+}
+
+body.in-dive .game-header,
+body.in-dive .game-footer {
+  display: none !important;
+}
+
+body.in-dive #gameFrame {
+  width: 100vw !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
+  border: none !important;
+}
+
+/* 3. REFACTORED FLOATING BACKPACK OVERLAY (B KEY) */
+#inventoryOverlay {
+  position: absolute;
+  top: 50%;
+  right: 40px;
+  transform: translateY(-50%);
+  width: 320px;
+  background: rgba(19, 23, 23, 0.95) !important;
+  border: 1px solid var(--acid) !important;
+  padding: 20px !important;
+  z-index: 1000 !important;
+  box-shadow: 0 0 25px rgba(0,0,0,0.85);
+}
+
+.inventory-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 10px;
+  margin-bottom: 15px;
+}
+
+.item-desc {
+  margin-top: 15px;
+  padding: 10px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+  min-height: 45px;
+  line-height: 1.4;
+}

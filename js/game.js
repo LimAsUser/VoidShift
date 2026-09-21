@@ -191,8 +191,10 @@ class Game {
     
     this.audio.ensureAudio();
 
-    this.state.completed = false;
-    this.state.running = true;
+    this.state.completed = false; 
+    this.state.running = true; 
+    document.body.classList.add("in-dive");
+    this.handleResize();
     
     this.ui.updateStartState();
 
@@ -256,8 +258,11 @@ class Game {
    * Concludes the exploration run with a final report status
    */
   finish(success) {
-    this.state.running = false;
-    this.state.completed = true;
+    this.state.running = false; 
+    this.state.completed = true; 
+    document.body.classList.remove("in-dive");
+    this.handleResize();
+    
     this.state.extracted = success;
     this.state.activeQte = null;
     this.ui.hideQTE();
@@ -634,12 +639,29 @@ class Game {
     this.updateMoneyUI();
   }
 
+  sellStorage() {
+    if (this.state.storageItems.length === 0) {
+      this.ui.showToast('仓库空空如也，没有可出售的物资！');
+      return;
+    }
+    let totalValue = 0;
+    this.state.storageItems.forEach(item => {
+      totalValue += item.value || 50;
+    });
+    this.state.storageItems = [];
+    this.state.money += totalValue;
+    this.ui.showToast(`成功出售仓库所有物资，获得 ¥ ${totalValue}`);
+    this.updateStorageUI();
+    this.updateMoneyUI();
+  }
+
   updateMoneyUI() {
     document.getElementById('moneyDisplay').textContent = `¥ ${this.state.money}`;
   }
 
   updateInventoryUI() {
     const grid = document.getElementById('inventoryGrid');
+    const descBox = document.getElementById('itemDesc');
     if (!grid) return;
     grid.innerHTML = '';
     
@@ -655,22 +677,32 @@ class Game {
     // Populate slots
     this.state.inventory.forEach(item => {
       const slots = grid.children;
-      // Item data check
-      console.log('Rendering item:', item); 
       if (item.slot !== undefined && item.slot < slots.length) {
-        for (let i = item.slot; i < Math.min(item.slot + (item.size || 1), 12); i++) {
-          if (slots[i]) {
-            slots[i].textContent = (item.name ? item.name.charAt(0) : '?');
-            slots[i].style.borderColor = 'var(--acid)';
-            slots[i].style.backgroundColor = 'var(--panel-2)';
-            slots[i].style.color = 'var(--acid)';
-            slots[i].style.cursor = 'grab';
-            slots[i].dataset.itemId = item.id;
-            slots[i].onmousedown = (e) => this.dragItem(item, e);
-          }
+        const slot = slots[item.slot];
+        if (slot) {
+          slot.textContent = (item.name ? item.name.charAt(0) : '?');
+          slot.style.borderColor = 'var(--acid)';
+          slot.style.backgroundColor = 'var(--panel-2)';
+          slot.style.color = 'var(--acid)';
+          slot.style.cursor = 'pointer';
+          slot.onclick = () => {
+            if (descBox) {
+              descBox.textContent = `${item.name}: ${item.desc || '一件在旧星舰废墟中发现的珍贵物资，回收价值很高。'}`;
+            }
+          };
         }
       }
     });
+  }
+
+  sortInventory() {
+    this.state.inventory.sort((a, b) => (b.value || 0) - (a.value || 0));
+    // Re-assign slots sequentially
+    this.state.inventory.forEach((item, index) => {
+      item.slot = index;
+    });
+    this.updateInventoryUI();
+    this.ui.showToast('背包道具已按回收价值降序重排');
   }
 
   dragItem(item, e) {
@@ -1350,3 +1382,4 @@ window.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.textContent === (tab === 'briefing' ? '简报' : '仓库')));
   };
 });
+
