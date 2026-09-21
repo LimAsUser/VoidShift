@@ -345,20 +345,33 @@ class AudioManager {
   /**
    * Updates proximity rumble, heartbeat audio cues, and directional panning
    */
-  update(player, monster, mapManager) {
-    if (!this.context || !monster.active) {
+  update(player, monster, mapManager, hunters) {
+    // Pick the nearest active threat (ghost or any hunter) to drive proximity audio
+    const activeHunters = (hunters && Array.isArray(hunters))
+      ? hunters.filter(h => h.active && !h.dead)
+      : [];
+    let activeThreat = null;
+    const candidates = monster.active ? [monster, ...activeHunters] : activeHunters;
+    candidates.forEach(c => {
+      const d = Math.hypot(c.x - player.x, c.y - player.y);
+      if (!activeThreat || d < Math.hypot(activeThreat.x - player.x, activeThreat.y - player.y)) {
+        activeThreat = c;
+      }
+    });
+
+    if (!this.context || !activeThreat) {
       if (this.proximityGain) {
         this.proximityGain.gain.setTargetAtTime(0, this.context.currentTime, 0.05);
       }
       return;
     }
 
-    const spatial = this.calculateSpatial(player.x, player.y, player.angle, monster.x, monster.y, 650);
+    const spatial = this.calculateSpatial(player.x, player.y, player.angle, activeThreat.x, activeThreat.y, 650);
     const distance = spatial.distance;
-    const proximity = monster.alerted ? Math.max(0, 1 - distance / 650) : 0;
-    const toMonster = Math.atan2(monster.y - player.y, monster.x - player.x);
+    const proximity = activeThreat.alerted ? Math.max(0, 1 - distance / 650) : 0;
+    const toMonster = Math.atan2(activeThreat.y - player.y, activeThreat.x - player.x);
     const wallDistance = mapManager.rayWallDistance(player.x, player.y, Math.cos(toMonster), Math.sin(toMonster), 650);
-    const visible = monster.alerted && distance < wallDistance + monster.radius + 12;
+    const visible = activeThreat.alerted && distance < wallDistance + activeThreat.radius + 12;
     const now = performance.now();
 
     // Update continuous directional stereo panning for the monster
@@ -372,7 +385,7 @@ class AudioManager {
 
     // Heartbeat pulse cadence with directional stereo position
     const pulseGap = 720 - proximity * 650;
-    if (monster.alerted && now - this.lastPulse > pulseGap) {
+    if (activeThreat.alerted && now - this.lastPulse > pulseGap) {
       this.lastPulse = now;
       this.playSpatialTone(58 + proximity * 65, 0.13, 0.12 + proximity * 0.2, 'sine', spatial.pan, 1, spatial.isBehind);
 
