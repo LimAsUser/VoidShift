@@ -91,47 +91,244 @@ class Renderer {
     this.applyCamera(ctx, scaleX, scaleY, gameState);
 
     // Background
+    const worldW = mapManager.worldW || Config.WORLD_W;
+    const worldH = mapManager.worldH || Config.WORLD_H;
     ctx.fillStyle = '#111714';
-    ctx.fillRect(0, 0, Config.WORLD_W, Config.WORLD_H);
+    ctx.fillRect(0, 0, worldW, worldH);
     ctx.fillStyle = '#151c18';
-    ctx.fillRect(22, 22, Config.WORLD_W - 44, Config.WORLD_H - 44);
+    ctx.fillRect(22, 22, worldW - 44, worldH - 44);
 
     // Sector gridlines
     ctx.strokeStyle = 'rgba(215,243,107,.05)';
     ctx.lineWidth = 1;
-    for (let x = 40; x < Config.WORLD_W; x += 40) {
+    for (let x = 40; x < worldW; x += 40) {
       ctx.beginPath();
       ctx.moveTo(x, 22);
-      ctx.lineTo(x, Config.WORLD_H - 22);
+      ctx.lineTo(x, worldH - 22);
       ctx.stroke();
     }
-    for (let y = 40; y < Config.WORLD_H; y += 40) {
+    for (let y = 40; y < worldH; y += 40) {
       ctx.beginPath();
       ctx.moveTo(22, y);
-      ctx.lineTo(Config.WORLD_W - 22, y);
+      ctx.lineTo(worldW - 22, y);
       ctx.stroke();
     }
 
-    // Draw solid walls
-    ctx.fillStyle = '#26302b';
-    mapManager.walls.forEach(wall => ctx.fillRect(wall.x, wall.y, wall.w, wall.h));
-    ctx.strokeStyle = '#37453b';
-    mapManager.walls.forEach(wall => {
-      ctx.strokeRect(wall.x + 0.5, wall.y + 0.5, wall.w - 1, wall.h - 1);
+    // Draw polygon room floor slabs with sector tinting
+    mapManager.worldRooms.forEach(room => {
+      ctx.save();
+      if (room.vertices && room.vertices.length) {
+        ctx.beginPath();
+        ctx.moveTo(room.vertices[0].x, room.vertices[0].y);
+        for (let i = 1; i < room.vertices.length; i++) {
+          ctx.lineTo(room.vertices[i].x, room.vertices[i].y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = '#141c18';
+        ctx.fill();
+        ctx.fillStyle = room.accent || '#75ddd0';
+        ctx.globalAlpha = 0.04;
+        ctx.fill();
+        ctx.globalAlpha = 0.15;
+        ctx.strokeStyle = room.accent || '#75ddd0';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = '#141c18';
+        ctx.fillRect(room.x, room.y, room.w, room.h);
+      }
+      ctx.restore();
     });
 
-    // Extraction chamber visual marker
-    ctx.fillStyle = '#27372d';
-    ctx.fillRect(54, 84, 82, 82);
-    ctx.strokeStyle = '#607157';
-    ctx.strokeRect(54, 84, 82, 82);
-    ctx.fillStyle = '#1d2a23';
-    ctx.fillRect(69, 99, 52, 52);
-    ctx.strokeStyle = '#99b65c';
-    ctx.strokeRect(69, 99, 52, 52);
-    ctx.fillStyle = gameState.extractionCalled ? '#d7f36b' : '#78905d';
-    ctx.font = '11px Space Mono';
-    ctx.fillText('EXTRACT', 61, 180);
+    // Draw solid walls and obstacles with metallic bulkhead detailing
+    mapManager.walls.forEach(wall => {
+      if (wall.x1 !== undefined) {
+        // Line segment bulkhead wall
+        ctx.save();
+        // Heavy structural casing
+        ctx.lineWidth = 14;
+        ctx.lineCap = 'butt';
+        ctx.strokeStyle = '#222b27';
+        ctx.beginPath();
+        ctx.moveTo(wall.x1, wall.y1);
+        ctx.lineTo(wall.x2, wall.y2);
+        ctx.stroke();
+
+        // Inner metallic plate
+        ctx.lineWidth = 8;
+        ctx.strokeStyle = '#2a3530';
+        ctx.beginPath();
+        ctx.moveTo(wall.x1, wall.y1);
+        ctx.lineTo(wall.x2, wall.y2);
+        ctx.stroke();
+
+        // Structural bevel highlight
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = '#526658';
+        ctx.beginPath();
+        ctx.moveTo(wall.x1, wall.y1);
+        ctx.lineTo(wall.x2, wall.y2);
+        ctx.stroke();
+        ctx.restore();
+      } else if (wall.x !== undefined) {
+        ctx.save();
+        if (wall.isBox) {
+          // Cargo Crate: heavy reinforced container with industrial bevel, warning accents & latch
+          ctx.fillStyle = '#1c2621';
+          ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
+
+          // Inner plate
+          ctx.fillStyle = '#26342c';
+          ctx.fillRect(wall.x + 3, wall.y + 3, wall.w - 6, wall.h - 6);
+
+          // Border
+          ctx.strokeStyle = '#4b5f52';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(wall.x + 0.5, wall.y + 0.5, wall.w - 1, wall.h - 1);
+
+          // Diagonal hazard accent corner
+          ctx.fillStyle = '#e8754e';
+          ctx.beginPath();
+          ctx.moveTo(wall.x + 3, wall.y + 3);
+          ctx.lineTo(wall.x + 12, wall.y + 3);
+          ctx.lineTo(wall.x + 3, wall.y + 12);
+          ctx.closePath();
+          ctx.fill();
+
+          // Center locking latch
+          ctx.fillStyle = '#d7f36b';
+          ctx.fillRect(wall.x + wall.w / 2 - 3, wall.y + wall.h / 2 - 3, 6, 6);
+        } else if (wall.isProp) {
+          // Thematic machinery unit (servers, reactors, lab stations, planters)
+          ctx.fillStyle = '#16201b';
+          ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
+
+          ctx.fillStyle = '#202a24';
+          ctx.fillRect(wall.x + 2, wall.y + 2, wall.w - 4, wall.h - 4);
+
+          ctx.strokeStyle = '#3e5245';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(wall.x + 0.5, wall.y + 0.5, wall.w - 1, wall.h - 1);
+
+          // Horizontal cooling slats/ribs
+          ctx.strokeStyle = '#121a16';
+          ctx.lineWidth = 1;
+          for (let vy = wall.y + 8; vy < wall.y + wall.h - 6; vy += 5) {
+            ctx.beginPath();
+            ctx.moveTo(wall.x + 6, vy);
+            ctx.lineTo(wall.x + wall.w - 6, vy);
+            ctx.stroke();
+          }
+
+          // Indicator LED
+          const ledColor = wall.subType === 'reactor_core' ? '#ff4d4d' :
+                           wall.subType === 'server_rack' ? '#50e3c2' : '#d7f36b';
+          ctx.shadowColor = ledColor;
+          ctx.shadowBlur = 6;
+          ctx.fillStyle = ledColor;
+          ctx.beginPath();
+          ctx.arc(wall.x + 7, wall.y + 7, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        } else {
+          // Standard AABB architectural barrier
+          ctx.fillStyle = '#222b27';
+          ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
+
+          if (wall.w > 8 && wall.h > 8) {
+            ctx.fillStyle = '#2a3530';
+            ctx.fillRect(wall.x + 2, wall.y + 2, wall.w - 4, wall.h - 4);
+          }
+
+          ctx.strokeStyle = '#3d4d42';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(wall.x + 0.5, wall.y + 0.5, wall.w - 1, wall.h - 1);
+
+          ctx.strokeStyle = '#526658';
+          ctx.beginPath();
+          ctx.moveTo(wall.x + wall.w - 1, wall.y + 1);
+          ctx.lineTo(wall.x + 1, wall.y + 1);
+          ctx.lineTo(wall.x + 1, wall.y + wall.h - 1);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+    });
+
+    // Extraction visual markers (Primary Airlock & Emergency Evac Pod)
+    const drawExtractionMarker = (pt, label) => {
+      if (!pt) return;
+      ctx.save();
+      const ex = pt.x;
+      const ey = pt.y;
+      const r = 40;
+
+      ctx.fillStyle = 'rgba(39,55,45,0.75)';
+      ctx.fillRect(ex - r, ey - r, r * 2, r * 2);
+      ctx.strokeStyle = gameState.extractionCalled ? '#d7f36b' : '#607157';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(ex - r, ey - r, r * 2, r * 2);
+
+      // Inner pad circle
+      ctx.strokeStyle = gameState.extractionCalled ? '#d7f36b' : '#99b65c';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(ex, ey, 22, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = gameState.extractionCalled ? '#d7f36b' : '#78905d';
+      ctx.font = '10px Space Mono';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, ex, ey + 4);
+      ctx.restore();
+    };
+
+    drawExtractionMarker(mapManager.extractionPoint, 'AIRLOCK');
+    drawExtractionMarker(mapManager.exitExtractionPoint, 'EVAC POD');
+
+    // 3 Security Override QTE Terminals
+    if (mapManager.terminals) {
+      mapManager.terminals.forEach(term => {
+        ctx.save();
+        ctx.translate(term.x, term.y);
+
+        // Terminal pedestal base
+        ctx.fillStyle = '#18221e';
+        ctx.strokeStyle = term.solved ? '#50e3c2' : '#f5a623';
+        ctx.lineWidth = 2;
+        ctx.fillRect(-18, -18, 36, 36);
+        ctx.strokeRect(-18, -18, 36, 36);
+
+        // Inner glowing CRT terminal screen
+        const screenGlow = term.solved ? '#50e3c2' : '#f5a623';
+        ctx.shadowColor = screenGlow;
+        ctx.shadowBlur = term.solved ? 8 : (10 + Math.sin(gameState.elapsed * 4) * 4);
+        ctx.fillStyle = term.solved ? 'rgba(80, 227, 194, 0.4)' : 'rgba(245, 166, 35, 0.4)';
+        ctx.fillRect(-12, -12, 24, 24);
+        ctx.shadowBlur = 0;
+
+        // Terminal symbol
+        ctx.fillStyle = term.solved ? '#50e3c2' : '#f5a623';
+        ctx.font = 'bold 12px Space Mono';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(term.solved ? '✓' : '!', 0, 0);
+
+        // Proximity text prompt
+        const dist = Math.hypot(term.x - player.x, term.y - player.y);
+        if (dist < 55 && !term.solved) {
+          ctx.fillStyle = '#f5a623';
+          ctx.font = 'bold 10px Space Mono';
+          ctx.fillText('[E] OVERRIDE', 0, -25);
+        } else if (dist < 55 && term.solved) {
+          ctx.fillStyle = '#50e3c2';
+          ctx.font = '9px Space Mono';
+          ctx.fillText('OVERRIDDEN', 0, -25);
+        }
+
+        ctx.restore();
+      });
+    }
 
     // Scrap collectibles
     mapManager.scrap.forEach(s => {
@@ -139,12 +336,15 @@ class Renderer {
       ctx.save();
       ctx.translate(s.x, s.y);
       ctx.rotate(Math.PI / 4);
-      ctx.fillStyle = '#d7f36b';
-      ctx.shadowColor = '#d7f36b';
-      ctx.shadowBlur = 13;
+      
+      // Color code by rarity
+      const glowColor = s.rarity === 'rare' ? '#f5a623' : s.rarity === 'uncommon' ? '#50e3c2' : '#d7f36b';
+      ctx.fillStyle = glowColor;
+      ctx.shadowColor = glowColor;
+      ctx.shadowBlur = 12;
       ctx.fillRect(-8, -8, 16, 16);
       ctx.shadowBlur = 0;
-      ctx.fillStyle = '#354133';
+      ctx.fillStyle = '#1c2420';
       ctx.fillRect(-4, -4, 8, 8);
       ctx.restore();
     });
@@ -214,18 +414,13 @@ class Renderer {
       ctx.shadowBlur = 6;
 
       ctx.beginPath();
-      // Line segments from current trailing head back to start to form a laser-dash bullet
       const angle = Math.atan2(trace.endY - trace.startY, trace.endX - trace.startX);
-      const tailLength = 24; // Length of the kinetic tracer line
-      
-      // Calculate how far the tracer bullet has traveled from the weapon barrel
+      const tailLength = 24;
       const travelDistance = Math.hypot(trace.currentX - trace.startX, trace.currentY - trace.startY);
       
       let tailX = trace.startX;
       let tailY = trace.startY;
       
-      // If the bullet has traveled further than the tail length, let the tail follow the bullet,
-      // otherwise keep the tail anchored at the starting point (barrel exit)
       if (travelDistance > tailLength) {
         tailX = trace.currentX - Math.cos(angle) * tailLength;
         tailY = trace.currentY - Math.sin(angle) * tailLength;
@@ -255,7 +450,7 @@ class Renderer {
   }
 
   /**
-   * Draws world room labels and indicators (always aligned with camera)
+   * Draws world room labels, directional doors, and indicators (always aligned with camera)
    */
   drawWorldOverlay(player, mapManager, gameState) {
     const ctx = this.ui.ctx;
@@ -266,27 +461,23 @@ class Renderer {
     ctx.save();
     this.applyCamera(ctx, scaleX, scaleY, gameState);
 
-    // Sector overlays
+    // Themed sector overlays
     mapManager.worldRooms.forEach(room => {
-      ctx.fillStyle = 'rgba(117,221,208,.035)';
-      ctx.strokeStyle = 'rgba(117,221,208,.25)';
-      ctx.lineWidth = 1;
-      ctx.fillRect(room.x, room.y, room.w, room.h);
-      ctx.strokeRect(room.x, room.y, room.w, room.h);
+      ctx.save();
+      const cx = room.center ? room.center.x : (room.x + room.w / 2);
+      const cy = room.center ? room.center.y : (room.y + 20);
 
-      ctx.fillStyle = 'rgba(117,221,208,.55)';
-      ctx.font = '9px Space Mono';
-      ctx.fillText(room.label, room.x + 10, room.y + 18);
+      // Room Header Badge
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = room.accent || '#75ddd0';
+      ctx.font = '11px Space Mono';
+      ctx.textAlign = 'center';
+      ctx.fillText(`[${room.label}] ${room.title}`, cx, cy - 32);
+      ctx.restore();
     });
 
-    // Doors
-    mapManager.doors.forEach(door => {
-      ctx.fillStyle = door.open ? 'rgba(117,221,208,.22)' : '#a45d45';
-      ctx.strokeStyle = door.open ? '#75ddd0' : '#e8754e';
-      ctx.lineWidth = 2;
-      ctx.fillRect(door.x, door.y, door.w, door.h);
-      ctx.strokeRect(door.x, door.y, door.w, door.h);
-    });
+    // Directional Opaque Doors
+    this.drawDoors(ctx, mapManager);
 
     // Windows
     mapManager.windows.forEach(item => {
@@ -317,6 +508,104 @@ class Renderer {
     }
 
     ctx.restore();
+  }
+
+  /**
+   * Renders directional doors (Closed: Opaque sealed panel; Open: Swung 90° against wall)
+   */
+  drawDoors(ctx, mapManager) {
+    mapManager.doors.forEach(door => {
+      ctx.save();
+      const p1 = door.p1;
+      const p2 = door.p2;
+
+      if (!p1 || !p2) {
+        // Fallback for AABB doors
+        if (!door.open) {
+          ctx.fillStyle = '#1e2621';
+          ctx.fillRect(door.x, door.y, door.w, door.h);
+          ctx.strokeStyle = '#e8754e';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(door.x + 0.5, door.y + 0.5, door.w - 1, door.h - 1);
+        }
+        ctx.restore();
+        return;
+      }
+
+      const cx = (p1.x + p2.x) / 2;
+      const cy = (p1.y + p2.y) / 2;
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const len = Math.hypot(dx, dy);
+
+      if (!door.open) {
+        // CLOSED: Reinforced blast panel sealed between p1 and p2
+        ctx.lineWidth = 14;
+        ctx.lineCap = 'butt';
+        ctx.strokeStyle = '#1e2621';
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+
+        // Warning amber hazard stripe
+        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = '#e8754e';
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+
+        // Center lock LED (Red glow)
+        ctx.shadowColor = '#ff4d4d';
+        ctx.shadowBlur = 6;
+        ctx.fillStyle = '#ff4d4d';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      } else {
+        // OPEN: Swung 90° against the wall
+        // Doorway jamb stops
+        ctx.fillStyle = '#37453b';
+        ctx.beginPath();
+        ctx.arc(p1.x, p1.y, 5, 0, Math.PI * 2);
+        ctx.arc(p2.x, p2.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Swung door slab
+        const norm = door.normal || { x: 0, y: 1 };
+        const slabLen = len * 0.9;
+        const dir = door.openDir || 1;
+        const slabEndX = p1.x + norm.x * dir * slabLen;
+        const slabEndY = p1.y + norm.y * dir * slabLen;
+
+        ctx.lineWidth = 6;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#26382f';
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(slabEndX, slabEndY);
+        ctx.stroke();
+
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#75ddd0';
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(slabEndX, slabEndY);
+        ctx.stroke();
+
+        // Green status LED on tip of open slab
+        ctx.shadowColor = '#75ddd0';
+        ctx.shadowBlur = 5;
+        ctx.fillStyle = '#75ddd0';
+        ctx.beginPath();
+        ctx.arc(slabEndX, slabEndY, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+      ctx.restore();
+    });
   }
 
   /**
@@ -360,7 +649,7 @@ class Renderer {
       visionCtx.moveTo(player.x, player.y);
       for (let index = 0; index <= flashSteps; index += 1) {
         const angle = (index / flashSteps) * Math.PI * 2;
-        const distance = mapManager.rayWallDistance(player.x, player.y, Math.cos(angle), Math.sin(angle), flashRange);
+        const distance = mapManager.rayVisionDistance(player.x, player.y, Math.cos(angle), Math.sin(angle), flashRange, 12);
         visionCtx.lineTo(player.x + Math.cos(angle) * distance, player.y + Math.sin(angle) * distance);
       }
       visionCtx.closePath();
@@ -375,13 +664,23 @@ class Renderer {
       visionCtx.fill();
     }
 
-    // Soft light circle near player in world coordinates
-    const near = visionCtx.createRadialGradient(player.x, player.y, 8, player.x, player.y, 70);
-    near.addColorStop(0, 'rgba(0,0,0,1)');
-    near.addColorStop(1, 'rgba(0,0,0,.88)');
-    visionCtx.fillStyle = near;
+    // Soft ambient light circle around player - blocked by walls and closed doors like flashlight
+    const ambientRange = 74;
+    const ambientSteps = 64;
     visionCtx.beginPath();
-    visionCtx.arc(player.x, player.y, 74, 0, Math.PI * 2);
+    visionCtx.moveTo(player.x, player.y);
+    for (let index = 0; index <= ambientSteps; index += 1) {
+      const angle = (index / ambientSteps) * Math.PI * 2;
+      const distance = mapManager.rayVisionDistance(player.x, player.y, Math.cos(angle), Math.sin(angle), ambientRange, 12);
+      visionCtx.lineTo(player.x + Math.cos(angle) * distance, player.y + Math.sin(angle) * distance);
+    }
+    visionCtx.closePath();
+
+    const near = visionCtx.createRadialGradient(player.x, player.y, 8, player.x, player.y, ambientRange);
+    near.addColorStop(0, 'rgba(0,0,0,1)');
+    near.addColorStop(0.85, 'rgba(0,0,0,.92)');
+    near.addColorStop(1, 'rgba(0,0,0,0)');
+    visionCtx.fillStyle = near;
     visionCtx.fill();
 
     // Flashlight cone casting
@@ -394,7 +693,7 @@ class Renderer {
       visionCtx.moveTo(player.x, player.y);
       for (let index = 0; index <= steps; index += 1) {
         const angle = player.angle - spread + (index / steps) * spread * 2;
-        const distance = mapManager.rayWallDistance(player.x, player.y, Math.cos(angle), Math.sin(angle), range);
+        const distance = mapManager.rayVisionDistance(player.x, player.y, Math.cos(angle), Math.sin(angle), range, 13);
         visionCtx.lineTo(player.x + Math.cos(angle) * distance, player.y + Math.sin(angle) * distance);
       }
       visionCtx.closePath();
@@ -433,7 +732,7 @@ class Renderer {
     visionCtx.moveTo(player.x, player.y);
     for (let index = 0; index <= steps; index += 1) {
       const angle = player.angle - spread + (index / steps) * spread * 2;
-      const distance = mapManager.rayWallDistance(player.x, player.y, Math.cos(angle), Math.sin(angle), range);
+      const distance = mapManager.rayVisionDistance(player.x, player.y, Math.cos(angle), Math.sin(angle), range, 13);
       visionCtx.lineTo(player.x + Math.cos(angle) * distance, player.y + Math.sin(angle) * distance);
     }
     visionCtx.closePath();
@@ -442,43 +741,158 @@ class Renderer {
   }
 
   /**
-   * Renders the top-down radar scan display
+   * Renders the top-down radar scan display with Fog of War
+   * Undiscovered rooms remain pitch black until the player explores into them!
    */
-  drawMiniMap(player, mapManager) {
+  drawMiniMap(player, mapManager, gameState = null) {
     const miniCtx = this.ui.miniCtx;
     const width = 168;
     const height = 112;
 
     miniCtx.clearRect(0, 0, width, height);
-    miniCtx.fillStyle = '#07100d';
+    miniCtx.fillStyle = '#060a08';
     miniCtx.fillRect(0, 0, width, height);
 
     miniCtx.save();
-    miniCtx.scale(width / Config.WORLD_W, height / Config.WORLD_H);
+    const mapW = mapManager.worldW || Config.WORLD_W;
+    const mapH = mapManager.worldH || Config.WORLD_H;
+    miniCtx.scale(width / mapW, height / mapH);
 
-    // Walls & sector bounds
-    miniCtx.fillStyle = 'rgba(215,243,107,.16)';
-    mapManager.walls.forEach(wall => miniCtx.fillRect(wall.x, wall.y, wall.w, wall.h));
-    miniCtx.strokeStyle = 'rgba(117,221,208,.24)';
-    mapManager.worldRooms.forEach(room => miniCtx.strokeRect(room.x, room.y, room.w, room.h));
+    const isRevealed = gameState && gameState.revealAllMap;
 
-    // Extraction location
-    miniCtx.fillStyle = '#78905d';
-    miniCtx.beginPath();
-    miniCtx.arc(Config.extraction.x, Config.extraction.y, 18, 0, Math.PI * 2);
-    miniCtx.fill();
+    // 1. Draw only DISCOVERED rooms (or ALL rooms if debug revealAllMap is active)
+    mapManager.worldRooms.forEach(room => {
+      if (!room.discovered && !isRevealed) return;
 
-    // Player position
+      miniCtx.save();
+      if (room.vertices && room.vertices.length) {
+        miniCtx.beginPath();
+        miniCtx.moveTo(room.vertices[0].x, room.vertices[0].y);
+        for (let i = 1; i < room.vertices.length; i++) {
+          miniCtx.lineTo(room.vertices[i].x, room.vertices[i].y);
+        }
+        miniCtx.closePath();
+        miniCtx.fillStyle = 'rgba(215, 243, 107, 0.08)';
+        miniCtx.fill();
+        miniCtx.strokeStyle = room.accent || 'rgba(117, 221, 208, 0.45)';
+        miniCtx.lineWidth = 2.5;
+        miniCtx.stroke();
+      } else {
+        miniCtx.fillStyle = 'rgba(215, 243, 107, 0.06)';
+        miniCtx.fillRect(room.x, room.y, room.w, room.h);
+        miniCtx.strokeStyle = 'rgba(117, 221, 208, 0.35)';
+        miniCtx.lineWidth = 2;
+        miniCtx.strokeRect(room.x, room.y, room.w, room.h);
+      }
+
+      // Room label on radar
+      const cx = room.center ? room.center.x : (room.x + room.w / 2);
+      const cy = room.center ? room.center.y : (room.y + room.h / 2);
+      miniCtx.fillStyle = 'rgba(215, 243, 107, 0.7)';
+      miniCtx.font = 'bold 22px monospace';
+      miniCtx.textAlign = 'center';
+      miniCtx.textBaseline = 'middle';
+      miniCtx.fillText(room.label, cx, cy);
+      miniCtx.restore();
+    });
+
+    // 2. Solid walls and cargo props belonging to discovered rooms
+    mapManager.walls.forEach(wall => {
+      if (wall.x1 !== undefined) {
+        const nearDiscovered = isRevealed || mapManager.worldRooms.some(r => r.discovered && distToSegment(r.center.x, r.center.y, wall.x1, wall.y1, wall.x2, wall.y2) < 420);
+        if (nearDiscovered) {
+          miniCtx.lineWidth = 3;
+          miniCtx.strokeStyle = 'rgba(215, 243, 107, 0.45)';
+          miniCtx.beginPath();
+          miniCtx.moveTo(wall.x1, wall.y1);
+          miniCtx.lineTo(wall.x2, wall.y2);
+          miniCtx.stroke();
+        }
+      } else if (wall.x !== undefined) {
+        const wallCenterX = wall.x + wall.w / 2;
+        const wallCenterY = wall.y + wall.h / 2;
+        const r = mapManager.getRoomAt(wallCenterX, wallCenterY);
+        if (isRevealed || (r && r.discovered)) {
+          if (wall.isBox) {
+            miniCtx.fillStyle = 'rgba(232, 117, 78, 0.55)';
+          } else if (wall.isProp) {
+            miniCtx.fillStyle = 'rgba(80, 227, 194, 0.55)';
+          } else {
+            miniCtx.fillStyle = 'rgba(215, 243, 107, 0.3)';
+          }
+          miniCtx.fillRect(wall.x, wall.y, wall.w, wall.h);
+        }
+      }
+    });
+
+    // 3. Doors: visible if at least one bordering room is discovered or all revealed
+    mapManager.doors.forEach(door => {
+      const isVisible = isRevealed || (door.roomA && door.roomA.discovered) || (door.roomB && door.roomB.discovered);
+      if (isVisible) {
+        if (door.p1 && door.p2) {
+          miniCtx.lineWidth = 4;
+          miniCtx.strokeStyle = door.open ? '#75ddd0' : '#e8754e';
+          miniCtx.beginPath();
+          miniCtx.moveTo(door.p1.x, door.p1.y);
+          miniCtx.lineTo(door.p2.x, door.p2.y);
+          miniCtx.stroke();
+        } else {
+          miniCtx.fillStyle = door.open ? '#75ddd0' : '#e8754e';
+          miniCtx.fillRect(door.x, door.y, Math.max(6, door.w), Math.max(6, door.h));
+        }
+      }
+    });
+
+    // 4. Extraction points: visible only when their room is discovered or all revealed
+    if (mapManager.extractionPoint) {
+      const room = mapManager.getRoomAt(mapManager.extractionPoint.x, mapManager.extractionPoint.y);
+      if (isRevealed || (room && room.discovered)) {
+        miniCtx.fillStyle = '#78905d';
+        miniCtx.beginPath();
+        miniCtx.arc(mapManager.extractionPoint.x, mapManager.extractionPoint.y, 16, 0, Math.PI * 2);
+        miniCtx.fill();
+      }
+    }
+    if (mapManager.exitExtractionPoint) {
+      const room = mapManager.getRoomAt(mapManager.exitExtractionPoint.x, mapManager.exitExtractionPoint.y);
+      if (isRevealed || (room && room.discovered)) {
+        miniCtx.fillStyle = '#d7f36b';
+        miniCtx.beginPath();
+        miniCtx.arc(mapManager.exitExtractionPoint.x, mapManager.exitExtractionPoint.y, 16, 0, Math.PI * 2);
+        miniCtx.fill();
+      }
+    }
+
+    // 5. QTE Terminals: visible on minimap if their room is discovered
+    if (mapManager.terminals) {
+      mapManager.terminals.forEach(term => {
+        if (term.room && term.room.discovered) {
+          miniCtx.save();
+          miniCtx.translate(term.x, term.y);
+          miniCtx.fillStyle = term.solved ? '#50e3c2' : '#f5a623';
+          miniCtx.beginPath();
+          miniCtx.moveTo(0, -12);
+          miniCtx.lineTo(12, 0);
+          miniCtx.lineTo(0, 12);
+          miniCtx.lineTo(-12, 0);
+          miniCtx.closePath();
+          miniCtx.fill();
+          miniCtx.restore();
+        }
+      });
+    }
+
+    // 6. Player position and facing vector line
     miniCtx.fillStyle = '#d7f36b';
     miniCtx.beginPath();
-    miniCtx.arc(player.x, player.y, 15, 0, Math.PI * 2);
+    miniCtx.arc(player.x, player.y, 14, 0, Math.PI * 2);
     miniCtx.fill();
 
-    // Player vector facing line
-    miniCtx.strokeStyle = 'rgba(215,243,107,.7)';
+    miniCtx.strokeStyle = 'rgba(215,243,107,.85)';
+    miniCtx.lineWidth = 3;
     miniCtx.beginPath();
     miniCtx.moveTo(player.x, player.y);
-    miniCtx.lineTo(player.x + Math.cos(player.angle) * 55, player.y + Math.sin(player.angle) * 55);
+    miniCtx.lineTo(player.x + Math.cos(player.angle) * 45, player.y + Math.sin(player.angle) * 45);
     miniCtx.stroke();
 
     miniCtx.restore();

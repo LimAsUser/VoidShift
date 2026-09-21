@@ -49,8 +49,63 @@ class UIManager {
     this.threatStatusText = document.querySelector('#threatStatus');
     this.weaponStatusText = document.querySelector('#weaponStatus');
     this.ammoStatusText = document.querySelector('#ammoStatus');
+    this.terminalsStatusText = document.querySelector('#terminalsStatus');
+    this.hudTerminals = document.querySelector('#hudTerminals');
+
+    // QTE Terminal UI Elements
+    this.qteOverlay = document.querySelector('#qteOverlay');
+    this.qteTitle = document.querySelector('#qteTitle');
+    this.qteSequence = document.querySelector('#qteSequence');
+    this.qteStatus = document.querySelector('#qteStatus');
+
+    // Facility Scale Selector Elements
+    this.scaleButtons = {
+      small: document.querySelector('#scaleBtnSmall'),
+      medium: document.querySelector('#scaleBtnMedium'),
+      large: document.querySelector('#scaleBtnLarge')
+    };
+    this.currentScaleText = document.querySelector('#currentScaleText');
+    this.quotaDisplay = document.querySelector('#quotaValue');
 
     this.toastTimeout = null;
+  }
+
+  /**
+   * Updates facility scale selector button active states and display text
+   */
+  updateScaleButtons(scaleKey) {
+    const scaleConfig = (Config.mapScales && Config.mapScales[scaleKey]) || { label: '小型 (12 舱)', quota: 420 };
+    if (this.currentScaleText) {
+      this.currentScaleText.textContent = scaleConfig.label;
+    }
+    if (this.quotaDisplay) {
+      this.quotaDisplay.textContent = `¥ ${scaleConfig.quota}`;
+    }
+    if (this.scaleButtons) {
+      Object.keys(this.scaleButtons).forEach(key => {
+        const btn = this.scaleButtons[key];
+        if (btn) {
+          btn.classList.toggle('active', key === scaleKey);
+        }
+      });
+    }
+  }
+
+  /**
+   * Updates test reveal map buttons in sidebar and HUD
+   */
+  updateRevealBtnState(active) {
+    const b1 = document.getElementById('testRevealBtn');
+    const b2 = document.getElementById('hudRevealBtn');
+    const t1 = document.getElementById('testRevealText');
+    if (b1) b1.classList.toggle('active', !!active);
+    if (b2) {
+      b2.classList.toggle('active', !!active);
+      b2.textContent = active ? '👁 迷雾已关' : '👁 显示全图';
+    }
+    if (t1) {
+      t1.textContent = active ? '调试：迷雾已关 (点击恢复)' : '调试：全图揭示 / 迷雾切换 (M)';
+    }
   }
 
   /**
@@ -142,6 +197,72 @@ class UIManager {
     this.threatStatusText.textContent = '未知';
     this.threatStatusText.className = 'warning';
     this.oxygenText.style.color = '';
+    this.updateTerminalsStatus(0, 3);
+    this.hideQTE();
+    if (this.scaleButtons) {
+      Object.values(this.scaleButtons).forEach(btn => { if (btn) btn.disabled = false; });
+    }
+  }
+
+  /**
+   * Updates terminal override completion counters
+   */
+  updateTerminalsStatus(solved, total = 3) {
+    const text = `${solved} / ${total}`;
+    if (this.terminalsStatusText) {
+      this.terminalsStatusText.textContent = text;
+      this.terminalsStatusText.style.color = solved >= total ? 'var(--acid)' : '#f5a623';
+    }
+    if (this.hudTerminals) {
+      this.hudTerminals.textContent = `CONSOLES: ${solved} / ${total}`;
+      this.hudTerminals.style.color = solved >= total ? 'var(--acid)' : '#f5a623';
+    }
+  }
+
+  /**
+   * Displays the interactive QTE sequence interface
+   */
+  showQTE(terminal, currentIndex = 0, failed = false) {
+    if (!this.qteOverlay) return;
+    this.qteOverlay.style.display = 'flex';
+    if (this.qteTitle) {
+      this.qteTitle.textContent = `安全控制台 #${terminal.id} // 紧急重写协议`;
+    }
+    if (this.qteSequence) {
+      this.qteSequence.innerHTML = '';
+      terminal.sequence.forEach((key, idx) => {
+        const step = document.createElement('div');
+        step.className = 'qte-step';
+        step.textContent = key;
+        if (idx < currentIndex) {
+          step.classList.add('passed');
+        } else if (idx === currentIndex) {
+          step.classList.add(failed ? 'failed' : 'active');
+        }
+        this.qteSequence.appendChild(step);
+      });
+    }
+    if (this.qteStatus) {
+      if (failed) {
+        this.qteStatus.textContent = '>> 错误！全舰警报已被触发！重新同步中...';
+        this.qteStatus.style.color = 'var(--rust)';
+      } else if (currentIndex >= terminal.sequence.length) {
+        this.qteStatus.textContent = '>> 认证通过！控制权限已重写！';
+        this.qteStatus.style.color = 'var(--acid)';
+      } else {
+        this.qteStatus.textContent = `>> 请输入序列第 ${currentIndex + 1} 位: [ ${terminal.sequence[currentIndex]} ]`;
+        this.qteStatus.style.color = 'var(--cyan)';
+      }
+    }
+  }
+
+  /**
+   * Hides the QTE sequence interface
+   */
+  hideQTE() {
+    if (this.qteOverlay) {
+      this.qteOverlay.style.display = 'none';
+    }
   }
 
   /**
@@ -155,6 +276,9 @@ class UIManager {
     this.missionTitle.textContent = '探索中';
     this.missionState.textContent = '进行中';
     this.contractState.textContent = '正在下潜';
+    if (this.scaleButtons) {
+      Object.values(this.scaleButtons).forEach(btn => { if (btn) btn.disabled = true; });
+    }
     this.log('舱门关闭。祝你带够氧气。');
   }
 
@@ -177,6 +301,9 @@ class UIManager {
     this.startButton.disabled = false;
     this.startButton.innerHTML = '重新下潜 <b>↘</b>';
     this.hudOverlay.style.display = 'none';
+    if (this.scaleButtons) {
+      Object.values(this.scaleButtons).forEach(btn => { if (btn) btn.disabled = false; });
+    }
     this.missionState.textContent = success ? '已撤离' : '任务失败';
     this.missionTitle.textContent = success ? '安全返回' : '信号中断';
     this.contractState.textContent = success ? '回收完成' : '通讯丢失';
@@ -220,7 +347,10 @@ class UIManager {
     this.lootCountText.textContent = `${gameState.loot} / 6`;
     this.predictedValue.textContent = `¥ ${gameState.lootValue}`;
 
-    this.clock.textContent = new Date(gameState.elapsed * 1000).toISOString().substring(14, 19);
+    const totalSeconds = Math.max(0, Math.floor(gameState.elapsed || 0));
+    const mins = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+    const secs = String(totalSeconds % 60).padStart(2, '0');
+    this.clock.textContent = `${mins}:${secs}`;
 
     this.threatStatusText.textContent = monster.alerted ? '已锁定' : monster.active ? '脱战' : '未知';
     this.threatStatusText.className = monster.alerted ? 'warning' : 'ok';

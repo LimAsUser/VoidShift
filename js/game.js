@@ -30,6 +30,7 @@ class Game {
       elapsed: 0,
       extractionCalled: false,
       extracted: false,
+      activeQte: null,
       mouseX: 0,
       mouseY: 0,
       lastTime: 0,
@@ -70,17 +71,20 @@ class Game {
       elapsed: 0,
       extractionCalled: false,
       extracted: false,
+      activeQte: null,
       mouseX: 0,
       mouseY: 0,
       lastTime: 0
     });
     this.state.keys = {};
 
-    this.player.reset();
-    this.monster.reset();
-    this.map.reset();
+    this.map.reset(Config.currentScale);
+    this.player.reset(this.map);
+    this.monster.reset(this.map);
 
     this.ui.updateResetState();
+    this.ui.updateScaleButtons(Config.currentScale);
+    this.ui.updateTerminalsStatus(0, this.map.terminals.length);
     
     // Initial UI state update
     const compositeState = {
@@ -94,6 +98,52 @@ class Game {
       reloading: this.player.reloading
     };
     this.ui.update(compositeState, this.player, this.monster);
+    this.render();
+  }
+
+  /**
+   * Sets facility map scale (small, medium, large) and regenerates procedural layout
+   */
+  setMapScale(scaleKey) {
+    if (this.state.running) {
+      this.ui.showToast('任务进行中无法更改设施规模');
+      this.ui.log('警告：任务进行中锁定环境参数。');
+      return;
+    }
+    if (!Config.mapScales || !Config.mapScales[scaleKey]) return;
+    Config.currentScale = scaleKey;
+    const scaleConfig = Config.mapScales[scaleKey];
+
+    this.ui.updateScaleButtons(scaleKey);
+    this.map.reset(scaleKey);
+    this.player.reset(this.map);
+    this.monster.reset(this.map);
+    this.ui.updateTerminalsStatus(0, this.map.terminals.length);
+    this.render();
+    this.ui.log(`设施规模重构: ${scaleConfig.label} (共 ${scaleConfig.roomCount} 舱室)`);
+    this.ui.showToast(`设施已重构: ${scaleConfig.label}`);
+  }
+
+  /**
+   * Toggles debug reveal of all facility rooms (removes fog of war / shows entire map)
+   */
+  toggleRevealMap() {
+    this.state.revealAllMap = !this.state.revealAllMap;
+    if (this.state.revealAllMap) {
+      this.map.worldRooms.forEach(r => r.discovered = true);
+      this.ui.showToast('【测试模式】全图已完全揭示 (REVEAL ALL ON)');
+      this.ui.log('【测试指令】已解除全图迷雾，所有舱室、通道与终端已完全显现。');
+    } else {
+      const currentRoom = this.map.getRoomAt(this.player.x, this.player.y);
+      this.map.worldRooms.forEach(r => {
+        r.discovered = (r === currentRoom || r.type === 'airlock');
+      });
+      this.ui.showToast('【测试模式】已恢复探索迷雾 (FOG OF WAR ACTIVE)');
+      this.ui.log('【测试指令】雷达探索迷雾已恢复。');
+    }
+    if (this.ui.updateRevealBtnState) {
+      this.ui.updateRevealBtnState(this.state.revealAllMap);
+    }
     this.render();
   }
 
@@ -116,12 +166,22 @@ class Game {
   }
 
   /**
-   * Fires the extraction signal beacon
+   * Fires the extraction signal beacon (Requires all QTE security consoles overridden)
    */
   callExtraction() {
     if (!this.state.running || this.state.extractionCalled) return;
-    this.state.extractionCalled = true;
 
+    // Check if all QTE security override consoles are solved
+    const totalTerminals = this.map.terminals ? this.map.terminals.length : 3;
+    const solvedCount = this.map.terminals ? this.map.terminals.filter(t => t.solved).length : totalTerminals;
+    if (solvedCount < totalTerminals) {
+      this.ui.showToast(`撤离舱锁定中！请先破解全部 ${totalTerminals} 处安全控制台 (当前: ${solvedCount}/${totalTerminals})`);
+      this.ui.log(`撤离系统离线：需重写全部 ${totalTerminals} 处控制台才能启动撤离。`);
+      this.audio.playTone(140, 0.12, 0.1, 'sawtooth');
+      return;
+    }
+
+    this.state.extractionCalled = true;
     this.ui.updateExtractionCalledState();
 
     this.audio.playTone(720, 0.18, 0.11, 'square');
@@ -134,7 +194,7 @@ class Game {
    * Forces activation of the hostile unknown entity
    */
   activateMonster(reason) {
-    const activation = this.monster.activate(this.player.x, this.player.y, reason, this.audio);
+    const activation = this.monster.activate(this.player.x, this.player.y, reason, this.audio, this.map, this.player.angle);
     if (activation) {
       this.ui.threatStatusText.textContent = '已出现';
       this.ui.threatStatusText.className = 'warning';
@@ -151,6 +211,8 @@ class Game {
     this.state.running = false;
     this.state.completed = true;
     this.state.extracted = success;
+    this.state.activeQte = null;
+    this.ui.hideQTE();
 
     if (success) {
       // Add inventory to storage
@@ -180,26 +242,152 @@ class Game {
   interact() {
     if (!this.state.running) return;
 
-    // Check doors
-    const door = this.map.doors.find(item => Math.hypot(item.x - this.player.x, item.y - this.player.y) < 48);
+    // Check doors with interaction radius from door center
+    const door = this.map.doors.find(item => {
+      const centerX = item.x + item.w / 2;
+      const centerY = item.y + item.h / 2;
+      return Math.hypot(centerX - this.player.x, centerY - this.player.y) < 58;
+    });
+
     if (door) {
-      door.open = !door.open;
+      const res = this.map.toggleDoor(door, this.player.x, this.player.y);
       this.player.noise = Math.min(100, this.player.noise + 8);
-      this.ui.log(door.open ? '门已打开。' : '门已关闭。');
-      this.ui.showToast(door.open ? '门已打开' : '门已关闭');
+      this.audio.playTone(door.open ? 160 : 110, 0.08, 0.06, 'sine');
+      
+      const dirText = door.axis === 'v' 
+        ? (res.dir === 1 ? '向右推开' : '向左推开') 
+        : (res.dir === 1 ? '向下推开' : '向上推开');
+      
+      this.ui.log(door.open ? `防爆门已${dirText}。` : '防爆门已关闭锁定。');
+      this.ui.showToast(door.open ? `门已开启 (${dirText})` : '门已关闭');
       return;
+    }
+
+    // Check QTE security override consoles
+    if (this.map.terminals) {
+      const term = this.map.terminals.find(t => Math.hypot(t.x - this.player.x, t.y - this.player.y) < 55);
+      if (term) {
+        if (term.solved) {
+          this.ui.showToast('该安全控制台已重写 (OVERRIDDEN)');
+          return;
+        }
+        this.startQTE(term);
+        return;
+      }
+    }
+
+    // Check extraction beacon interaction (in Start Airlock or Exit Evac Pod)
+    const distAirlock = Math.hypot(this.map.extractionPoint.x - this.player.x, this.map.extractionPoint.y - this.player.y);
+    const distEvac = this.map.exitExtractionPoint ? Math.hypot(this.map.exitExtractionPoint.x - this.player.x, this.map.exitExtractionPoint.y - this.player.y) : Infinity;
+    if (distAirlock < 55 || distEvac < 55) {
+      const totalTerminals = this.map.terminals ? this.map.terminals.length : 3;
+      const solvedCount = this.map.terminals ? this.map.terminals.filter(t => t.solved).length : totalTerminals;
+      if (distEvac < 55 && solvedCount < totalTerminals) {
+        this.ui.showToast(`撤离舱锁定中！请先破解全部 ${totalTerminals} 处控制台 (${solvedCount}/${totalTerminals})`);
+        this.audio.playTone(140, 0.12, 0.1, 'sawtooth');
+        return;
+      }
+      if (!this.state.extractionCalled) {
+        this.callExtraction();
+        this.ui.showToast('撤离信标已激活！');
+        return;
+      }
     }
 
     // Check observation windows
     const windowNear = this.map.windows.some(item => Math.hypot(item.x - this.player.x, item.y - this.player.y) < 42);
     if (windowNear) {
-      this.ui.log('窗外只有风 and 黑暗。');
+      this.ui.log('窗外只有风与黑暗。');
       this.ui.showToast('观察窗');
       return;
     }
 
     // Attempt collection
     this.collect();
+  }
+
+  /**
+   * Commences QTE sequence on the specified security console
+   */
+  startQTE(terminal) {
+    this.state.activeQte = {
+      terminal: terminal,
+      currentIndex: 0,
+      sequence: [...terminal.sequence],
+      failed: false
+    };
+    this.ui.showQTE(terminal, 0, false);
+    this.ui.showToast('接入安全控制台 // 请按顺序输入WASD');
+  }
+
+  /**
+   * Processes player WASD/ESC input during an active QTE sequence
+   */
+  handleQTEInput(key, event) {
+    if (!this.state.activeQte) return;
+    const qte = this.state.activeQte;
+
+    if (key === 'escape') {
+      this.state.activeQte = null;
+      this.ui.hideQTE();
+      this.ui.showToast('已退出控制台');
+      return;
+    }
+
+    if (['w', 'a', 's', 'd'].includes(key)) {
+      if (event) event.preventDefault();
+      const target = qte.sequence[qte.currentIndex].toLowerCase();
+
+      if (key === target) {
+        // Correct key in sequence
+        this.audio.playQTEKeyBeep(qte.currentIndex);
+        qte.currentIndex++;
+        this.ui.showQTE(qte.terminal, qte.currentIndex, false);
+
+        if (qte.currentIndex === qte.sequence.length) {
+          // All 5 steps passed!
+          qte.terminal.solved = true;
+          this.audio.playQTESuccess();
+          const totalCount = this.map.terminals.length;
+          const solvedCount = this.map.terminals.filter(t => t.solved).length;
+          this.ui.updateTerminalsStatus(solvedCount, totalCount);
+          this.ui.showToast(`控制台重写成功！[${solvedCount}/${totalCount}]`);
+          this.ui.log(`安全控制台 #${qte.terminal.id} 已完成重写。`);
+
+          if (solvedCount >= totalCount) {
+            this.ui.showToast('全舰安全协议已解除！EVAC POD 撤离舱已解锁！');
+            this.ui.log(`警报：${totalCount}处终端全部覆盖，逃生舱主锁解除！可以撤离！`);
+          }
+
+          setTimeout(() => {
+            if (this.state.activeQte && this.state.activeQte.terminal === qte.terminal) {
+              this.state.activeQte = null;
+              this.ui.hideQTE();
+            }
+          }, 450);
+        }
+      } else {
+        // Wrong key entered! LOUD ALARM SOUND + NOISE SPIKE + MONSTER ALERT
+        this.audio.playLoudAlarmSound();
+        this.player.noise = 100;
+        this.activateMonster('QTE控制台输入错误！刺耳警报响彻全舰！');
+        this.ui.triggerDamageFlash(0.7, 150);
+        this.ui.showToast('输入错误！警报触发！');
+        this.ui.log('错误：安全校验未通过！刺耳警报已被触发！');
+
+        // Regenerate sequence and display failure shake
+        qte.terminal.sequence = this.map.generateQTESequence(5);
+        qte.sequence = [...qte.terminal.sequence];
+        qte.currentIndex = 0;
+        this.ui.showQTE(qte.terminal, 0, true);
+
+        setTimeout(() => {
+          if (this.state.activeQte) {
+            this.ui.showQTE(qte.terminal, 0, false);
+          }
+        }, 600);
+      }
+    }
   }
 
   /**
@@ -374,21 +562,25 @@ class Game {
         const nextX = this.monster.x + Math.cos(result.toMonster) * push;
         const nextY = this.monster.y + Math.sin(result.toMonster) * push;
 
-        this.monster.x = Math.max(38, Math.min(1762, nextX));
-        this.monster.y = Math.max(38, Math.min(1166, nextY));
+        this.monster.x = Math.max(38, Math.min(Config.WORLD_W - 38, nextX));
+        this.monster.y = Math.max(38, Math.min(Config.WORLD_H - 38, nextY));
         this.monster.stagger = 0.65;
 
         this.ui.triggerDamageFlash(0.18, 80);
 
         this.ui.log('命中。生命体被击退。');
         this.ui.showToast('命中 / 目标后退');
-        this.audio.playTone(88, 0.18, 0.18, 'sawtooth');
+        const hitSpatial = this.audio.calculateSpatial(this.player.x, this.player.y, this.player.angle, this.monster.x, this.monster.y, 650);
+        this.audio.playSpatialTone(88, 0.18, 0.22, 'sawtooth', hitSpatial.pan, Math.max(0.5, hitSpatial.distanceGain), hitSpatial.isBehind);
       } else {
         this.ui.log('枪声在走廊里回响。');
         this.ui.showToast('未命中');
       }
     } else if (result.reason === 'empty') {
-      this.ui.showToast('弹匣已空，按 Q 换弹');
+      this.audio.playTone(180, 0.04, 0.08, 'square');
+      this.ui.showToast('弹药耗尽 (按 R 换弹)');
+    } else if (result.reason === 'reloading') {
+      this.ui.showToast('正在换弹中...');
     }
   }
 
@@ -473,10 +665,19 @@ class Game {
   update(dt) {
     this.state.elapsed += dt;
 
-    // 1. Update Player position & status timers
-    const playerResult = this.player.update(dt, this.state.keys, this.state.stabilized, this.map, this.audio);
+    // 1. Update Player position & status timers (freeze input movement during active QTE)
+    const inputKeys = this.state.activeQte ? {} : this.state.keys;
+    const playerResult = this.player.update(dt, inputKeys, this.state.stabilized, this.map, this.audio);
     if (playerResult && playerResult.reloaded) {
       this.ui.showToast('换弹完成');
+    }
+
+    // 1b. Fog of War: discover room as soon as player steps inside
+    const currentRoom = this.map.getRoomAt(this.player.x, this.player.y);
+    if (currentRoom && !currentRoom.discovered) {
+      currentRoom.discovered = true;
+      this.ui.showToast(`探索新区域: ${currentRoom.title}`);
+      this.ui.log(`雷达已探明新区域：${currentRoom.title} (${currentRoom.label})。`);
     }
 
     // 2. Decay movement acoustic noise
@@ -562,7 +763,6 @@ class Game {
       if (monsterResult.burstTriggered) {
         this.ui.showToast('目标爆冲！');
         this.ui.log('警告：目标正在高速接近！');
-        this.audio.playTone(180, 0.16, 0.14, 'sawtooth');
       }
 
       if (monsterResult.burstFinished) {
@@ -579,13 +779,16 @@ class Game {
       }
     }
 
-    // 7. Update synthesized ambient acoustics
+    // 7. Update synthesized ambient acoustics (breathing audio removed per user specification)
     this.audio.update(this.player, this.monster, this.map);
 
-    // 8. Resolve retrieval extraction boundaries
+    // 8. Resolve retrieval extraction boundaries (Requires all 3 security override consoles passed)
     if (this.state.extractionCalled) {
-      const distanceToExtract = Math.hypot(this.player.x - Config.extraction.x, this.player.y - Config.extraction.y);
-      if (distanceToExtract < 44) {
+      const d1 = Math.hypot(this.player.x - this.map.extractionPoint.x, this.player.y - this.map.extractionPoint.y);
+      const d2 = this.map.exitExtractionPoint ? Math.hypot(this.player.x - this.map.exitExtractionPoint.x, this.player.y - this.map.exitExtractionPoint.y) : Infinity;
+      const totalCount = this.map.terminals ? this.map.terminals.length : 3;
+      const solvedCount = this.map.terminals ? this.map.terminals.filter(t => t.solved).length : totalCount;
+      if ((d1 < 48 || d2 < 48) && solvedCount >= totalCount) {
         this.finish(true);
         return;
       }
@@ -634,7 +837,7 @@ class Game {
     this.renderer.draw(this.player, this.monster, this.map, this.state);
     this.renderer.drawWorldOverlay(this.player, this.map, this.state);
     this.renderer.drawCenteredVision(this.player, this.map, this.state);
-    this.renderer.drawMiniMap(this.player, this.map);
+    this.renderer.drawMiniMap(this.player, this.map, this.state);
   }
 
   /**
@@ -647,22 +850,28 @@ class Game {
       const key = e.key.toLowerCase();
       this.state.keys[key] = true;
       
+      // Intercept inputs when player is actively operating a security QTE console
+      if (this.state.activeQte) {
+        if (key === 'escape' || ['w', 'a', 's', 'd'].includes(key)) {
+          this.handleQTEInput(key, e);
+          return;
+        }
+      }
+
       if (key === 'f') this.player.flashlight = !this.player.flashlight;
       if (key === 'e') this.interact();
-      if (key === 'q') this.player.reload(this.audio);
-      if (key === 'r') this.callExtraction();
+      if (key === 'r') this.player.reload(this.audio); // Only R for reload
+      if (key === 'x') this.callExtraction(); // X for extraction
       if (key === 'b') {
         const inv = document.getElementById('inventoryOverlay');
-        console.log('Toggling inventory', inv); // DEBUG
         inv.style.display = (inv.style.display === 'none' || inv.style.display === '') ? 'block' : 'none';
         if (inv.style.display === 'block') this.updateInventoryUI();
       }
+      if (key === 'm') this.toggleRevealMap();
       
-      if (e.code === 'Space') {
+      // Removed Space key firing: Fire is strictly restricted to M1 (Mouse left click)
+      if ((e.key === 'Enter' || e.code === 'Space') && !this.state.running) {
         e.preventDefault();
-        this.shoot();
-      }
-      if (e.key === 'Enter' && !this.state.running) {
         this.start();
       }
     });
@@ -671,47 +880,116 @@ class Game {
       this.state.keys[e.key.toLowerCase()] = false;
     });
 
-    window.addEventListener('pointermove', e => this.handleAim(e));
+    let lastM1FireTime = 0;
+    let isLeftDown = false;
+    let isRightDown = false;
+
+    const fireIfAllowed = () => {
+      const now = performance.now();
+      if (now - lastM1FireTime < 60) return; // Debounce multi-event triggers
+      lastM1FireTime = now;
+
+      if (!this.state.running) {
+        this.start();
+        return;
+      }
+      if (this.state.activeQte) return; // Disallow firing while operating security console
+      this.shoot();
+    };
+
+    const updateMouseButtons = (e) => {
+      if (typeof e.buttons === 'number') {
+        const leftNow = (e.buttons & 1) !== 0;
+        const rightNow = (e.buttons & 2) !== 0;
+
+        // Detect Left Click button press edge (transition from false to true)
+        if (leftNow && !isLeftDown) {
+          fireIfAllowed();
+        }
+        isLeftDown = leftNow;
+
+        // Synchronize aiming state with right button state
+        if (rightNow !== isRightDown) {
+          isRightDown = rightNow;
+          this.setStableAim(rightNow);
+        }
+      }
+    };
+
+    window.addEventListener('pointermove', e => {
+      this.handleAim(e);
+      updateMouseButtons(e);
+    });
+
+    window.addEventListener('mousemove', e => {
+      this.handleAim(e);
+      updateMouseButtons(e);
+    });
 
     window.addEventListener('mousedown', e => {
-      if (e.button === 0 && e.target.closest('#gameFrame')) {
-        this.shoot();
+      if (e.target && (e.target.tagName === 'BUTTON' || e.target.closest('button'))) {
+        return;
       }
-      if (e.button === 2 && e.target.closest('#gameFrame')) {
+      if (e.button === 0) {
         e.preventDefault();
+        isLeftDown = true;
+        fireIfAllowed();
+      } else if (e.button === 2) {
+        e.preventDefault();
+        isRightDown = true;
         this.setStableAim(true);
       }
     });
 
     window.addEventListener('mouseup', e => {
-      if (e.button === 2) this.setStableAim(false);
+      if (e.button === 0) {
+        isLeftDown = false;
+      } else if (e.button === 2) {
+        isRightDown = false;
+        this.setStableAim(false);
+      }
+      updateMouseButtons(e);
     });
 
     window.addEventListener('pointerdown', e => {
-      if (e.target.closest('#gameFrame')) {
-        try {
-          e.target.closest('#gameFrame').setPointerCapture(e.pointerId);
-        } catch (err) {}
+      if (e.target && (e.target.tagName === 'BUTTON' || e.target.closest('button'))) {
+        return;
       }
-      if (e.button === 2 && e.target.closest('#gameFrame')) {
-        e.preventDefault();
+      if (e.button === 0) {
+        isLeftDown = true;
+        fireIfAllowed();
+      } else if (e.button === 2) {
+        isRightDown = true;
         this.setStableAim(true);
       }
     });
 
     window.addEventListener('pointerup', e => {
-      if (e.target.closest('#gameFrame')) {
-        try {
-          e.target.closest('#gameFrame').releasePointerCapture(e.pointerId);
-        } catch (err) {}
+      if (e.button === 0) {
+        isLeftDown = false;
+      } else if (e.button === 2) {
+        isRightDown = false;
+        this.setStableAim(false);
       }
-      if (e.button === 2) this.setStableAim(false);
+      updateMouseButtons(e);
     });
 
     window.addEventListener('contextmenu', e => e.preventDefault());
     window.addEventListener('dragstart', e => e.preventDefault());
     
+    // Unlock AudioContext on first user gesture
+    window.addEventListener('pointerdown', () => this.audio.ensureAudio(), { passive: true });
+    window.addEventListener('keydown', () => this.audio.ensureAudio(), { passive: true });
+
     this.ui.startButton.addEventListener('click', () => {
+      this.audio.ensureAudio();
+      if (!this.state.running) {
+        this.start();
+      }
+    });
+
+    this.ui.prompt.addEventListener('click', () => {
+      this.audio.ensureAudio();
       if (!this.state.running) {
         this.start();
       }

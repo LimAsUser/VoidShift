@@ -11,9 +11,9 @@ class Player {
   /**
    * Resets player telemetry and position
    */
-  reset() {
-    this.x = Config.player.spawnX;
-    this.y = Config.player.spawnY;
+  reset(mapManager) {
+    this.x = (mapManager && mapManager.spawnPoint) ? mapManager.spawnPoint.x : Config.player.spawnX;
+    this.y = (mapManager && mapManager.spawnPoint) ? mapManager.spawnPoint.y : Config.player.spawnY;
     this.radius = Config.player.radius;
     this.baseSpeed = Config.player.speed;
     this.angle = 0;
@@ -125,7 +125,10 @@ class Player {
    * Fires the hand weapon and resolves line of sight targeting
    */
   shoot(stabilized, mapManager, audioManager, monster) {
-    if (this.shootCooldown > 0 || this.reloading > 0) {
+    if (this.reloading > 0) {
+      return { fired: false, reason: 'reloading' };
+    }
+    if (this.shootCooldown > 0) {
       return { fired: false, reason: 'cooldown' };
     }
     if (this.ammo <= 0) {
@@ -188,9 +191,15 @@ class Monster {
   /**
    * Resets monster states and coordinates
    */
-  reset() {
-    this.x = Config.monster.spawnX;
-    this.y = Config.monster.spawnY;
+  reset(mapManager) {
+    if (mapManager && mapManager.monsterSpawns && mapManager.monsterSpawns.length) {
+      const sp = mapManager.monsterSpawns[0];
+      this.x = sp.x;
+      this.y = sp.y;
+    } else {
+      this.x = Config.monster.spawnX;
+      this.y = Config.monster.spawnY;
+    }
     this.radius = Config.monster.radius;
     this.active = false;
     this.alerted = false;
@@ -205,25 +214,40 @@ class Monster {
 
   /**
    * Computes a safe spawn location far from the explorer
+   * GUARANTEED: Monster will NEVER spawn or teleport into the room the player is currently in!
    */
-  getFarSpawnPoint(playerX, playerY) {
+  getFarSpawnPoint(playerX, playerY, mapManager) {
+    const playerRoom = (mapManager && mapManager.getRoomAt) ? mapManager.getRoomAt(playerX, playerY) : null;
+    if (mapManager && mapManager.monsterSpawns && mapManager.monsterSpawns.length) {
+      // Strictly exclude any candidate spawn point in the player's current room
+      const outsidePlayerRoom = mapManager.monsterSpawns.filter(pt => {
+        if (!playerRoom) return true;
+        const ptRoom = mapManager.getRoomAt(pt.x, pt.y);
+        return ptRoom !== playerRoom;
+      });
+
+      // Filter by minimum Euclidean distance
+      const farCandidates = outsidePlayerRoom.filter(pt => Math.hypot(pt.x - playerX, pt.y - playerY) > 380);
+      const pool = farCandidates.length ? farCandidates : (outsidePlayerRoom.length ? outsidePlayerRoom : mapManager.monsterSpawns);
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
     const points = [
       { x: 760, y: 320 }, { x: 760, y: 510 },
       { x: 1460, y: 320 }, { x: 1460, y: 510 },
-      { x: 760, y: 922 }, { x: 760, y: 1112 },
-      { x: 1460, y: 922 }, { x: 1460, y: 1112 },
-      { x: 540, y: 95 }, { x: 1440, y: 95 },
-      { x: 540, y: 697 }, { x: 1440, y: 697 }
+      { x: 1800, y: 1200 }, { x: 1600, y: 1000 }
     ];
-    const farPoints = points.filter(pt => Math.hypot(pt.x - playerX, pt.y - playerY) > 360);
-    const candidates = farPoints.length ? farPoints : points;
-    return candidates[Math.floor(Math.random() * candidates.length)];
+    const farPoints = points.filter(pt => {
+      if (playerRoom && mapManager && mapManager.getRoomAt(pt.x, pt.y) === playerRoom) return false;
+      return Math.hypot(pt.x - playerX, pt.y - playerY) > 360;
+    });
+    const pool = farPoints.length ? farPoints : points;
+    return pool[Math.floor(Math.random() * pool.length)];
   }
 
   /**
    * Activates the monster and teleports it to a distant position
    */
-  activate(playerX, playerY, reason, audioManager) {
+  activate(playerX, playerY, reason, audioManager, mapManager, playerAngle = 0) {
     if (this.active && this.alerted) return null;
     
     this.active = true;
@@ -233,11 +257,16 @@ class Monster {
     this.burstCooldown = 1.8;
     this.slowTimer = 0;
 
-    const spawn = this.getFarSpawnPoint(playerX, playerY);
+    const spawn = this.getFarSpawnPoint(playerX, playerY, mapManager);
     this.x = spawn.x;
     this.y = spawn.y;
 
-    audioManager.playTone(92, 0.35, 0.12, 'sawtooth');
+    if (audioManager.calculateSpatial) {
+      const spatial = audioManager.calculateSpatial(playerX, playerY, playerAngle, this.x, this.y, 800);
+      audioManager.playSpatialTone(92, 0.45, 0.18, 'sawtooth', spatial.pan, Math.max(0.4, spatial.distanceGain), spatial.isBehind);
+    } else {
+      audioManager.playTone(92, 0.35, 0.12, 'sawtooth');
+    }
     
     return {
       success: true,
@@ -285,7 +314,12 @@ class Monster {
         this.burstTimer = Config.monster.burstDuration;
         this.burstCooldown = Config.monster.burstCooldownDuration;
         result.burstTriggered = true;
-        audioManager.playTone(180, 0.16, 0.14, 'sawtooth');
+        if (audioManager.calculateSpatial) {
+          const spatial = audioManager.calculateSpatial(player.x, player.y, player.angle, this.x, this.y, 650);
+          audioManager.playSpatialTone(180, 0.22, 0.22, 'sawtooth', spatial.pan, Math.max(0.4, spatial.distanceGain), spatial.isBehind);
+        } else {
+          audioManager.playTone(180, 0.16, 0.14, 'sawtooth');
+        }
       }
 
       const angle = Math.atan2(player.y - this.y, player.x - this.x);
@@ -332,7 +366,7 @@ class Monster {
       this.lostTime = 0;
 
       // Respawn far away
-      const spawn = this.getFarSpawnPoint(player.x, player.y);
+      const spawn = this.getFarSpawnPoint(player.x, player.y, mapManager);
       this.x = spawn.x;
       this.y = spawn.y;
     }
