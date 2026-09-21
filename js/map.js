@@ -85,6 +85,25 @@ function raySegmentIntersect(ox, oy, dx, dy, x1, y1, x2, y2) {
   return Infinity;
 }
 
+function bfsRoomPath(fromRoom, toRoom) {
+  if (!fromRoom || !toRoom || fromRoom === toRoom) return [];
+  const visited = new Set([fromRoom]);
+  const queue = [[fromRoom, []]];
+  while (queue.length) {
+    const [room, path] = queue.shift();
+    for (const door of room.doors) {
+      const next = door.roomA === room ? door.roomB : door.roomA;
+      if (!visited.has(next)) {
+        visited.add(next);
+        const newPath = [...path, { door, room: next }];
+        if (next === toRoom) return newPath;
+        queue.push([next, newPath]);
+      }
+    }
+  }
+  return [];
+}
+
 const RoomTemplates = {
   square: () => {
     const w = 580, h = 580;
