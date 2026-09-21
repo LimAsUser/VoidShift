@@ -32,11 +32,29 @@
         </div>
 
         <div id="briefingContent">
+          <div class="map-scale-section">
+            <div class="scale-header">
+              <span class="scale-label">FACILITY SCALE</span>
+              <strong id="currentScaleText">小型 (12 舱)</strong>
+            </div>
+            <div class="scale-btn-group">
+              <button class="scale-btn active" id="scaleBtnSmall" onclick="game.setMapScale('small')">小 12舱</button>
+              <button class="scale-btn" id="scaleBtnMedium" onclick="game.setMapScale('medium')">中 18舱</button>
+              <button class="scale-btn" id="scaleBtnLarge" onclick="game.setMapScale('large')">大 24舱</button>
+            </div>
+          </div>
+          <div class="map-test-section">
+            <button class="test-reveal-btn" id="testRevealBtn" onclick="game.toggleRevealMap()" title="快捷键 M">
+              <span class="test-icon">👁</span>
+              <span id="testRevealText">调试：全图揭示 / 迷雾切换 (M)</span>
+            </button>
+          </div>
           <div class="location-stamp"><span class="stamp-label">LOCATION</span><strong>ARCADIA-9</strong><small>废弃气象观测站</small></div>
           <div class="objective"><span class="objective-icon">◈</span><div><p>当前目标</p><strong>收集并撤离废料</strong></div></div>
           <div class="contract-row"><span>本轮报价</span><strong id="quotaValue">¥ 420</strong></div>
           <div class="contract-row"><span>已回收价值</span><strong id="lootValue">¥ 0</strong></div>
           <div class="contract-row"><span>携带物</span><strong id="lootCount">0 / 6</strong></div>
+          <div class="contract-row"><span>安全重写终端</span><strong id="terminalsStatus" style="color:#f5a623;">0 / 3</strong></div>
         </div>
 
         <div id="storageContent" style="display:none;">
@@ -60,7 +78,20 @@
         <div class="game-frame" id="gameFrame">
           <canvas id="gameCanvas" aria-label="废墟探索游戏区域"></canvas>
           <canvas id="visionCanvas" aria-hidden="true"></canvas>
-          <canvas id="miniMap" aria-label="任务小地图"></canvas>
+          <!-- 4x4 Mini Radar Container -->
+          <div class="mini-map-container" id="miniMapContainer" title="点击或按 [M] 展开完整大地图">
+            <div class="mini-map-header">
+              <span class="mini-map-title"><span class="radar-ping-dot"></span> 4×4 局部雷达</span>
+              <button class="mini-map-expand-btn" id="miniMapExpandBtn" title="展开全景战术大地图 (快捷键 M)">⛶ 全图 [M]</button>
+            </div>
+            <canvas id="miniMap" aria-label="4x4 局部雷达小地图"></canvas>
+            <div class="mini-map-footer" id="miniMapCoords">
+              <span id="miniMapSectorText">SECTOR: LOCAL</span>
+              <span class="mini-map-keyhint">[M] 大地图</span>
+            </div>
+          </div>
+
+          <button class="hud-reveal-btn" id="hudRevealBtn" onclick="game.toggleRevealMap()" title="切换全图迷雾">👁 迷雾开关</button>
           <div class="scanlines"></div>
           
           <!-- In-game HUD -->
@@ -73,13 +104,87 @@
               <span id="hudAmmo">AMMO: 6 / 24</span>
               <span id="hudNoise">NOISE: 静</span>
             </div>
+            <div class="hud-stat" style="align-items:flex-end;">
+              <span id="hudTerminals" style="color:#f5a623; font-weight:700;">CONSOLES: 0 / 3</span>
+            </div>
           </div>
 
-          <div class="center-prompt" id="centerPrompt"><span class="prompt-mark">△</span><strong>点击开始任务</strong><small>WASD 移动 · 鼠标照明 · E 拾取</small></div>
+          <!-- QTE Terminal Interface Overlay -->
+          <div class="qte-overlay" id="qteOverlay" style="display:none;">
+            <div class="qte-container">
+              <div class="qte-header">
+                <span class="qte-icon">⚠</span>
+                <div>
+                  <h3 id="qteTitle">安全控制台 #1 // 紧急重写协议</h3>
+                  <p>按顺序输入 WASD 序列以解锁终端控制</p>
+                </div>
+              </div>
+              <!-- 10s Countdown Timer Bar -->
+              <div class="qte-timer-wrap">
+                <div class="qte-timer-header">
+                  <span>终端重写时限</span>
+                  <strong id="qteTimerText">10.0s</strong>
+                </div>
+                <div class="qte-timer-bar-bg">
+                  <div class="qte-timer-bar" id="qteTimerBar"></div>
+                </div>
+              </div>
+
+              <div class="qte-sequence" id="qteSequence">
+                <!-- Step blocks populated dynamically -->
+              </div>
+              <div class="qte-status" id="qteStatus">等待操作员按键输入...</div>
+              <div class="qte-footer">
+                <span style="color:#ef4444;">⚠ 10秒超时或累计失误3次：触发高压电击 (-10 HP, 晕眩 2.5s)</span>
+                <span class="qte-key-hint">[ESC] 中断放弃</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Full Tactical Facility Map Modal (Toggled with Key M) -->
+          <div class="full-map-modal hidden" id="fullMapModal" style="display:none;">
+            <div class="full-map-container">
+              <div class="full-map-header">
+                <div class="full-map-title-group">
+                  <span class="full-map-icon">🛰</span>
+                  <div>
+                    <h3>FACILITY TACTICAL COMMAND // 全局战术地图</h3>
+                    <p id="fullMapSubTitle">ARCADIA-9 空间设施平面态势图</p>
+                  </div>
+                </div>
+                <div class="full-map-stats" id="fullMapStats">
+                  <span class="stat-tag" id="fullMapScaleTag">规模: 小型 (12 舱)</span>
+                  <span class="stat-tag" id="fullMapExploreTag">探索度: 1/12</span>
+                  <span class="stat-tag highlight" id="fullMapTerminalsTag">安全终端: 0/3</span>
+                  <span class="stat-tag" id="fullMapEvacTag">撤离舱: 锁定中</span>
+                </div>
+                <div class="full-map-actions">
+                  <button class="map-action-btn" id="fullMapFogToggleBtn" title="切换迷雾测试">👁 迷雾开关</button>
+                  <button class="map-close-btn" id="fullMapCloseBtn" title="关闭大地图 (M / ESC)">✕ 关闭 [M/ESC]</button>
+                </div>
+              </div>
+              <div class="full-map-canvas-wrap">
+                <canvas id="fullMapCanvas" aria-label="全局战术地图画布"></canvas>
+              </div>
+              <div class="full-map-footer">
+                <div class="full-map-legend">
+                  <span><i class="legend-badge airlock"></i> 起始气闸</span>
+                  <span><i class="legend-badge terminal"></i> 安全写入终端</span>
+                  <span><i class="legend-badge evac"></i> 紧急逃生舱</span>
+                  <span><i class="legend-badge box"></i> 物资箱</span>
+                  <span><i class="legend-badge prop"></i> 工业设备</span>
+                  <span><i class="legend-badge player"></i> 你的位置 (OPERATOR)</span>
+                </div>
+                <div class="full-map-hint">按 <b>[M]</b> 或 <b>[ESC]</b> 关闭大地图</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="center-prompt" id="centerPrompt"><span class="prompt-mark">△</span><strong>点击开始任务</strong><small>WASD 移动 · 左键开火 · R 换弹 · E 门/拾取/控制台 · M 战术地图 · X 撤离</small></div>
           <div class="damage-flash" id="damageFlash"></div>
           <div class="game-toast" id="gameToast"></div>
         </div>
-        <div class="game-footer"><span><b class="key">WASD</b> 移动</span><span><b class="key">F</b> 手电筒</span><span><b class="key">E</b> 交互 / 回收</span><span><b class="key">左键 / 空格</b> 开枪</span><span><b class="key">Q</b> 换弹</span><span><b class="key">R</b> 呼叫撤离</span><span class="signal"><i></i> SIGNAL 84%</span></div>
+        <div class="game-footer"><span><b class="key">WASD</b> 移动</span><span><b class="key">左键</b> 开火</span><span><b class="key">R</b> 换弹</span><span><b class="key">E</b> 交互/门/终端</span><span><b class="key">M</b> 战术地图</span><span><b class="key">X</b> 呼叫撤离</span><span><b class="key">F</b> 手电筒</span><span><b class="key">B</b> 背包</span><span class="signal"><i></i> SIGNAL 92%</span></div>
       </section>
 
       <aside class="status-panel panel">
