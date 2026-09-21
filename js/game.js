@@ -11,6 +11,7 @@ class Game {
     this.renderer = new Renderer(this.ui);
     this.player = new Player();
     this.monster = new Monster();
+    this.hunter = new Hunter();
 
     this.state = {
       running: false,
@@ -87,6 +88,7 @@ class Game {
     this.map.reset(Config.currentScale);
     this.player.reset(this.map);
     this.monster.reset(this.map);
+    this.hunter.reset(this.map);
 
     this.ui.updateResetState();
     this.ui.updateScaleButtons(Config.currentScale);
@@ -124,6 +126,7 @@ class Game {
     this.map.reset(scaleKey);
     this.player.reset(this.map);
     this.monster.reset(this.map);
+    this.hunter.reset(this.map);
     this.ui.updateTerminalsStatus(0, this.map.terminals.length);
     this.render();
     this.ui.log(`设施规模重构: ${scaleConfig.label} (共 ${scaleConfig.roomCount} 舱室)`);
@@ -227,6 +230,14 @@ class Game {
       this.ui.missionTitle.textContent = '有什么东西醒了';
       this.ui.log(reason);
       this.ui.showToast('远处传来金属摩擦声');
+    }
+  }
+
+  activateHunter(reason) {
+    const activation = this.hunter.activate(this.player.x, this.player.y, reason, this.audio, this.map, this.player.angle);
+    if (activation) {
+      this.ui.log(reason);
+      this.ui.showToast('金属脚步声正在接近...');
     }
   }
 
@@ -744,6 +755,32 @@ class Game {
         this.ui.log('枪声在走廊里回响。');
         this.ui.showToast('未命中');
       }
+
+    // Hunter hit detection
+    if (this.hunter.active && !this.hunter.dead && result.fired) {
+      const startX = this.player.x;
+      const startY = this.player.y;
+      const angle = result.shotAngle;
+      const toHunterAngle = Math.atan2(this.hunter.y - startY, this.hunter.x - startX);
+      const hunterDist = Math.hypot(this.hunter.x - startX, this.hunter.y - startY);
+      const wallDist = this.map.rayWallDistance(startX, startY, Math.cos(angle), Math.sin(angle), 650);
+      const angleDiff = Math.abs(((toHunterAngle - angle) + Math.PI * 3) % (Math.PI * 2) - Math.PI);
+      const onLine = angleDiff < 0.18;
+      if (onLine && hunterDist < wallDist + this.hunter.radius + 12 && hunterDist < result.traceLength) {
+        const hitResult = this.hunter.registerHit();
+        if (hitResult.hit) {
+          result.traceLength = hunterDist;
+          if (hitResult.dead) {
+            this.ui.showToast('猎手已被击毙！');
+            this.ui.log('威胁消除：猎手生命体已击毙。');
+            this.audio.playSpatialTone(55, 0.3, 0.6, 'sawtooth', 0, 1, false);
+          } else {
+            this.ui.showToast(`猎手受创 (${hitResult.hpLeft}/3)`);
+            this.audio.playSpatialTone(120, 0.15, 0.2, 'square', 0, 1, false);
+          }
+        }
+      }
+    }
     } else if (result.reason === 'empty') {
       this.audio.playTone(180, 0.04, 0.08, 'square');
       this.ui.showToast('弹药耗尽 (按 R 换弹)');
@@ -931,9 +968,12 @@ class Game {
     ) * jitterScale;
 
     // 5. Check environmental conditions to awaken the monster
-    if ((!this.monster.active && this.state.elapsed > 7) || 
+    if ((!this.monster.active && this.state.elapsed > 7) ||
         (!this.monster.alerted && (this.player.noise > Config.monster.triggerNoiseThreshold || this.state.loot >= 2))) {
       this.activateMonster(this.player.noise > Config.monster.triggerNoiseThreshold ? '脚步声在走廊里回响。' : '墙后传来沉重的呼吸声。');
+    }
+    if (!this.hunter.active && !this.hunter.dead && this.state.elapsed > 10) {
+      this.activateHunter('设施深处传来稳定的踏步声。');
     }
 
     // 6. Drive monster pathfinding & AI updates
@@ -978,8 +1018,28 @@ class Game {
       }
     }
 
+    // 6b. Drive Hunter AI
+    if (this.hunter.active && !this.hunter.dead) {
+      const hunterResult = this.hunter.update(dt, this.player, this.player.noise, this.map, this.audio);
+      if (hunterResult) {
+        if (hunterResult.playerHit) {
+          this.ui.triggerDamageFlash(0.75, 130);
+          this.player.health -= 18;
+          this.player.oxygen -= 8;
+          this.player.noise = 100;
+          this.ui.log('警告：猎手接触！');
+        }
+        if (hunterResult.deaggro) {
+          this.ui.log('猎手失去了你的踪迹。');
+        }
+        if (hunterResult.burstTriggered) {
+          this.ui.showToast('猎手爆冲！');
+        }
+      }
+    }
+
     // 7. Update synthesized ambient acoustics (breathing audio removed per user specification)
-    this.audio.update(this.player, this.monster, this.map);
+    this.audio.update(this.player, this.monster, this.map, this.hunter);
 
     // 8. Resolve retrieval extraction boundaries (Requires all 3 security override consoles passed)
     if (this.state.extractionCalled) {
@@ -1033,7 +1093,7 @@ class Game {
    */
   render() {
     this.renderer.prepareCamera(this.player, this.state);
-    this.renderer.draw(this.player, this.monster, this.map, this.state);
+    this.renderer.draw(this.player, this.monster, this.map, this.state, this.hunter);
     this.renderer.drawWorldOverlay(this.player, this.map, this.state);
     this.renderer.drawCenteredVision(this.player, this.map, this.state);
     this.renderer.drawMiniMap(this.player, this.map, this.state);
