@@ -134,6 +134,60 @@ class AudioManager {
   }
 
   /**
+   * High-voltage electrical shock / zap sound effect when QTE fails or times out
+   */
+  playElectricShock() {
+    if (!this.context) return;
+    try {
+      const now = this.context.currentTime;
+      const osc = this.context.createOscillator();
+      const crackle = this.context.createOscillator();
+      const shockGain = this.context.createGain();
+
+      osc.type = 'sawtooth';
+      crackle.type = 'square';
+
+      // Harsh pitch dive from 2400Hz to 80Hz
+      osc.frequency.setValueAtTime(2400, now);
+      osc.frequency.exponentialRampToValueAtTime(80, now + 0.35);
+
+      // Jitter crackle frequency
+      crackle.frequency.setValueAtTime(140, now);
+      crackle.frequency.setValueAtTime(280, now + 0.05);
+      crackle.frequency.setValueAtTime(95, now + 0.12);
+      crackle.frequency.setValueAtTime(320, now + 0.2);
+      crackle.frequency.setValueAtTime(60, now + 0.3);
+
+      shockGain.gain.setValueAtTime(0.5, now);
+      shockGain.gain.linearRampToValueAtTime(0.65, now + 0.06);
+      shockGain.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+
+      osc.connect(shockGain);
+      crackle.connect(shockGain);
+      shockGain.connect(this.master);
+
+      osc.start(now);
+      crackle.start(now);
+      osc.stop(now + 0.45);
+      crackle.stop(now + 0.45);
+    } catch (e) {
+      console.warn('Failed to play electric shock sound:', e);
+    }
+  }
+
+  /**
+   * Short error buzz when an incorrect QTE key is entered
+   */
+  playQTEErrorBeep() {
+    if (!this.context) return;
+    try {
+      this.playTone(135, 0.16, 0.12, 'sawtooth');
+    } catch (e) {
+      console.warn('Failed to play QTE error beep:', e);
+    }
+  }
+
+  /**
    * Calculates directional stereo panning (-1.0 left to +1.0 right)
    * and distance attenuation relative to listener position and facing angle
    */

@@ -12,6 +12,20 @@ class UIManager {
     this.visionCtx = this.visionCanvas.getContext('2d');
     this.miniMap = document.querySelector('#miniMap');
     this.miniCtx = this.miniMap.getContext('2d');
+    this.miniMapContainer = document.querySelector('#miniMapContainer');
+    this.miniMapExpandBtn = document.querySelector('#miniMapExpandBtn');
+    this.miniMapSectorText = document.querySelector('#miniMapSectorText');
+
+    // Full Tactical Map Modal Elements
+    this.fullMapModal = document.querySelector('#fullMapModal');
+    this.fullMapCanvas = document.querySelector('#fullMapCanvas');
+    this.fullMapCtx = this.fullMapCanvas ? this.fullMapCanvas.getContext('2d') : null;
+    this.fullMapCloseBtn = document.querySelector('#fullMapCloseBtn');
+    this.fullMapFogToggleBtn = document.querySelector('#fullMapFogToggleBtn');
+    this.fullMapScaleTag = document.querySelector('#fullMapScaleTag');
+    this.fullMapExploreTag = document.querySelector('#fullMapExploreTag');
+    this.fullMapTerminalsTag = document.querySelector('#fullMapTerminalsTag');
+    this.fullMapEvacTag = document.querySelector('#fullMapEvacTag');
 
     // Containers and frames
     this.frame = document.querySelector('#gameFrame');
@@ -57,6 +71,8 @@ class UIManager {
     this.qteTitle = document.querySelector('#qteTitle');
     this.qteSequence = document.querySelector('#qteSequence');
     this.qteStatus = document.querySelector('#qteStatus');
+    this.qteTimerBar = document.querySelector('#qteTimerBar');
+    this.qteTimerText = document.querySelector('#qteTimerText');
 
     // Facility Scale Selector Elements
     this.scaleButtons = {
@@ -92,19 +108,89 @@ class UIManager {
   }
 
   /**
-   * Updates test reveal map buttons in sidebar and HUD
+   * Updates test reveal map buttons in sidebar, HUD and Full Map modal
    */
   updateRevealBtnState(active) {
     const b1 = document.getElementById('testRevealBtn');
     const b2 = document.getElementById('hudRevealBtn');
+    const b3 = document.getElementById('fullMapFogToggleBtn');
     const t1 = document.getElementById('testRevealText');
     if (b1) b1.classList.toggle('active', !!active);
     if (b2) {
       b2.classList.toggle('active', !!active);
-      b2.textContent = active ? '👁 迷雾已关' : '👁 显示全图';
+      b2.textContent = active ? '👁 迷雾已关' : '👁 迷雾开关';
+    }
+    if (b3) {
+      b3.classList.toggle('active', !!active);
+      b3.textContent = active ? '👁 迷雾已关' : '👁 迷雾开关';
     }
     if (t1) {
-      t1.textContent = active ? '调试：迷雾已关 (点击恢复)' : '调试：全图揭示 / 迷雾切换 (M)';
+      t1.textContent = active ? '调试：迷雾已关 (点击恢复)' : '调试：全图揭示 / 迷雾切换';
+    }
+  }
+
+  /**
+   * Displays or hides the full-screen tactical facility map modal
+   */
+  setFullMapVisible(visible) {
+    if (!this.fullMapModal) return;
+    if (visible) {
+      this.fullMapModal.style.display = 'flex';
+      this.fullMapModal.classList.remove('hidden');
+      // Resize fullMapCanvas to wrapper dimensions
+      this.resizeFullMapCanvas();
+    } else {
+      this.fullMapModal.style.display = 'none';
+      this.fullMapModal.classList.add('hidden');
+    }
+  }
+
+  /**
+   * Adjusts fullMapCanvas internal resolution to match container bounding box
+   */
+  resizeFullMapCanvas() {
+    if (!this.fullMapCanvas) return;
+    const wrap = this.fullMapCanvas.parentElement;
+    if (!wrap) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const rect = wrap.getBoundingClientRect();
+    const w = rect.width || 800;
+    const h = rect.height || 500;
+    this.fullMapCanvas.width = w * dpr;
+    this.fullMapCanvas.height = h * dpr;
+    if (this.fullMapCtx) {
+      this.fullMapCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+  }
+
+  /**
+   * Updates tactical readout header on the full map modal
+   */
+  updateFullMapStats(mapManager, gameState) {
+    if (!this.fullMapModal || this.fullMapModal.classList.contains('hidden')) return;
+    const totalRooms = mapManager.worldRooms.length;
+    const discovered = mapManager.worldRooms.filter(r => r.discovered).length;
+    const percent = Math.round((discovered / totalRooms) * 100);
+
+    if (this.fullMapScaleTag) {
+      const scaleKey = Config.currentScale || 'small';
+      const label = Config.mapScales && Config.mapScales[scaleKey] ? Config.mapScales[scaleKey].label : `${totalRooms} 舱`;
+      this.fullMapScaleTag.textContent = `规模: ${label}`;
+    }
+    if (this.fullMapExploreTag) {
+      this.fullMapExploreTag.textContent = `探索度: ${discovered}/${totalRooms} (${percent}%)`;
+    }
+    if (this.fullMapTerminalsTag) {
+      const solved = gameState.solvedTerminals || 0;
+      const total = mapManager.terminals ? mapManager.terminals.length : 3;
+      this.fullMapTerminalsTag.textContent = `安全终端: ${solved}/${total}`;
+      this.fullMapTerminalsTag.style.color = (solved >= total) ? '#d7f36b' : '#f5a623';
+      this.fullMapTerminalsTag.style.borderColor = (solved >= total) ? '#d7f36b' : '#f5a623';
+    }
+    if (this.fullMapEvacTag) {
+      const isReady = (gameState.solvedTerminals || 0) >= (mapManager.terminals ? mapManager.terminals.length : 3);
+      this.fullMapEvacTag.textContent = isReady ? '撤离舱: 舱门就绪 (可撤离)' : '撤离舱: 锁定中 (需破译全部终端)';
+      this.fullMapEvacTag.style.color = isReady ? '#d7f36b' : '#e8754e';
     }
   }
 
@@ -159,8 +245,8 @@ class UIManager {
     this.canvas.height = rect.height * dpr;
     this.visionCanvas.width = rect.width * dpr;
     this.visionCanvas.height = rect.height * dpr;
-    this.miniMap.width = 168 * dpr;
-    this.miniMap.height = 112 * dpr;
+    this.miniMap.width = 176 * dpr;
+    this.miniMap.height = 176 * dpr;
 
     this.canvas.style.position = 'absolute';
     this.canvas.style.inset = '0';
@@ -177,6 +263,8 @@ class UIManager {
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.visionCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.miniCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    this.resizeFullMapCanvas();
 
     return { rect, dpr };
   }
@@ -222,7 +310,7 @@ class UIManager {
   /**
    * Displays the interactive QTE sequence interface
    */
-  showQTE(terminal, currentIndex = 0, failed = false) {
+  showQTE(terminal, currentIndex = 0, failed = false, failCount = 0, maxFails = 3) {
     if (!this.qteOverlay) return;
     this.qteOverlay.style.display = 'flex';
     if (this.qteTitle) {
@@ -244,16 +332,29 @@ class UIManager {
     }
     if (this.qteStatus) {
       if (failed) {
-        this.qteStatus.textContent = '>> 错误！全舰警报已被触发！重新同步中...';
+        this.qteStatus.textContent = `>> 错误 (${failCount}/${maxFails})！全舰警报已被触发！重新同步中...`;
         this.qteStatus.style.color = 'var(--rust)';
       } else if (currentIndex >= terminal.sequence.length) {
         this.qteStatus.textContent = '>> 认证通过！控制权限已重写！';
         this.qteStatus.style.color = 'var(--acid)';
       } else {
-        this.qteStatus.textContent = `>> 请输入序列第 ${currentIndex + 1} 位: [ ${terminal.sequence[currentIndex]} ]`;
-        this.qteStatus.style.color = 'var(--cyan)';
+        const failNotice = failCount > 0 ? ` [累计失误: ${failCount}/${maxFails}]` : '';
+        this.qteStatus.textContent = `>> 请输入序列第 ${currentIndex + 1} 位: [ ${terminal.sequence[currentIndex]} ]${failNotice}`;
+        this.qteStatus.style.color = failCount > 1 ? '#f5a623' : 'var(--cyan)';
       }
     }
+  }
+
+  /**
+   * Updates QTE countdown timer visual bar and clock text
+   */
+  updateQTETimer(timeLeft, maxTime = 10.0) {
+    if (!this.qteTimerBar || !this.qteTimerText) return;
+    const ratio = Math.max(0, Math.min(1, timeLeft / maxTime));
+    this.qteTimerBar.style.width = `${ratio * 100}%`;
+    this.qteTimerBar.classList.toggle('critical', timeLeft < 3.0);
+    this.qteTimerText.textContent = `${Math.max(0, timeLeft).toFixed(1)}s`;
+    this.qteTimerText.style.color = timeLeft < 3.0 ? '#ef4444' : '#f5a623';
   }
 
   /**

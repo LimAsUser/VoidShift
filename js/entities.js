@@ -31,6 +31,7 @@ class Player {
     this.shootCooldown = 0;
     this.reloading = 0;
     this.moveSpeed = 0;
+    this.stunned = 0; // Stun duration timer in seconds
   }
 
   /**
@@ -39,9 +40,23 @@ class Player {
   update(dt, keys, stabilized, mapManager, audioManager) {
     this.shootCooldown = Math.max(0, this.shootCooldown - dt);
 
+    const prevStunned = this.stunned;
+    if (this.stunned > 0) {
+      this.stunned = Math.max(0, this.stunned - dt);
+    }
+
     const updateResult = {
-      reloaded: false
+      reloaded: false,
+      stunned: this.stunned > 0,
+      stunTimeLeft: this.stunned,
+      stunRecovered: (prevStunned > 0 && this.stunned === 0)
     };
+
+    // If stunned, immobilize movement and block actions
+    if (this.stunned > 0) {
+      this.moveSpeed = 0;
+      return updateResult;
+    }
 
     if (this.reloading > 0) {
       this.reloading = Math.max(0, this.reloading - dt);
@@ -89,7 +104,8 @@ class Player {
         this.noise = Math.min(targetMaxNoise, this.noise + (running ? 65 : 35) * dt);
       } else {
         // Slowly decay towards the movement's noise cap if above it (e.g. after a gunshot)
-        this.noise = Math.max(targetMaxNoise, this.noise - 15 * dt);
+        const decayRate = (Config.player && Config.player.noiseDecayMoving) || 7;
+        this.noise = Math.max(targetMaxNoise, this.noise - decayRate * dt);
       }
 
       if (running) {
@@ -113,7 +129,7 @@ class Player {
    * Triggers a weapon reload sequence
    */
   reload(audioManager) {
-    if (this.reloading > 0 || this.ammo === Config.player.maxAmmo || this.reserveAmmo <= 0) {
+    if (this.stunned > 0 || this.reloading > 0 || this.ammo === Config.player.maxAmmo || this.reserveAmmo <= 0) {
       return false;
     }
     this.reloading = Config.player.reloadDuration;
@@ -125,6 +141,9 @@ class Player {
    * Fires the hand weapon and resolves line of sight targeting
    */
   shoot(stabilized, mapManager, audioManager, monster) {
+    if (this.stunned > 0) {
+      return { fired: false, reason: 'stunned' };
+    }
     if (this.reloading > 0) {
       return { fired: false, reason: 'reloading' };
     }
@@ -210,6 +229,41 @@ class Monster {
     this.burstCooldown = 0;
     this.slowTimer = 0;
     this.stagger = 0;
+    this.shotCount = 0;
+    this.shotWindowTimer = 0;
+    this.recoverTimer = 0;
+  }
+
+  /**
+   * Registers bullet hit from player.
+   * If hit 3 times within 10 seconds, triggers 10-second stunned recovery.
+   * If 10 seconds elapse without reaching 3 hits, hit counter resets.
+   */
+  registerHit() {
+    if (this.recoverTimer > 0) {
+      return { hit: true, triggeredRecovery: false, recovering: true };
+    }
+
+    if (this.shotWindowTimer <= 0) {
+      this.shotCount = 1;
+      this.shotWindowTimer = 10.0;
+    } else {
+      this.shotCount++;
+    }
+
+    if (this.shotCount >= 3) {
+      this.recoverTimer = 10.0;
+      this.stagger = 10.0;
+      this.shotCount = 0;
+      this.shotWindowTimer = 0;
+      return { hit: true, triggeredRecovery: true, recovering: true, shotCount: 3 };
+    }
+
+    // Normal hit: stun monster for 0.25s and cancel any active burst charge
+    this.stagger = 0.25;
+    this.burstTimer = 0;
+
+    return { hit: true, triggeredRecovery: false, recovering: false, shotCount: this.shotCount, windowLeft: this.shotWindowTimer, stunDuration: 0.25 };
   }
 
   /**
@@ -286,14 +340,36 @@ class Monster {
     this.burstCooldown = Math.max(0, this.burstCooldown - dt);
     this.slowTimer = Math.max(0, this.slowTimer - dt);
 
-    const canSense = distance < Config.monster.alertDistance || noiseLevel > Config.monster.triggerNoiseThreshold;
+    // 10s window timer for 3-shot combo
+    if (this.shotWindowTimer > 0) {
+      this.shotWindowTimer -= dt;
+      if (this.shotWindowTimer <= 0) {
+        this.shotCount = 0;
+      }
+    }
 
     const result = {
       playerHit: false,
       burstTriggered: false,
       burstFinished: false,
-      deaggro: false
+      deaggro: false,
+      recovering: false
     };
+
+    // Stunned 10s Recovery State (immobilized, cannot attack or chase)
+    if (this.recoverTimer > 0) {
+      const prevTimer = this.recoverTimer;
+      this.recoverTimer = Math.max(0, this.recoverTimer - dt);
+      this.stagger = Math.max(this.stagger, this.recoverTimer);
+      result.recovering = true;
+      result.recoverTimeLeft = this.recoverTimer;
+      if (prevTimer > 0 && this.recoverTimer === 0) {
+        result.recovered = true;
+      }
+      return result;
+    }
+
+    const canSense = distance < Config.monster.alertDistance || noiseLevel > Config.monster.triggerNoiseThreshold;
 
     // De-aggro tracking states
     if (this.alerted && !canSense) {
@@ -351,7 +427,7 @@ class Monster {
     }
 
     // Patrol roaming when de-aggroed
-    if (!this.alerted) {
+    if (!this.alerted && this.stagger <= 0) {
       this.patrolAngle += dt * 0.35;
       const patrolX = this.x + Math.cos(this.patrolAngle) * Config.monster.patrolSpeedScale * dt;
       const patrolY = this.y + Math.sin(this.patrolAngle) * Config.monster.patrolSpeedScale * dt;

@@ -52,7 +52,9 @@ const Config = {
     maxReserveAmmo: 24,
     reloadDuration: 1.2,
     shootCooldownDuration: 0.38,
-    ammoPrice: 50
+    ammoPrice: 50,
+    noiseDecayStill: 12,
+    noiseDecayMoving: 7
   },
 
   monster: {
@@ -68,7 +70,7 @@ const Config = {
     burstSpeed: 330,
     burstDuration: 0.72,
     burstCooldownDuration: 5.5,
-    burstSlowDuration: 2.8,
+    burstSlowDuration: 1.0,
     triggerNoiseThreshold: 48
   },
 
@@ -84,7 +86,7 @@ const Config = {
       type: 'airlock',
       label: 'AIRLOCK',
       title: '起始气闸舱',
-      accent: '#75ddd0',
+      accent: '#3b82f6',
       lootPool: [
         { name: '应急氧气罐', size: 1, baseValue: 60, rarity: 'common' },
         { name: 'EVA安全缆', size: 1, baseValue: 80, rarity: 'common' }
@@ -336,7 +338,7 @@ const Config = {
       type: 'evacpod',
       label: 'EVAC POD',
       title: '紧急逃生舱甲板',
-      accent: '#d7f36b',
+      accent: '#ef4444',
       lootPool: [
         { name: '备用飞船黑匣子', size: 2, baseValue: 350, rarity: 'uncommon' },
         { name: '量子逃生坐标芯片', size: 1, baseValue: 500, rarity: 'rare' }

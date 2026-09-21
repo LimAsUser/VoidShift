@@ -78,8 +78,20 @@
         <div class="game-frame" id="gameFrame">
           <canvas id="gameCanvas" aria-label="废墟探索游戏区域"></canvas>
           <canvas id="visionCanvas" aria-hidden="true"></canvas>
-          <canvas id="miniMap" aria-label="任务小地图"></canvas>
-          <button class="hud-reveal-btn" id="hudRevealBtn" onclick="game.toggleRevealMap()" title="切换全图迷雾 (快捷键 M)">👁 显示全图</button>
+          <!-- 4x4 Mini Radar Container -->
+          <div class="mini-map-container" id="miniMapContainer" title="点击或按 [M] 展开完整大地图">
+            <div class="mini-map-header">
+              <span class="mini-map-title"><span class="radar-ping-dot"></span> 4×4 局部雷达</span>
+              <button class="mini-map-expand-btn" id="miniMapExpandBtn" title="展开全景战术大地图 (快捷键 M)">⛶ 全图 [M]</button>
+            </div>
+            <canvas id="miniMap" aria-label="4x4 局部雷达小地图"></canvas>
+            <div class="mini-map-footer" id="miniMapCoords">
+              <span id="miniMapSectorText">SECTOR: LOCAL</span>
+              <span class="mini-map-keyhint">[M] 大地图</span>
+            </div>
+          </div>
+
+          <button class="hud-reveal-btn" id="hudRevealBtn" onclick="game.toggleRevealMap()" title="切换全图迷雾">👁 迷雾开关</button>
           <div class="scanlines"></div>
           
           <!-- In-game HUD -->
@@ -107,22 +119,72 @@
                   <p>按顺序输入 WASD 序列以解锁终端控制</p>
                 </div>
               </div>
+              <!-- 10s Countdown Timer Bar -->
+              <div class="qte-timer-wrap">
+                <div class="qte-timer-header">
+                  <span>终端重写时限</span>
+                  <strong id="qteTimerText">10.0s</strong>
+                </div>
+                <div class="qte-timer-bar-bg">
+                  <div class="qte-timer-bar" id="qteTimerBar"></div>
+                </div>
+              </div>
+
               <div class="qte-sequence" id="qteSequence">
                 <!-- Step blocks populated dynamically -->
               </div>
               <div class="qte-status" id="qteStatus">等待操作员按键输入...</div>
               <div class="qte-footer">
-                <span>输入错误将触发全舰刺耳警报</span>
+                <span style="color:#ef4444;">⚠ 10秒超时或累计失误3次：触发高压电击 (-10 HP, 晕眩 2.5s)</span>
                 <span class="qte-key-hint">[ESC] 中断放弃</span>
               </div>
             </div>
           </div>
 
-          <div class="center-prompt" id="centerPrompt"><span class="prompt-mark">△</span><strong>点击开始任务</strong><small>WASD 移动 · 左键开火 · R 换弹 · E 门/拾取/控制台 · X 撤离</small></div>
+          <!-- Full Tactical Facility Map Modal (Toggled with Key M) -->
+          <div class="full-map-modal hidden" id="fullMapModal" style="display:none;">
+            <div class="full-map-container">
+              <div class="full-map-header">
+                <div class="full-map-title-group">
+                  <span class="full-map-icon">🛰</span>
+                  <div>
+                    <h3>FACILITY TACTICAL COMMAND // 全局战术地图</h3>
+                    <p id="fullMapSubTitle">ARCADIA-9 空间设施平面态势图</p>
+                  </div>
+                </div>
+                <div class="full-map-stats" id="fullMapStats">
+                  <span class="stat-tag" id="fullMapScaleTag">规模: 小型 (12 舱)</span>
+                  <span class="stat-tag" id="fullMapExploreTag">探索度: 1/12</span>
+                  <span class="stat-tag highlight" id="fullMapTerminalsTag">安全终端: 0/3</span>
+                  <span class="stat-tag" id="fullMapEvacTag">撤离舱: 锁定中</span>
+                </div>
+                <div class="full-map-actions">
+                  <button class="map-action-btn" id="fullMapFogToggleBtn" title="切换迷雾测试">👁 迷雾开关</button>
+                  <button class="map-close-btn" id="fullMapCloseBtn" title="关闭大地图 (M / ESC)">✕ 关闭 [M/ESC]</button>
+                </div>
+              </div>
+              <div class="full-map-canvas-wrap">
+                <canvas id="fullMapCanvas" aria-label="全局战术地图画布"></canvas>
+              </div>
+              <div class="full-map-footer">
+                <div class="full-map-legend">
+                  <span><i class="legend-badge airlock"></i> 起始气闸</span>
+                  <span><i class="legend-badge terminal"></i> 安全写入终端</span>
+                  <span><i class="legend-badge evac"></i> 紧急逃生舱</span>
+                  <span><i class="legend-badge box"></i> 物资箱</span>
+                  <span><i class="legend-badge prop"></i> 工业设备</span>
+                  <span><i class="legend-badge player"></i> 你的位置 (OPERATOR)</span>
+                </div>
+                <div class="full-map-hint">按 <b>[M]</b> 或 <b>[ESC]</b> 关闭大地图</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="center-prompt" id="centerPrompt"><span class="prompt-mark">△</span><strong>点击开始任务</strong><small>WASD 移动 · 左键开火 · R 换弹 · E 门/拾取/控制台 · M 战术地图 · X 撤离</small></div>
           <div class="damage-flash" id="damageFlash"></div>
           <div class="game-toast" id="gameToast"></div>
         </div>
-        <div class="game-footer"><span><b class="key">WASD</b> 移动</span><span><b class="key">左键</b> 开火</span><span><b class="key">R</b> 换弹</span><span><b class="key">E</b> 交互/门/终端</span><span><b class="key">X</b> 呼叫撤离</span><span><b class="key">F</b> 手电筒</span><span><b class="key">B</b> 背包</span><span class="signal"><i></i> SIGNAL 92%</span></div>
+        <div class="game-footer"><span><b class="key">WASD</b> 移动</span><span><b class="key">左键</b> 开火</span><span><b class="key">R</b> 换弹</span><span><b class="key">E</b> 交互/门/终端</span><span><b class="key">M</b> 战术地图</span><span><b class="key">X</b> 呼叫撤离</span><span><b class="key">F</b> 手电筒</span><span><b class="key">B</b> 背包</span><span class="signal"><i></i> SIGNAL 92%</span></div>
       </section>
 
       <aside class="status-panel panel">

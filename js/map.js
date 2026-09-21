@@ -439,6 +439,8 @@ class MapManager {
       r.accent = def.accent;
       r.lootPool = def.lootPool;
       r.discovered = (r.type === 'airlock');
+      r.isStart = (r.type === 'airlock');
+      r.isExit = (r.type === 'evacpod');
       this.worldRooms.push(r);
     });
 
@@ -523,14 +525,113 @@ class MapManager {
     }
     const terminalCount = scaleConfig.terminals || 3;
     const chosenRooms = candidateRooms.slice(0, terminalCount);
-    this.terminals = chosenRooms.map((room, idx) => ({
-      id: idx + 1,
-      x: room.center.x,
-      y: room.center.y,
-      room: room,
-      solved: false,
-      sequence: this.generateQTESequence(5)
-    }));
+    this.terminals = chosenRooms.map((room, idx) => {
+      const pos = this.findWallMountedTerminalPos(room);
+      // Register terminal console pillar in physical walls list
+      this.walls.push({
+        x: pos.x - 16,
+        y: pos.y - 16,
+        w: 32,
+        h: 32,
+        isTerminalPillar: true,
+        terminalId: idx + 1
+      });
+      return {
+        id: idx + 1,
+        x: pos.x,
+        y: pos.y,
+        room: room,
+        solved: false,
+        sequence: this.generateQTESequence(5)
+      };
+    });
+  }
+
+  /**
+   * Finds a safe wall-mounted or pillar-mounted position strictly inside the room polygon
+   */
+  findWallMountedTerminalPos(room) {
+    if (!room.vertices || room.vertices.length < 3) {
+      return { x: room.center.x, y: room.center.y };
+    }
+
+    const n = room.vertices.length;
+    const candidates = [];
+
+    // Loop over each perimeter wall polygon edge
+    for (let i = 0; i < n; i++) {
+      const v1 = room.vertices[i];
+      const v2 = room.vertices[(i + 1) % n];
+      const edgeLen = Math.hypot(v2.x - v1.x, v2.y - v1.y);
+      if (edgeLen < 100) continue;
+
+      const mx = (v1.x + v2.x) / 2;
+      const my = (v1.y + v2.y) / 2;
+      const dx = (v2.x - v1.x) / edgeLen;
+      const dy = (v2.y - v1.y) / edgeLen;
+
+      // Inward normal candidates (+90 or -90 deg)
+      const n1 = { x: -dy, y: dx };
+      const n2 = { x: dy, y: -dx };
+      const inwardDist = 38;
+
+      let inwardNormal = null;
+      if (pointInPolygon(mx + n1.x * inwardDist, my + n1.y * inwardDist, room.vertices)) {
+        inwardNormal = n1;
+      } else if (pointInPolygon(mx + n2.x * inwardDist, my + n2.y * inwardDist, room.vertices)) {
+        inwardNormal = n2;
+      }
+
+      if (!inwardNormal) continue;
+
+      const pos = {
+        x: Math.round(mx + inwardNormal.x * inwardDist),
+        y: Math.round(my + inwardNormal.y * inwardDist),
+        wallAngle: Math.atan2(dy, dx)
+      };
+
+      // Check distance from doors
+      const nearDoor = this.doors.some(d => {
+        const dX = d.x !== undefined ? d.x : (d.p1 ? (d.p1.x + d.p2.x) / 2 : 0);
+        const dY = d.y !== undefined ? d.y : (d.p1 ? (d.p1.y + d.p2.y) / 2 : 0);
+        return Math.hypot(pos.x - dX, pos.y - dY) < 95;
+      });
+
+      if (!nearDoor && pointInPolygon(pos.x, pos.y, room.vertices)) {
+        candidates.push(pos);
+      }
+    }
+
+    if (candidates.length > 0) {
+      return candidates[Math.floor(Math.random() * candidates.length)];
+    }
+
+    // Fallback: Grid search inside the room polygon for a safe interior location
+    let bestPoint = null;
+    let maxDistToWalls = -1;
+    const minX = Math.min(...room.vertices.map(v => v.x));
+    const maxX = Math.max(...room.vertices.map(v => v.x));
+    const minY = Math.min(...room.vertices.map(v => v.y));
+    const maxY = Math.max(...room.vertices.map(v => v.y));
+
+    for (let gx = minX + 50; gx <= maxX - 50; gx += 30) {
+      for (let gy = minY + 50; gy <= maxY - 50; gy += 30) {
+        if (pointInPolygon(gx, gy, room.vertices)) {
+          let distToEdge = Infinity;
+          for (let i = 0; i < n; i++) {
+            const v1 = room.vertices[i];
+            const v2 = room.vertices[(i + 1) % n];
+            distToEdge = Math.min(distToEdge, distToSegment(gx, gy, v1.x, v1.y, v2.x, v2.y));
+          }
+          if (distToEdge > maxDistToWalls && distToEdge > 35) {
+            maxDistToWalls = distToEdge;
+            bestPoint = { x: gx, y: gy };
+          }
+        }
+      }
+    }
+
+    return bestPoint || { x: room.center.x, y: room.center.y };
   }
 
   generateQTESequence(len = 5) {

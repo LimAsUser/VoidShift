@@ -39,7 +39,8 @@ class Game {
       bulletTraces: [],
       impactParticles: [],
       recoilX: 0,
-      recoilY: 0
+      recoilY: 0,
+      qteMonsterTpCooldown: 0
     };
 
     this.init();
@@ -72,11 +73,16 @@ class Game {
       extractionCalled: false,
       extracted: false,
       activeQte: null,
+      fullMapOpen: false,
+      qteMonsterTpCooldown: 0,
       mouseX: 0,
       mouseY: 0,
       lastTime: 0
     });
     this.state.keys = {};
+    if (this.ui.setFullMapVisible) {
+      this.ui.setFullMapVisible(false);
+    }
 
     this.map.reset(Config.currentScale);
     this.player.reset(this.map);
@@ -145,6 +151,26 @@ class Game {
       this.ui.updateRevealBtnState(this.state.revealAllMap);
     }
     this.render();
+  }
+
+  /**
+   * Toggles display of the Full Tactical Facility Map modal (activated by 'M' key)
+   */
+  toggleFullMap(forceState = null) {
+    const newState = forceState !== null ? !!forceState : !this.state.fullMapOpen;
+    this.state.fullMapOpen = newState;
+    if (this.ui.setFullMapVisible) {
+      this.ui.setFullMapVisible(newState);
+    }
+    if (newState) {
+      if (this.ui.updateFullMapStats) {
+        this.ui.updateFullMapStats(this.map, this.state);
+      }
+      this.renderer.drawFullMap(this.player, this.map, this.state);
+      this.ui.log('打开全局战术地图 [按 M 或 ESC 关闭]');
+    } else {
+      this.ui.log('关闭全局战术地图，返回现场监视');
+    }
   }
 
   /**
@@ -241,6 +267,10 @@ class Game {
    */
   interact() {
     if (!this.state.running) return;
+    if (this.player.stunned > 0) {
+      this.ui.showToast('身体麻痹硬直中，无法交互！');
+      return;
+    }
 
     // Check doors with interaction radius from door center
     const door = this.map.doors.find(item => {
@@ -307,17 +337,22 @@ class Game {
   }
 
   /**
-   * Commences QTE sequence on the specified security console
+   * Commences QTE sequence on the specified security console with 10s time limit
    */
   startQTE(terminal) {
     this.state.activeQte = {
       terminal: terminal,
       currentIndex: 0,
       sequence: [...terminal.sequence],
-      failed: false
+      failed: false,
+      failCount: 0,
+      maxFails: 3,
+      timeLeft: 10.0,
+      maxTime: 10.0
     };
-    this.ui.showQTE(terminal, 0, false);
-    this.ui.showToast('接入安全控制台 // 请按顺序输入WASD');
+    this.ui.showQTE(terminal, 0, false, 0, 3);
+    this.ui.updateQTETimer(10.0, 10.0);
+    this.ui.showToast('接入安全控制台 // 10秒内完成WASD重写 (错3次将遭高压电击)');
   }
 
   /**
@@ -342,7 +377,7 @@ class Game {
         // Correct key in sequence
         this.audio.playQTEKeyBeep(qte.currentIndex);
         qte.currentIndex++;
-        this.ui.showQTE(qte.terminal, qte.currentIndex, false);
+        this.ui.showQTE(qte.terminal, qte.currentIndex, false, qte.failCount, qte.maxFails);
 
         if (qte.currentIndex === qte.sequence.length) {
           // All 5 steps passed!
@@ -367,27 +402,146 @@ class Game {
           }, 450);
         }
       } else {
-        // Wrong key entered! LOUD ALARM SOUND + NOISE SPIKE + MONSTER ALERT
-        this.audio.playLoudAlarmSound();
-        this.player.noise = 100;
-        this.activateMonster('QTE控制台输入错误！刺耳警报响彻全舰！');
-        this.ui.triggerDamageFlash(0.7, 150);
-        this.ui.showToast('输入错误！警报触发！');
-        this.ui.log('错误：安全校验未通过！刺耳警报已被触发！');
+        // Wrong key entered!
+        qte.failCount = (qte.failCount || 0) + 1;
+
+        if (qte.failCount >= 3) {
+          // 3rd mistake triggers the exact same failure penalty as 10s timeout (-10 HP, 2.5s stun, exit)
+          this.triggerQTEShockFail('连续输入错误达到 3 次');
+          return;
+        }
+
+        // Mistakes 1 and 2: error buzz, alert noise, attempt monster teleport (15s cooldown), regenerate sequence
+        if (this.audio.playQTEErrorBeep) {
+          this.audio.playQTEErrorBeep();
+        } else {
+          this.audio.playTone(135, 0.16, 0.12, 'sawtooth');
+        }
+        this.player.noise = Math.min(100, this.player.noise + 45);
+        this.ui.triggerDamageFlash(0.4, 110);
+        this.ui.showToast(`按键错误 (${qte.failCount}/3)！注意防篡改电击！`);
+        this.ui.log(`错误：按键错误 (${qte.failCount}/3)！警报鸣响！`);
+
+        // Monster teleports to a nearby room to try to get close to the player (respects 15s cooldown)
+        this.teleportMonsterToNearbyRoom(true);
 
         // Regenerate sequence and display failure shake
         qte.terminal.sequence = this.map.generateQTESequence(5);
         qte.sequence = [...qte.terminal.sequence];
         qte.currentIndex = 0;
-        this.ui.showQTE(qte.terminal, 0, true);
+        this.ui.showQTE(qte.terminal, 0, true, qte.failCount, qte.maxFails);
 
         setTimeout(() => {
-          if (this.state.activeQte) {
-            this.ui.showQTE(qte.terminal, 0, false);
+          if (this.state.activeQte && !this.state.activeQte.failed) {
+            this.ui.showQTE(qte.terminal, 0, false, qte.failCount, qte.maxFails);
           }
         }, 600);
       }
     }
+  }
+
+  /**
+   * Triggers terminal high-voltage shock penalty (-10 HP, 2.5s stun, loud alarm, monster teleport with 15s cd)
+   */
+  triggerQTEShockFail(reason = '控制台过载高压电击') {
+    if (!this.state.activeQte) return;
+
+    // 1. Inflict -10 HP damage and 2.5s stun
+    this.player.health = Math.max(0, this.player.health - 10);
+    this.player.stunned = 2.5;
+    this.player.noise = 100;
+
+    // 2. Play high-voltage shock sound & loud alarm
+    if (this.audio.playElectricShock) {
+      this.audio.playElectricShock();
+    }
+    this.audio.playLoudAlarmSound();
+    this.ui.triggerDamageFlash(0.85, 220);
+
+    // 3. Status notification and log
+    this.ui.showToast(`【高压电击】${reason}！受到 10 点电流伤害，身体麻痹 2.5 秒！`);
+    this.ui.log(`电击警报：${reason}！生命值 -10，休克硬直 2.5s！`);
+
+    // 4. Attempt monster teleport to nearby room (respects 15s cooldown)
+    this.teleportMonsterToNearbyRoom(true);
+
+    // 5. Exit / close QTE interface
+    this.state.activeQte = null;
+    this.ui.hideQTE();
+
+    // 6. Death check
+    if (this.player.health <= 0) {
+      this.finish(false);
+    }
+  }
+
+  /**
+   * Handles 10-second QTE timeout expiration
+   */
+  handleQTETimeout() {
+    if (!this.state.activeQte) return;
+    this.triggerQTEShockFail('控制台重写超时 (10s)');
+  }
+
+  /**
+   * Teleports the hostile entity to an adjacent/nearby room to approach the operator
+   * Respects a 15-second cooldown when triggered by QTE failure
+   */
+  teleportMonsterToNearbyRoom(isQteFail = true) {
+    if (isQteFail) {
+      if (this.state.qteMonsterTpCooldown > 0) {
+        // Monster teleport on 15s cooldown! Skip teleporting again.
+        return false;
+      }
+      this.state.qteMonsterTpCooldown = 15.0;
+    }
+
+    const playerRoom = this.map.getRoomAt(this.player.x, this.player.y);
+    let targetRoom = null;
+
+    if (playerRoom) {
+      // Find rooms directly connected to player's room via doors
+      const connectedRooms = [];
+      this.map.doors.forEach(d => {
+        if (d.roomA === playerRoom && d.roomB && d.roomB !== playerRoom) {
+          connectedRooms.push(d.roomB);
+        } else if (d.roomB === playerRoom && d.roomA && d.roomA !== playerRoom) {
+          connectedRooms.push(d.roomA);
+        }
+      });
+
+      if (connectedRooms.length > 0) {
+        targetRoom = connectedRooms[Math.floor(Math.random() * connectedRooms.length)];
+      } else {
+        // Fallback: closest non-player room
+        const otherRooms = this.map.worldRooms.filter(r => r !== playerRoom);
+        if (otherRooms.length > 0) {
+          targetRoom = otherRooms.reduce((prev, curr) => 
+            Math.hypot(this.player.x - curr.center.x, this.player.y - curr.center.y) <
+            Math.hypot(this.player.x - prev.center.x, this.player.y - prev.center.y) ? curr : prev
+          );
+        }
+      }
+    }
+
+    if (targetRoom) {
+      this.monster.x = targetRoom.center.x;
+      this.monster.y = targetRoom.center.y;
+      this.monster.active = true;
+      this.monster.alerted = true;
+      this.monster.lostTime = 0;
+      
+      if (this.audio.calculateSpatial) {
+        const spatial = this.audio.calculateSpatial(this.player.x, this.player.y, this.player.angle, this.monster.x, this.monster.y, 800);
+        this.audio.playSpatialTone(75, 0.45, 0.28, 'sawtooth', spatial.pan, Math.max(0.6, spatial.distanceGain), spatial.isBehind);
+      } else {
+        this.audio.playTone(75, 0.45, 0.28, 'sawtooth');
+      }
+      this.ui.showToast(`【警报】未知生命体已被惊动！瞬移至邻近舱室 [${targetRoom.label}]！`);
+      this.ui.log(`警报！生命体感应到警报，信号出现在隔壁舱室：${targetRoom.title} (${targetRoom.label})！`);
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -507,6 +661,10 @@ class Game {
    */
   shoot() {
     if (!this.state.running) return;
+    if (this.player.stunned > 0) {
+      this.ui.showToast('休克硬直中，无法射击！');
+      return;
+    }
 
     const result = this.player.shoot(this.state.stabilized, this.map, this.audio, this.monster);
     
@@ -558,20 +716,30 @@ class Game {
       }
 
       if (result.hit) {
-        const push = 150;
+        const hitData = this.monster.registerHit();
+        const push = hitData.triggeredRecovery ? 240 : 50;
         const nextX = this.monster.x + Math.cos(result.toMonster) * push;
         const nextY = this.monster.y + Math.sin(result.toMonster) * push;
 
         this.monster.x = Math.max(38, Math.min(Config.WORLD_W - 38, nextX));
         this.monster.y = Math.max(38, Math.min(Config.WORLD_H - 38, nextY));
-        this.monster.stagger = 0.65;
 
         this.ui.triggerDamageFlash(0.18, 80);
 
-        this.ui.log('命中。生命体被击退。');
-        this.ui.showToast('命中 / 目标后退');
-        const hitSpatial = this.audio.calculateSpatial(this.player.x, this.player.y, this.player.angle, this.monster.x, this.monster.y, 650);
-        this.audio.playSpatialTone(88, 0.18, 0.22, 'sawtooth', hitSpatial.pan, Math.max(0.5, hitSpatial.distanceGain), hitSpatial.isBehind);
+        if (hitData.triggeredRecovery) {
+          this.ui.log('致命硬直！10秒内连续命中3次！生命体进入10秒休眠恢复期！');
+          this.ui.showToast('【重创】生命体休眠瘫痪 10秒！');
+          const hitSpatial = this.audio.calculateSpatial(this.player.x, this.player.y, this.player.angle, this.monster.x, this.monster.y, 650);
+          this.audio.playSpatialTone(60, 0.45, 0.35, 'sawtooth', hitSpatial.pan, Math.max(0.6, hitSpatial.distanceGain), hitSpatial.isBehind);
+        } else if (hitData.recovering) {
+          this.ui.log(`生命体处于休眠恢复中 (剩余 ${this.monster.recoverTimer.toFixed(1)}s)。`);
+          this.ui.showToast(`目标瘫痪中 [${this.monster.recoverTimer.toFixed(1)}s]`);
+        } else {
+          this.ui.log(`命中。生命体被击退50px并硬直0.25s (连击: ${hitData.shotCount}/3，重置窗口: ${hitData.windowLeft.toFixed(1)}s)。`);
+          this.ui.showToast(`命中 / 目标硬直0.25s [${hitData.shotCount}/3]`);
+          const hitSpatial = this.audio.calculateSpatial(this.player.x, this.player.y, this.player.angle, this.monster.x, this.monster.y, 650);
+          this.audio.playSpatialTone(88, 0.18, 0.22, 'sawtooth', hitSpatial.pan, Math.max(0.5, hitSpatial.distanceGain), hitSpatial.isBehind);
+        }
       } else {
         this.ui.log('枪声在走廊里回响。');
         this.ui.showToast('未命中');
@@ -665,11 +833,29 @@ class Game {
   update(dt) {
     this.state.elapsed += dt;
 
-    // 1. Update Player position & status timers (freeze input movement during active QTE)
-    const inputKeys = this.state.activeQte ? {} : this.state.keys;
+    // Decrement QTE monster teleport cooldown timer (15s cooldown)
+    if (this.state.qteMonsterTpCooldown > 0) {
+      this.state.qteMonsterTpCooldown = Math.max(0, this.state.qteMonsterTpCooldown - dt);
+    }
+
+    // 1. Update Player position & status timers (freeze input movement during active QTE, Full Map, or Stun)
+    const inputKeys = (this.state.activeQte || this.state.fullMapOpen || this.player.stunned > 0) ? {} : this.state.keys;
     const playerResult = this.player.update(dt, inputKeys, this.state.stabilized, this.map, this.audio);
     if (playerResult && playerResult.reloaded) {
       this.ui.showToast('换弹完成');
+    }
+    if (playerResult && playerResult.stunRecovered) {
+      this.ui.showToast('电击硬直解除，身体恢复行动');
+      this.ui.log('恢复：高压电击麻痹硬直结束，行动能力恢复。');
+    }
+
+    // 1a. Update active QTE security console countdown timer (10s time limit)
+    if (this.state.activeQte) {
+      this.state.activeQte.timeLeft = Math.max(0, this.state.activeQte.timeLeft - dt);
+      this.ui.updateQTETimer(this.state.activeQte.timeLeft, this.state.activeQte.maxTime);
+      if (this.state.activeQte.timeLeft <= 0) {
+        this.handleQTETimeout();
+      }
     }
 
     // 1b. Fog of War: discover room as soon as player steps inside
@@ -682,7 +868,8 @@ class Game {
 
     // 2. Decay movement acoustic noise
     if (this.player.moveSpeed === 0) {
-      this.player.noise = Math.max(0, this.player.noise - 24 * dt);
+      const stillDecay = (Config.player && Config.player.noiseDecayStill) || 12;
+      this.player.noise = Math.max(0, this.player.noise - stillDecay * dt);
     }
 
     // 3. Subtract survival oxygen supplies
@@ -777,6 +964,18 @@ class Game {
         this.player.noise = 100;
         this.ui.log('警告：未知生命体接触！');
       }
+
+      if (monsterResult.recovering) {
+        this.ui.threatStatusText.textContent = `休眠中 (${monsterResult.recoverTimeLeft.toFixed(1)}s)`;
+        this.ui.threatStatusText.className = 'ok';
+      }
+
+      if (monsterResult.recovered) {
+        this.ui.threatStatusText.textContent = '已苏醒';
+        this.ui.threatStatusText.className = 'warning';
+        this.ui.showToast('【警告】生命体休眠结束！已恢复行动！');
+        this.ui.log('警报：生命体休眠恢复期结束，重新开始行动！');
+      }
     }
 
     // 7. Update synthesized ambient acoustics (breathing audio removed per user specification)
@@ -838,6 +1037,9 @@ class Game {
     this.renderer.drawWorldOverlay(this.player, this.map, this.state);
     this.renderer.drawCenteredVision(this.player, this.map, this.state);
     this.renderer.drawMiniMap(this.player, this.map, this.state);
+    if (this.state.fullMapOpen) {
+      this.renderer.drawFullMap(this.player, this.map, this.state);
+    }
   }
 
   /**
@@ -850,6 +1052,12 @@ class Game {
       const key = e.key.toLowerCase();
       this.state.keys[key] = true;
       
+      // Close full map on ESC
+      if (key === 'escape' && this.state.fullMapOpen) {
+        this.toggleFullMap(false);
+        return;
+      }
+
       // Intercept inputs when player is actively operating a security QTE console
       if (this.state.activeQte) {
         if (key === 'escape' || ['w', 'a', 's', 'd'].includes(key)) {
@@ -867,7 +1075,7 @@ class Game {
         inv.style.display = (inv.style.display === 'none' || inv.style.display === '') ? 'block' : 'none';
         if (inv.style.display === 'block') this.updateInventoryUI();
       }
-      if (key === 'm') this.toggleRevealMap();
+      if (key === 'm') this.toggleFullMap();
       
       // Removed Space key firing: Fire is strictly restricted to M1 (Mouse left click)
       if ((e.key === 'Enter' || e.code === 'Space') && !this.state.running) {
@@ -893,7 +1101,9 @@ class Game {
         this.start();
         return;
       }
+      if (this.state.fullMapOpen) return; // Disallow firing while viewing full tactical map
       if (this.state.activeQte) return; // Disallow firing while operating security console
+      if (this.player.stunned > 0) return; // Disallow firing while stunned
       this.shoot();
     };
 
@@ -994,6 +1204,42 @@ class Game {
         this.start();
       }
     });
+
+    // Full Map UI Click Listeners
+    if (this.ui.miniMapContainer) {
+      this.ui.miniMapContainer.addEventListener('click', () => {
+        this.toggleFullMap();
+      });
+    }
+
+    if (this.ui.miniMapExpandBtn) {
+      this.ui.miniMapExpandBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleFullMap(true);
+      });
+    }
+
+    if (this.ui.fullMapCloseBtn) {
+      this.ui.fullMapCloseBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleFullMap(false);
+      });
+    }
+
+    if (this.ui.fullMapFogToggleBtn) {
+      this.ui.fullMapFogToggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleRevealMap();
+      });
+    }
+
+    if (this.ui.fullMapModal) {
+      this.ui.fullMapModal.addEventListener('click', (e) => {
+        if (e.target === this.ui.fullMapModal) {
+          this.toggleFullMap(false);
+        }
+      });
+    }
   }
 }
 
