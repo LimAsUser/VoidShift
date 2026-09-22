@@ -80,7 +80,7 @@ class Renderer {
   /**
    * Draws base game world (walls, player, items, monster, hunter)
    */
-  draw(player, monster, mapManager, gameState, hunters) {
+  draw(player, monster, mapManager, gameState, hunters, remotePlayer = null) {
     const ctx = this.ui.ctx;
     const w = this.ui.canvas.clientWidth;
     const h = this.ui.canvas.clientHeight;
@@ -423,8 +423,28 @@ class Renderer {
       });
     }
 
+    // Remote co-op player
+    if (remotePlayer) {
+      ctx.save();
+      ctx.globalAlpha = remotePlayer.downed ? 0.42 : 1;
+      ctx.translate(remotePlayer.x, remotePlayer.y);
+      ctx.rotate(remotePlayer.angle);
+      ctx.fillStyle = '#e875d8';
+      ctx.beginPath();
+      ctx.moveTo(14, 0);
+      ctx.lineTo(-9, -9);
+      ctx.lineTo(-6, 0);
+      ctx.lineTo(-9, 9);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#f5a623';
+      ctx.fillRect(2, -2, 8, 4);
+      ctx.restore();
+    }
+
     // Player entity
     ctx.save();
+    if (player.downed) ctx.globalAlpha = 0.42;
     ctx.translate(player.x, player.y);
     ctx.rotate(player.angle);
     ctx.fillStyle = '#75ddd0';
@@ -438,6 +458,15 @@ class Renderer {
     ctx.fillStyle = '#d7f36b';
     ctx.fillRect(2, -2, 8, 4);
     ctx.restore();
+
+    if (player.downed) {
+      ctx.save();
+      ctx.fillStyle = '#e8754e';
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`倒地 ${Math.ceil(player.bleedout || 0)}s`, player.x, player.y - 28);
+      ctx.restore();
+    }
 
     // High-voltage electrical stun visual effect on player
     if (player.stunned > 0) {

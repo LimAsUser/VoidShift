@@ -1,0 +1,1 @@
+ALTER TABLE `rooms` ADD `host_token` text DEFAULT '' NOT NULL;

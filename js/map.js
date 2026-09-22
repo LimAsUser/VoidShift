@@ -210,7 +210,7 @@ class MapManager {
   /**
    * Generates a completely new organic modular procedural facility layout
    */
-  reset(scaleKey = null) {
+  reset(scaleKey = null, seed = null) {
     if (!scaleKey) {
       scaleKey = Config.currentScale || 'small';
     }
@@ -218,6 +218,15 @@ class MapManager {
       id: 'small', label: '小型 (12 舱)', roomCount: 12, terminals: 3
     };
     const targetCount = scaleConfig.roomCount || 12;
+    this.seed = Number.isFinite(seed) ? (seed >>> 0) : ((Math.random() * 0x100000000) >>> 0);
+    let randomState = this.seed || 0x6d2b79f5;
+    this.random = () => {
+      randomState += 0x6d2b79f5;
+      let value = randomState;
+      value = Math.imul(value ^ (value >>> 15), value | 1);
+      value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+      return ((value ^ (value >>> 14)) >>> 0) / 0x100000000;
+    };
 
     this.walls = [];
     this.doors = [];
@@ -250,21 +259,21 @@ class MapManager {
       let steps = 0;
       while (currentRooms.length < targetCount && openSockets.length > 0 && steps < 500) {
         steps++;
-        const sockIdx = Math.floor(Math.random() * openSockets.length);
+        const sockIdx = Math.floor(this.random() * openSockets.length);
         const parentSock = openSockets[sockIdx];
 
         // Equal probability shape selection (same prob): choose least used shapes with slight jitter
         const counts = {};
         templateKeys.forEach(k => counts[k] = 0);
         currentRooms.forEach(r => { if (counts[r.shape] !== undefined) counts[r.shape]++; });
-        const sortedKeys = [...templateKeys].sort((a, b) => (counts[a] - counts[b]) + (Math.random() * 0.5 - 0.25));
+        const sortedKeys = [...templateKeys].sort((a, b) => (counts[a] - counts[b]) + (this.random() * 0.5 - 0.25));
         const shapeKey = sortedKeys[0];
         const tpl = RoomTemplates[shapeKey]();
 
         let placed = false;
         const candSocketIndices = Array.from({ length: tpl.sockets.length }, (_, i) => i);
         for (let i = candSocketIndices.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
+          const j = Math.floor(this.random() * (i + 1));
           [candSocketIndices[i], candSocketIndices[j]] = [candSocketIndices[j], candSocketIndices[i]];
         }
 
@@ -442,7 +451,7 @@ class MapManager {
       'officer_lounge', 'centrifuge', 'comm_array', 'observatory'
     ];
     for (let i = distinctTypes.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(this.random() * (i + 1));
       [distinctTypes[i], distinctTypes[j]] = [distinctTypes[j], distinctTypes[i]];
     }
 
@@ -543,7 +552,7 @@ class MapManager {
     // Security Override QTE Terminals
     const candidateRooms = placedRooms.filter(r => r.type !== 'airlock' && r.type !== 'evacpod');
     for (let i = candidateRooms.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(this.random() * (i + 1));
       [candidateRooms[i], candidateRooms[j]] = [candidateRooms[j], candidateRooms[i]];
     }
     const terminalCount = scaleConfig.terminals || 3;
@@ -665,7 +674,7 @@ class MapManager {
     }
 
     if (candidates.length > 0) {
-      return candidates[Math.floor(Math.random() * candidates.length)];
+      return candidates[Math.floor(this.random() * candidates.length)];
     }
 
     // Fallback: Grid search inside the room polygon for a safe interior location
@@ -700,7 +709,7 @@ class MapManager {
     const keys = ['W', 'A', 'S', 'D'];
     const seq = [];
     for (let i = 0; i < len; i++) {
-      seq.push(keys[Math.floor(Math.random() * keys.length)]);
+      seq.push(keys[Math.floor(this.random() * keys.length)]);
     }
     return seq;
   }
@@ -720,8 +729,8 @@ class MapManager {
   tryPlaceProp(room, w, h, propType, subType) {
     const attempts = 40;
     for (let i = 0; i < attempts; i++) {
-      const rx = room.center.x + (Math.random() * 0.7 - 0.35) * (room.w || 500);
-      const ry = room.center.y + (Math.random() * 0.7 - 0.35) * (room.h || 500);
+      const rx = room.center.x + (this.random() * 0.7 - 0.35) * (room.w || 500);
+      const ry = room.center.y + (this.random() * 0.7 - 0.35) * (room.h || 500);
 
       const x1 = rx - w / 2;
       const y1 = ry - h / 2;
@@ -829,15 +838,15 @@ class MapManager {
     const scrapCount = room.type === 'airlock' ? 2 : 3;
 
     for (let i = 0; i < scrapCount; i++) {
-      const lootTemplate = pool[Math.floor(Math.random() * pool.length)];
+      const lootTemplate = pool[Math.floor(this.random() * pool.length)];
       let valid = false;
       let sx = 0, sy = 0;
       let attempts = 0;
 
       while (!valid && attempts < 35) {
         attempts++;
-        const angle = Math.random() * Math.PI * 2;
-        const rad = 40 + Math.random() * 110;
+        const angle = this.random() * Math.PI * 2;
+        const rad = 40 + this.random() * 110;
         sx = room.center.x + Math.cos(angle) * rad;
         sy = room.center.y + Math.sin(angle) * rad;
 

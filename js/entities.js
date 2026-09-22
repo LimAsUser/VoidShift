@@ -30,6 +30,9 @@ class Player {
     this.setWeapon(weaponId);
     this.moveSpeed = 0;
     this.stunned = 0; // Stun duration timer in seconds
+    this.downed = false;
+    this.bleedout = 0;
+    this.reviveProgress = 0;
   }
 
   setWeapon(weaponId) {
@@ -58,6 +61,11 @@ class Player {
       stunTimeLeft: this.stunned,
       stunRecovered: (prevStunned > 0 && this.stunned === 0)
     };
+
+    if (this.downed) {
+      this.moveSpeed = 0;
+      return updateResult;
+    }
 
     // If stunned, immobilize movement and block actions
     if (this.stunned > 0) {

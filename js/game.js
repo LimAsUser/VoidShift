@@ -30,6 +30,7 @@ class Game {
       selectedDifficulty: 'medium',
       selectedWeapon: 'pistol',
       inventory: [],
+      remoteInventory: [],
       inventoryCapacity: 12,
       elapsed: 0,
       hunterSpawnTimer: this._getHunterSettings().hunterSpawnInterval,
@@ -49,8 +50,28 @@ class Game {
       recoilY: 0,
       qteMonsterTpCooldown: 0,
       lastJumpscareTime: 0,
-      fireHeld: false
+      fireHeld: false,
+      coop: {
+        role: null,
+        code: null,
+        connected: false,
+        localReady: false,
+        remoteReady: false,
+        running: false,
+        status: 'OFFLINE // 选择创建或加入房间',
+        mapSeed: null,
+        disconnectAt: 0
+      }
     };
+
+    this.coopSession = new CoopSession();
+    this.remotePlayer = null;
+    this.remoteInput = { keys: {}, aim: 0, fire: false, seq: 0 };
+    this.remoteQte = null;
+    this._coopSendTimer = 0;
+    this._lastRemoteInputSeq = -1;
+    this._lastSnapshotTick = -1;
+    this._attachCoopSession();
 
     this.init();
   }
@@ -63,6 +84,440 @@ class Game {
     this._loadSave();
     this.reset();
     this.attachEventListeners();
+  }
+
+  _attachCoopSession() {
+    this.coopSession.addEventListener('room', (event) => {
+      this.state.coop.role = event.detail.role;
+      this.state.coop.code = event.detail.code;
+      this.state.coop.status = event.detail.role === 'host'
+        ? `ROOM ${event.detail.code} // 等待队友`
+        : `ROOM ${event.detail.code} // 正在连接`;
+      this.updateCoopUI();
+    });
+    this.coopSession.addEventListener('connected', () => {
+      this.state.coop.connected = true;
+      this.state.coop.disconnectAt = 0;
+      this.state.coop.status = 'LINK STABLE // 双人通讯已建立';
+      this.coopSession.sendEvent('hello', { weaponId: this.state.selectedWeapon });
+      this.updateCoopUI();
+    });
+    this.coopSession.addEventListener('status', (event) => {
+      if (event.detail.state === 'expired') {
+        Object.assign(this.state.coop, {
+          status: 'ROOM EXPIRED // 房间已过期', role: null, code: null,
+          connected: false, localReady: false, remoteReady: false
+        });
+        this.updateCoopUI();
+      }
+    });
+    this.coopSession.addEventListener('disconnect', () => {
+      if (!this.state.coop.disconnectAt) this.state.coop.disconnectAt = performance.now();
+      this.state.coop.connected = false;
+      this.state.coop.status = 'LINK LOST // 通讯中断';
+      this.updateCoopUI();
+    });
+    this.coopSession.addEventListener('message', (event) => {
+      this._handleCoopMessage(event.detail.channel, event.detail.message);
+    });
+  }
+
+  updateCoopUI() {
+    this.ui.updateCoopLobby(this.state.coop);
+    const lockMission = this.state.running || this.state.coop.role === 'guest';
+    Object.values(this.ui.scaleButtons || {}).forEach((button) => {
+      if (button) button.disabled = lockMission;
+    });
+    this.updateDifficultyUI();
+    this.updateHunterSettingsUI();
+  }
+
+  async hostCoopRoom() {
+    if (this.state.running || this.state.coop.role) return;
+    this.state.coop.status = 'CREATING ROOM...';
+    this.updateCoopUI();
+    try {
+      await this.coopSession.host();
+    } catch (error) {
+      this.state.coop.status = `ERROR // ${error.message}`;
+      this.coopSession.close();
+      this.state.coop.role = null;
+      this.updateCoopUI();
+    }
+  }
+
+  async joinCoopRoom() {
+    if (this.state.running || this.state.coop.role) return;
+    const code = this.ui.coopJoinCode.value;
+    this.state.coop.status = 'JOINING ROOM...';
+    this.updateCoopUI();
+    try {
+      await this.coopSession.join(code);
+    } catch (error) {
+      this.state.coop.status = `ERROR // ${error.message}`;
+      this.coopSession.close(false);
+      this.state.coop.role = null;
+      this.updateCoopUI();
+    }
+  }
+
+  leaveCoopRoom() {
+    if (this.state.coop.running) return;
+    this.coopSession.close();
+    Object.assign(this.state.coop, {
+      role: null, code: null, connected: false, localReady: false,
+      remoteReady: false, running: false, status: 'OFFLINE // 选择创建或加入房间',
+      mapSeed: null, disconnectAt: 0, remoteWeapon: null
+    });
+    this.updateCoopUI();
+  }
+
+  toggleCoopReady() {
+    if (!this.state.coop.connected || this.state.coop.running) return;
+    this.state.coop.localReady = !this.state.coop.localReady;
+    this.coopSession.sendEvent('ready', {
+      ready: this.state.coop.localReady,
+      weaponId: this.state.selectedWeapon
+    });
+    this.updateCoopUI();
+  }
+
+  startCoopMission() {
+    const coop = this.state.coop;
+    if (coop.role !== 'host' || !coop.connected || !coop.localReady || !coop.remoteReady || coop.running) return;
+    const mapSeed = crypto.getRandomValues(new Uint32Array(1))[0];
+    const payload = {
+      mapSeed,
+      scale: Config.currentScale,
+      hunterSettings: this.state.hunterSettings,
+      difficulty: this.state.selectedDifficulty,
+      hostWeapon: this.state.selectedWeapon,
+      guestWeapon: coop.remoteWeapon || 'pistol'
+    };
+    this.coopSession.sendEvent('start', payload);
+    this._beginCoopMission(payload);
+  }
+
+  _beginCoopMission(payload) {
+    Config.currentScale = payload.scale;
+    this.state.hunterSettings = this._sanitizeHunterSettings(payload.hunterSettings);
+    this.state.selectedDifficulty = payload.difficulty || 'custom';
+    this.state.coop.mapSeed = payload.mapSeed;
+    this.state.coop.running = true;
+    this.remotePlayer = new Player();
+    const localWeapon = this.state.coop.role === 'host' ? payload.hostWeapon : payload.guestWeapon;
+    const remoteWeapon = this.state.coop.role === 'host' ? payload.guestWeapon : payload.hostWeapon;
+    this.state.selectedWeapon = localWeapon;
+    this.state.inventory = [];
+    this.state.remoteInventory = [];
+    this._lastRemoteInputSeq = -1;
+    this._lastSnapshotTick = -1;
+    this.reset();
+    this.player.setWeapon(localWeapon);
+    this.remotePlayer.reset(this.map, remoteWeapon);
+    this.remotePlayer.x += 26;
+    this.start();
+    this.state.coop.running = true;
+    this.state.coop.status = 'CO-OP ACTIVE // 双人任务进行中';
+    this.updateCoopUI();
+  }
+
+  _handleCoopMessage(channel, message) {
+    if (message.type === 'hello') {
+      this.state.coop.remoteWeapon = Config.weapons[message.weaponId] ? message.weaponId : 'pistol';
+    } else if (message.type === 'ready') {
+      this.state.coop.remoteReady = !!message.ready;
+      this.state.coop.remoteWeapon = Config.weapons[message.weaponId] ? message.weaponId : 'pistol';
+      this.updateCoopUI();
+    } else if (message.type === 'start' && this.state.coop.role === 'guest') {
+      this._beginCoopMission(message);
+    } else if (message.type === 'input' && this.state.coop.role === 'host') {
+      if (Number.isFinite(message.seq) && message.seq > this._lastRemoteInputSeq) {
+        this._lastRemoteInputSeq = message.seq;
+        this.remoteInput = message;
+      }
+    } else if (message.type === 'snapshot' && this.state.coop.role === 'guest') {
+      if (Number.isFinite(message.tick) && message.tick > this._lastSnapshotTick) {
+        this._lastSnapshotTick = message.tick;
+        this._applyCoopSnapshot(message);
+      }
+    } else if (message.type === 'action' && this.state.coop.role === 'host') {
+      this._handleRemoteAction(message);
+    } else if (message.type === 'finish' && this.state.coop.role === 'guest') {
+      this._finishGuestCoop(message);
+    } else if (message.type === 'qte-start' && this.state.coop.role === 'guest') {
+      const terminal = this.map.terminals.find((item) => item.id === message.terminalId);
+      if (terminal) {
+        this.state.activeQte = { terminal, sequence: message.sequence, currentIndex: 0, failCount: 0, maxFails: 3, timeLeft: 10, maxTime: 10, remoteOwned: true };
+        this.ui.showQTE(terminal, 0, false, 0, 3);
+      }
+    } else if (message.type === 'qte-progress' && this.state.coop.role === 'guest' && this.state.activeQte) {
+      this.state.activeQte.currentIndex = message.currentIndex;
+      this.state.activeQte.failCount = message.failCount;
+      this.ui.showQTE(this.state.activeQte.terminal, message.currentIndex, !!message.failed, message.failCount, 3);
+    } else if ((message.type === 'qte-complete' || message.type === 'qte-fail') && this.state.coop.role === 'guest') {
+      if (message.type === 'qte-complete') {
+        const terminal = this.map.terminals.find((item) => item.id === message.terminalId);
+        if (terminal) terminal.solved = true;
+        this.ui.showToast('控制台重写成功！');
+      } else {
+        this.ui.showToast('控制台过载，受到电击！');
+      }
+      this.state.activeQte = null;
+      this.ui.hideQTE();
+    }
+  }
+
+  _playerSnapshot(player) {
+    if (!player) return null;
+    return {
+      x: player.x, y: player.y, angle: player.angle,
+      health: player.health, oxygen: player.oxygen, stamina: player.stamina,
+      noise: player.noise, ammo: player.ammo, reserveAmmo: player.reserveAmmo,
+      reloading: player.reloading, weaponId: player.weaponId,
+      downed: !!player.downed, bleedout: player.bleedout || 0,
+      reviveProgress: player.reviveProgress || 0
+    };
+  }
+
+  _applyPlayerSnapshot(player, snapshot, blend = 1) {
+    if (!player || !snapshot) return;
+    if (snapshot.weaponId && snapshot.weaponId !== player.weaponId) player.setWeapon(snapshot.weaponId);
+    player.x += (snapshot.x - player.x) * blend;
+    player.y += (snapshot.y - player.y) * blend;
+    player.angle = snapshot.angle;
+    for (const key of ['health', 'oxygen', 'stamina', 'noise', 'ammo', 'reserveAmmo', 'reloading', 'bleedout', 'reviveProgress']) {
+      if (snapshot[key] != null) player[key] = snapshot[key];
+    }
+    player.downed = !!snapshot.downed;
+  }
+
+  _createCoopSnapshot() {
+    return {
+      tick: Math.round(this.state.elapsed * 1000),
+      host: this._playerSnapshot(this.player),
+      guest: this._playerSnapshot(this.remotePlayer),
+      monster: {
+        x: this.monster.x, y: this.monster.y, angle: this.monster.angle,
+        active: this.monster.active, alerted: this.monster.alerted,
+        recoverTimer: this.monster.recoverTimer
+      },
+      hunters: this.hunters.map((hunter) => ({
+        x: hunter.x, y: hunter.y, angle: hunter.angle, active: hunter.active,
+        dead: hunter.dead, hp: hunter.hp, deathFade: hunter.deathFade
+      })),
+      doors: this.map.doors.map((door) => ({ open: door.open, openDir: door.openDir })),
+      scrap: this.map.scrap.map((item) => ({ found: item.found })),
+      terminals: this.map.terminals.map((terminal) => ({ solved: terminal.solved })),
+      mission: {
+        elapsed: this.state.elapsed, extractionCalled: this.state.extractionCalled,
+        loot: this.state.loot, lootValue: this.state.lootValue
+      },
+      hostInventory: this.state.inventory,
+      guestInventory: this.state.remoteInventory,
+      bulletTraces: this.state.bulletTraces.slice(-20),
+      impactParticles: this.state.impactParticles.slice(-80)
+    };
+  }
+
+  _applyCoopSnapshot(snapshot) {
+    if (!this.state.coop.running || this.state.coop.role !== 'guest') return;
+    this._applyPlayerSnapshot(this.player, snapshot.guest, 0.35);
+    this._applyPlayerSnapshot(this.remotePlayer, snapshot.host, 1);
+    Object.assign(this.monster, snapshot.monster || {});
+    (snapshot.hunters || []).forEach((state, index) => {
+      if (this.hunters[index]) Object.assign(this.hunters[index], state);
+    });
+    (snapshot.doors || []).forEach((state, index) => {
+      if (this.map.doors[index]) Object.assign(this.map.doors[index], state);
+    });
+    (snapshot.scrap || []).forEach((state, index) => {
+      if (this.map.scrap[index]) this.map.scrap[index].found = !!state.found;
+    });
+    (snapshot.terminals || []).forEach((state, index) => {
+      if (this.map.terminals[index]) this.map.terminals[index].solved = !!state.solved;
+    });
+    this.ui.updateTerminalsStatus(
+      this.map.terminals.filter((terminal) => terminal.solved).length,
+      this.map.terminals.length
+    );
+    if (snapshot.mission) Object.assign(this.state, snapshot.mission);
+    this.state.inventory = Array.isArray(snapshot.guestInventory) ? snapshot.guestInventory : [];
+    this.state.bulletTraces = Array.isArray(snapshot.bulletTraces) ? snapshot.bulletTraces : [];
+    this.state.impactParticles = Array.isArray(snapshot.impactParticles) ? snapshot.impactParticles : [];
+    this.updateInventoryUI();
+  }
+
+  _updateGuestCoop(dt) {
+    this.state.elapsed += dt;
+    const keys = this.player.downed || this.state.activeQte || this.state.fullMapOpen || this.state.inventoryOpen ? {} : this.state.keys;
+    this.player.update(dt, keys, this.state.stabilized, this.map, this.audio);
+    if (this.state.activeQte?.remoteOwned) {
+      this.state.activeQte.timeLeft = Math.max(0, this.state.activeQte.timeLeft - dt);
+      this.ui.updateQTETimer(this.state.activeQte.timeLeft, 10);
+    }
+    this._coopSendTimer -= dt;
+    if (this._coopSendTimer <= 0) {
+      this._coopSendTimer = 0.05;
+      this.coopSession.sendState('input', {
+        seq: ++this.remoteInput.seq,
+        keys: { w: !!keys.w, a: !!keys.a, s: !!keys.s, d: !!keys.d, shift: !!keys.shift, e: !!keys.e },
+        aim: this.player.angle,
+        fire: !!this.state.fireHeld
+      });
+    }
+    this._checkCoopDisconnect();
+    this.audio.update(this.player, this.monster, this.map, this.hunters);
+    this.ui.update({
+      oxygen: this.player.oxygen, health: this.player.health, stamina: this.player.stamina,
+      noise: this.player.noise, loot: this.state.loot, lootValue: this.state.lootValue,
+      elapsed: this.state.elapsed, reloading: this.player.reloading
+    }, this.player, this.monster);
+  }
+
+  _updateRemotePlayer(dt) {
+    if (!this.remotePlayer || !this.state.coop.running || this.state.coop.role !== 'host') return;
+    if (!this.state.coop.connected) {
+      this.remoteInput = { keys: {}, aim: this.remotePlayer.angle, fire: false, seq: this.remoteInput.seq || 0 };
+    }
+    this.remotePlayer.angle = Number.isFinite(this.remoteInput.aim) ? this.remoteInput.aim : this.remotePlayer.angle;
+    const keys = this.remotePlayer.downed ? {} : (this.remoteInput.keys || {});
+    this.remotePlayer.update(dt, keys, false, this.map, this.audio);
+    if (this.remoteInput.fire && this.remotePlayer.weapon.automatic && this.remotePlayer.ammo > 0 && this.remotePlayer.reloading <= 0) {
+      this.shoot(this.remotePlayer);
+    }
+    if (this.remoteQte) {
+      this.remoteQte.timeLeft -= dt;
+      if (this.remoteQte.timeLeft <= 0) this._failRemoteQte();
+    }
+  }
+
+  _handleRemoteAction(message) {
+    if (!this.remotePlayer || this.state.coop.role !== 'host') return;
+    if (Number.isFinite(message.aim)) this.remotePlayer.angle = message.aim;
+    if (message.action === 'shoot') this.shoot(this.remotePlayer);
+    if (message.action === 'reload') this.remotePlayer.reload(this.audio);
+    if (message.action === 'interact') this.interact(this.remotePlayer);
+    if (message.action === 'extract') this.callExtraction();
+    if (message.action === 'qte-key') this._handleRemoteQteKey(message.key);
+    if (message.action === 'qte-cancel') this.remoteQte = null;
+  }
+
+  _startRemoteQte(terminal) {
+    this.remoteQte = {
+      terminal,
+      sequence: [...terminal.sequence],
+      currentIndex: 0,
+      failCount: 0,
+      timeLeft: 10
+    };
+    this.coopSession.sendEvent('qte-start', { terminalId: terminal.id, sequence: this.remoteQte.sequence });
+  }
+
+  _handleRemoteQteKey(key) {
+    const qte = this.remoteQte;
+    if (!qte || !['w', 'a', 's', 'd'].includes(key)) return;
+    if (key === qte.sequence[qte.currentIndex].toLowerCase()) {
+      qte.currentIndex++;
+      if (qte.currentIndex >= qte.sequence.length) {
+        qte.terminal.solved = true;
+        this.ui.updateTerminalsStatus(
+          this.map.terminals.filter((terminal) => terminal.solved).length,
+          this.map.terminals.length
+        );
+        this.coopSession.sendEvent('qte-complete', { terminalId: qte.terminal.id });
+        this.remoteQte = null;
+      } else {
+        this.coopSession.sendEvent('qte-progress', { currentIndex: qte.currentIndex, failCount: qte.failCount });
+      }
+      return;
+    }
+    qte.failCount++;
+    if (qte.failCount >= 3) {
+      this._failRemoteQte();
+      return;
+    }
+    qte.sequence = this.map.generateQTESequence(5);
+    qte.currentIndex = 0;
+    qte.terminal.sequence = [...qte.sequence];
+    this.coopSession.sendEvent('qte-start', { terminalId: qte.terminal.id, sequence: qte.sequence });
+  }
+
+  _failRemoteQte() {
+    if (!this.remoteQte || !this.remotePlayer) return;
+    this.remotePlayer.health = Math.max(0, this.remotePlayer.health - 10);
+    this.remotePlayer.stunned = 2.5;
+    this.remotePlayer.noise = 100;
+    this.coopSession.sendEvent('qte-fail');
+    this.remoteQte = null;
+    this.teleportMonsterToNearbyRoom(true);
+  }
+
+  _checkCoopDisconnect() {
+    const coop = this.state.coop;
+    if (!coop.running || coop.connected || !coop.disconnectAt) return;
+    if (performance.now() - coop.disconnectAt > 10_000) {
+      if (coop.role === 'host') this.coopSession.sendEvent('finish', { success: false, reason: 'disconnect' });
+      this.finish(false);
+      coop.running = false;
+      coop.status = 'MISSION ABORTED // 通讯中断';
+      this.updateCoopUI();
+    }
+  }
+
+  _markDowned(player) {
+    if (!player || player.downed || (player.health > 0 && player.oxygen > 0)) return;
+    player.downed = true;
+    player.bleedout = 30;
+    player.reviveProgress = 0;
+    player.health = Math.max(0, player.health);
+    player.oxygen = Math.max(0, player.oxygen);
+  }
+
+  _updateCoopRevive(dt) {
+    if (!this.remotePlayer || this.state.coop.role !== 'host') return false;
+    const pairs = [
+      { downed: this.player, rescuer: this.remotePlayer, keys: this.remoteInput.keys || {} },
+      { downed: this.remotePlayer, rescuer: this.player, keys: this.state.keys }
+    ];
+    this._markDowned(this.player);
+    this._markDowned(this.remotePlayer);
+    for (const pair of pairs) {
+      if (!pair.downed.downed) continue;
+      pair.downed.bleedout = Math.max(0, pair.downed.bleedout - dt);
+      const close = !pair.rescuer.downed && Math.hypot(pair.downed.x - pair.rescuer.x, pair.downed.y - pair.rescuer.y) < 48;
+      pair.downed.reviveProgress = close && pair.keys.e ? pair.downed.reviveProgress + dt : 0;
+      if (pair.downed.reviveProgress >= 3) {
+        pair.downed.downed = false;
+        pair.downed.health = 40;
+        pair.downed.oxygen = 30;
+        pair.downed.bleedout = 0;
+        pair.downed.reviveProgress = 0;
+      }
+      if (pair.downed.bleedout <= 0) return true;
+    }
+    return this.player.downed && this.remotePlayer.downed;
+  }
+
+  _finishGuestCoop(message) {
+    if (message.success) {
+      this.state.money += Number(message.moneyShare) || 0;
+      this.state.inventory = Array.isArray(message.items) ? message.items : [];
+      this._save();
+      this.updateMoneyUI();
+      this.updateStorageUI();
+    }
+    this.state.coop.running = false;
+    this.finish(!!message.success);
+  }
+
+  _getThreatTarget(entity) {
+    const candidates = [this.player];
+    if (this.state.coop.running && this.remotePlayer) candidates.push(this.remotePlayer);
+    return candidates
+      .filter((player) => !player.downed)
+      .sort((a, b) => Math.hypot(entity.x - a.x, entity.y - a.y) - Math.hypot(entity.x - b.x, entity.y - b.y))[0]
+      || this.player;
   }
 
   _sanitizeHunterSettings(savedSettings = null) {
@@ -121,15 +576,15 @@ class Game {
   }
 
   updateHunterSettingsUI() {
-    this.ui.updateHunterSettings(this._getHunterSettings(), this.state.running);
+    this.ui.updateHunterSettings(this._getHunterSettings(), this.state.running || this.state.coop.role === 'guest');
   }
 
   updateDifficultyUI() {
-    this.ui.updateDifficultyPreset(this.state.selectedDifficulty, this.state.running);
+    this.ui.updateDifficultyPreset(this.state.selectedDifficulty, this.state.running || this.state.coop.role === 'guest');
   }
 
   applyDifficultyPreset(difficultyId) {
-    if (this.state.running) return;
+    if (this.state.running || this.state.coop.role === 'guest') return;
     const settings = this._buildDifficultySettings(difficultyId);
     if (!settings) return;
     this.state.hunterSettings = settings;
@@ -152,11 +607,18 @@ class Game {
     this.player.setWeapon(weaponId);
     this._save();
     this.updateLoadoutUI();
+    this.updateCoopUI();
     this.ui.updateWeaponReadout(this.player);
+    if (this.state.coop.connected) {
+      this.coopSession.sendEvent('ready', {
+        ready: this.state.coop.localReady,
+        weaponId: this.state.selectedWeapon
+      });
+    }
   }
 
   updateHunterSetting(key, value) {
-    if (this.state.running) return;
+    if (this.state.running || this.state.coop.role === 'guest') return;
     const current = this._getHunterSettings();
     const sanitized = this._sanitizeHunterSettings({
       [Config.currentScale]: { ...current, [key]: value }
@@ -172,7 +634,7 @@ class Game {
   }
 
   resetHunterSettings() {
-    if (this.state.running) return;
+    if (this.state.running || this.state.coop.role === 'guest') return;
     const defaults = this._sanitizeHunterSettings()[Config.currentScale];
     this.state.hunterSettings[Config.currentScale] = defaults;
     this.state.selectedDifficulty = 'custom';
@@ -252,7 +714,7 @@ class Game {
     const inventoryOverlay = document.getElementById('inventoryOverlay');
     if (inventoryOverlay) inventoryOverlay.style.display = 'none';
 
-    this.map.reset(Config.currentScale);
+    this.map.reset(Config.currentScale, this.state.coop.running ? this.state.coop.mapSeed : null);
     this.player.reset(this.map, this.state.selectedWeapon);
     this.monster.reset(this.map);
     this.hunters = this._createHunters();
@@ -263,6 +725,7 @@ class Game {
     this.updateDifficultyUI();
     this.updateHunterSettingsUI();
     this.updateLoadoutUI();
+    this.updateCoopUI();
     this.ui.updateTerminalsStatus(0, this.map.terminals.length);
     this.updateStorageUI();
     this.updateMoneyUI();
@@ -286,7 +749,7 @@ class Game {
    * Sets facility map scale (small, medium, large) and regenerates procedural layout
    */
   setMapScale(scaleKey) {
-    if (this.state.running) {
+    if (this.state.running || this.state.coop.role === 'guest') {
       this.ui.showToast('任务进行中无法更改设施规模');
       this.ui.log('警告：任务进行中锁定环境参数。');
       return;
@@ -357,6 +820,10 @@ class Game {
    */
   start() {
     if (this.state.running) return;
+    if (this.state.coop.role && !this.state.coop.running) {
+      this.ui.showToast('请在 CO-OP 大厅准备后由房主开始任务');
+      return;
+    }
     if (this.state.completed) this.reset();
     
     this.audio.ensureAudio();
@@ -433,6 +900,22 @@ class Game {
    * Concludes the exploration run with a final report status
    */
   finish(success) {
+    const coopHostFinishing = this.state.coop.running && this.state.coop.role === 'host';
+    const recoveredValue = [...this.state.inventory, ...this.state.remoteInventory]
+      .reduce((total, item) => total + (Number(item.value) || 0), 0);
+    const moneyShare = success ? Math.floor(recoveredValue / 2) : 0;
+    if (coopHostFinishing) {
+      this.coopSession.sendEvent('finish', {
+        success,
+        moneyShare,
+        items: success ? this.state.remoteInventory : []
+      });
+      this.state.coop.running = false;
+      if (success) this.state.money += moneyShare;
+    }
+    if (this.state.coop.role) {
+      this.state.coop.status = success ? 'MISSION COMPLETE // 双人撤离成功' : 'MISSION FAILED // 任务中止';
+    }
     this.state.running = false; 
     this.state.completed = true; 
     this.state.fireHeld = false;
@@ -458,6 +941,7 @@ class Game {
     this.updateDifficultyUI();
     this.updateHunterSettingsUI();
     this.updateLoadoutUI();
+    this.updateCoopUI();
     
     const compositeState = {
       oxygen: this.player.oxygen,
@@ -475,23 +959,27 @@ class Game {
   /**
    * Performs an interact trace near the explorer
    */
-  interact() {
+  interact(actor = this.player) {
     if (!this.state.running) return;
-    if (this.player.stunned > 0) {
+    if (actor.stunned > 0 || actor.downed) {
       this.ui.showToast('身体麻痹硬直中，无法交互！');
       return;
+    }
+    if (this.state.coop.running && this.remotePlayer) {
+      const teammate = actor === this.player ? this.remotePlayer : this.player;
+      if (teammate.downed && Math.hypot(teammate.x - actor.x, teammate.y - actor.y) < 48) return;
     }
 
     // Check doors with interaction radius from door center
     const door = this.map.doors.find(item => {
       const centerX = item.x + item.w / 2;
       const centerY = item.y + item.h / 2;
-      return Math.hypot(centerX - this.player.x, centerY - this.player.y) < 58;
+      return Math.hypot(centerX - actor.x, centerY - actor.y) < 58;
     });
 
     if (door) {
-      const res = this.map.toggleDoor(door, this.player.x, this.player.y);
-      this.player.noise = Math.min(100, this.player.noise + 8);
+      const res = this.map.toggleDoor(door, actor.x, actor.y);
+      actor.noise = Math.min(100, actor.noise + 8);
       this.audio.playTone(door.open ? 160 : 110, 0.08, 0.06, 'sine');
       
       const dirText = door.axis === 'v' 
@@ -505,20 +993,21 @@ class Game {
 
     // Check QTE security override consoles
     if (this.map.terminals) {
-      const term = this.map.terminals.find(t => Math.hypot(t.x - this.player.x, t.y - this.player.y) < 55);
+      const term = this.map.terminals.find(t => Math.hypot(t.x - actor.x, t.y - actor.y) < 55);
       if (term) {
         if (term.solved) {
           this.ui.showToast('该安全控制台已重写 (OVERRIDDEN)');
           return;
         }
-        this.startQTE(term);
+        if (actor === this.player) this.startQTE(term);
+        else this._startRemoteQte(term);
         return;
       }
     }
 
     // Check extraction beacon interaction (in Start Airlock or Exit Evac Pod)
-    const distAirlock = Math.hypot(this.map.extractionPoint.x - this.player.x, this.map.extractionPoint.y - this.player.y);
-    const distEvac = this.map.exitExtractionPoint ? Math.hypot(this.map.exitExtractionPoint.x - this.player.x, this.map.exitExtractionPoint.y - this.player.y) : Infinity;
+    const distAirlock = Math.hypot(this.map.extractionPoint.x - actor.x, this.map.extractionPoint.y - actor.y);
+    const distEvac = this.map.exitExtractionPoint ? Math.hypot(this.map.exitExtractionPoint.x - actor.x, this.map.exitExtractionPoint.y - actor.y) : Infinity;
     if (distAirlock < 55 || distEvac < 55) {
       const totalTerminals = this.map.terminals ? this.map.terminals.length : 3;
       const solvedCount = this.map.terminals ? this.map.terminals.filter(t => t.solved).length : totalTerminals;
@@ -535,7 +1024,7 @@ class Game {
     }
 
     // Check observation windows
-    const windowNear = this.map.windows.some(item => Math.hypot(item.x - this.player.x, item.y - this.player.y) < 42);
+    const windowNear = this.map.windows.some(item => Math.hypot(item.x - actor.x, item.y - actor.y) < 42);
     if (windowNear) {
       this.ui.log('窗外只有风与黑暗。');
       this.ui.showToast('观察窗');
@@ -543,7 +1032,7 @@ class Game {
     }
 
     // Attempt collection
-    this.collect();
+    this.collect(actor);
   }
 
   /**
@@ -570,6 +1059,15 @@ class Game {
    */
   handleQTEInput(key, event) {
     if (!this.state.activeQte) return;
+    if (this.state.coop.running && this.state.coop.role === 'guest' && this.state.activeQte.remoteOwned) {
+      if (event) event.preventDefault();
+      this.coopSession.sendEvent('action', { action: key === 'escape' ? 'qte-cancel' : 'qte-key', key });
+      if (key === 'escape') {
+        this.state.activeQte = null;
+        this.ui.hideQTE();
+      }
+      return;
+    }
     const qte = this.state.activeQte;
 
     if (key === 'escape') {
@@ -680,7 +1178,7 @@ class Game {
     this.ui.hideQTE();
 
     // 6. Death check
-    if (this.player.health <= 0) {
+    if (this.player.health <= 0 && !this.state.coop.running) {
       this.finish(false);
     }
   }
@@ -762,10 +1260,10 @@ class Game {
   /**
    * Scavenges nearby valid waste scrap
    */
-  collect() {
+  collect(actor = this.player) {
     if (!this.state.running) return;
 
-    const item = this.map.scrap.find(s => !s.found && Math.hypot(s.x - this.player.x, s.y - this.player.y) < 30);
+    const item = this.map.scrap.find(s => !s.found && Math.hypot(s.x - actor.x, s.y - actor.y) < 30);
     if (!item) {
       this.ui.showToast('附近没有可回收物');
       return;
@@ -773,7 +1271,8 @@ class Game {
     
     // Find free slots in 12-slot grid
     const occupiedSlots = new Set();
-    this.state.inventory.forEach(i => {
+    const inventory = actor === this.player ? this.state.inventory : this.state.remoteInventory;
+    inventory.forEach(i => {
       for(let s = i.slot; s < i.slot + i.size; s++) occupiedSlots.add(s);
     });
 
@@ -796,14 +1295,16 @@ class Game {
     item.found = true;
     item.slot = freeSlot;
     item.id = Date.now();
-    this.state.inventory.push(item);
+    inventory.push(item);
+    this.state.loot += 1;
+    this.state.lootValue += Number(item.value) || 0;
     
-    this.player.noise = Math.min(100, this.player.noise + 20);
+    actor.noise = Math.min(100, actor.noise + 20);
     
     this.ui.log(`拾取：${item.name || '废料'}。`);
     this.ui.showToast(`拾取 ${item.name || '物品'}`);
     
-    this.updateInventoryUI();
+    if (actor === this.player) this.updateInventoryUI();
   }
 
   buyAmmo() {
@@ -902,21 +1403,25 @@ class Game {
   /**
    * Weapon discharge action and target intersection resolving
    */
-  shoot() {
+  shoot(shooter = this.player) {
     if (!this.state.running) return;
-    if (this.player.stunned > 0) {
+    if (this.state.coop.running && this.state.coop.role === 'guest' && shooter === this.player) {
+      this.coopSession.sendEvent('action', { action: 'shoot', aim: shooter.angle });
+      return;
+    }
+    if (shooter.stunned > 0 || shooter.downed) {
       this.ui.showToast('休克硬直中，无法射击！');
       return;
     }
 
-    const result = this.player.shoot(this.state.stabilized, this.map, this.audio, this.monster);
+    const result = shooter.shoot(shooter === this.player && this.state.stabilized, this.map, this.audio, this.monster);
     
     if (result.fired) {
       // Trigger muzzle flash lighting effect (start at full 0.45 second decay clock)
       this.state.muzzleFlashTimer = 0.45; 
       
-      const startX = this.player.x;
-      const startY = this.player.y;
+      const startX = shooter.x;
+      const startY = shooter.y;
       const angle = result.shotAngle;
       const wallDist = this.map.rayWallDistance(startX, startY, Math.cos(angle), Math.sin(angle), 650);
       const rayCircleHitDistance = (entity) => {
@@ -960,9 +1465,11 @@ class Game {
       const endY = startY + Math.sin(angle) * result.traceLength;
 
       // Apply screen recoil in the EXACT opposite direction of the fired shot
-      const recoilIntensity = this.state.stabilized ? this.player.weapon.recoilAim : this.player.weapon.recoilHip;
-      this.state.recoilX += -Math.cos(angle) * recoilIntensity;
-      this.state.recoilY += -Math.sin(angle) * recoilIntensity;
+      if (shooter === this.player) {
+        const recoilIntensity = this.state.stabilized ? shooter.weapon.recoilAim : shooter.weapon.recoilHip;
+        this.state.recoilX += -Math.cos(angle) * recoilIntensity;
+        this.state.recoilY += -Math.sin(angle) * recoilIntensity;
+      }
 
       // Add a high speed kinetic bullet tracer
       this.state.bulletTraces.push({
@@ -1044,7 +1551,7 @@ class Game {
         this.ui.showToast('未命中');
       }
 
-      if (this.player.ammo === 0 && this.player.reserveAmmo > 0) this.player.reload(this.audio);
+      if (shooter.ammo === 0 && shooter.reserveAmmo > 0) shooter.reload(this.audio);
     } else if (result.reason === 'empty') {
       this.audio.playTone(180, 0.04, 0.08, 'square');
       this.ui.showToast('弹药耗尽 (按 R 换弹)');
@@ -1132,6 +1639,10 @@ class Game {
    * Evaluates world and entity actions over time increment
    */
   update(dt) {
+    if (this.state.coop.running && this.state.coop.role === 'guest') {
+      this._updateGuestCoop(dt);
+      return;
+    }
     this.state.elapsed += dt;
 
     // Decrement QTE monster teleport cooldown timer (15s cooldown)
@@ -1142,6 +1653,8 @@ class Game {
     // 1. Update Player position & status timers (freeze input movement during active QTE, Full Map, or Stun)
     const inputKeys = (this.state.activeQte || this.state.fullMapOpen || this.player.stunned > 0) ? {} : this.state.keys;
     const playerResult = this.player.update(dt, inputKeys, this.state.stabilized, this.map, this.audio);
+    this._updateRemotePlayer(dt);
+    this._checkCoopDisconnect();
     if (playerResult && playerResult.reloaded) {
       this.ui.showToast('换弹完成');
     }
@@ -1181,6 +1694,9 @@ class Game {
 
     // 3. Subtract survival oxygen supplies
     this.player.oxygen -= dt * (this.state.extractionCalled ? 0.8 : 0.18);
+    if (this.state.coop.running && this.remotePlayer && !this.remotePlayer.downed) {
+      this.remotePlayer.oxygen -= dt * (this.state.extractionCalled ? 0.8 : 0.18);
+    }
 
     // 4. Update muzzle flash light timer
     if (this.state.muzzleFlashTimer > 0) {
@@ -1238,9 +1754,10 @@ class Game {
     ) * jitterScale;
 
     // 5. Check environmental conditions to awaken the monster
+    const loudestNoise = Math.max(this.player.noise, this.remotePlayer?.noise || 0);
     if ((!this.monster.active && this.state.elapsed > 7) ||
-        (!this.monster.alerted && (this.player.noise > Config.monster.triggerNoiseThreshold || this.state.loot >= 2))) {
-      this.activateMonster(this.player.noise > Config.monster.triggerNoiseThreshold ? '脚步声在走廊里回响。' : '墙后传来沉重的呼吸声。');
+        (!this.monster.alerted && (loudestNoise > Config.monster.triggerNoiseThreshold || this.state.loot >= 2))) {
+      this.activateMonster(loudestNoise > Config.monster.triggerNoiseThreshold ? '脚步声在走廊里回响。' : '墙后传来沉重的呼吸声。');
     }
     // Activate ALL hunters immediately at game start (after 3s, not near player)
     if (this.state.elapsed > 3 && !this.state.huntersInitialized) {
@@ -1280,8 +1797,9 @@ class Game {
     }
 
     // 6. Drive monster pathfinding & AI updates
-    const allEntities = [this.monster, ...this.hunters];
-    const monsterResult = this.monster.update(dt, this.player, this.player.noise, this.map, this.audio, allEntities);
+    const allEntities = [this.monster, ...this.hunters, ...(this.remotePlayer ? [this.remotePlayer] : [])];
+    const monsterTarget = this._getThreatTarget(this.monster);
+    const monsterResult = this.monster.update(dt, monsterTarget, monsterTarget.noise, this.map, this.audio, allEntities);
     if (monsterResult) {
       if (monsterResult.deaggro) {
         this.ui.threatStatusText.textContent = '脱战';
@@ -1302,10 +1820,10 @@ class Game {
       }
 
       if (monsterResult.playerHit) {
-        this.ui.triggerDamageFlash(0.75, 130);
-        this.player.health -= 18;
-        this.player.oxygen -= 8;
-        this.player.noise = 100;
+        if (monsterTarget === this.player) this.ui.triggerDamageFlash(0.75, 130);
+        monsterTarget.health -= 18;
+        monsterTarget.oxygen -= 8;
+        monsterTarget.noise = 100;
         this.ui.log('警告：未知生命体接触！');
         this.audio.playSound('resources/injured-140224.mp3', 0.8);
       }
@@ -1329,14 +1847,15 @@ class Game {
         h.deathFade = Math.max(0, h.deathFade - dt / 1.2);
       }
       if (!h.active || h.dead) return;
-      const hunterResult = h.update(dt, this.player, this.player.noise, this.map, this.audio, allEntities);
+      const hunterTarget = this._getThreatTarget(h);
+      const hunterResult = h.update(dt, hunterTarget, hunterTarget.noise, this.map, this.audio, allEntities);
       if (!hunterResult) return;
 
       if (hunterResult.playerHit) {
-        this.ui.triggerDamageFlash(0.75, 130);
-        this.player.health -= 18;
-        this.player.oxygen -= 8;
-        this.player.noise = 100;
+        if (hunterTarget === this.player) this.ui.triggerDamageFlash(0.75, 130);
+        hunterTarget.health -= 18;
+        hunterTarget.oxygen -= 8;
+        hunterTarget.noise = 100;
         this.ui.log('警告：猎手接触！');
       }
 
@@ -1354,16 +1873,34 @@ class Game {
       const d2 = this.map.exitExtractionPoint ? Math.hypot(this.player.x - this.map.exitExtractionPoint.x, this.player.y - this.map.exitExtractionPoint.y) : Infinity;
       const totalCount = this.map.terminals ? this.map.terminals.length : 3;
       const solvedCount = this.map.terminals ? this.map.terminals.filter(t => t.solved).length : totalCount;
-      if ((d1 < 48 || d2 < 48) && solvedCount >= totalCount) {
+      const remoteAtExtraction = !this.state.coop.running || !this.remotePlayer || (!this.remotePlayer.downed &&
+        Math.min(
+          Math.hypot(this.remotePlayer.x - this.map.extractionPoint.x, this.remotePlayer.y - this.map.extractionPoint.y),
+          this.map.exitExtractionPoint ? Math.hypot(this.remotePlayer.x - this.map.exitExtractionPoint.x, this.remotePlayer.y - this.map.exitExtractionPoint.y) : Infinity
+        ) < 48);
+      if ((d1 < 48 || d2 < 48) && remoteAtExtraction && solvedCount >= totalCount) {
         this.finish(true);
         return;
       }
     }
 
     // 9. Fail checks
-    if (this.player.health <= 0 || this.player.oxygen <= 0) {
+    if (this.state.coop.running && this.state.coop.role === 'host') {
+      if (this._updateCoopRevive(dt)) {
+        this.finish(false);
+        return;
+      }
+    } else if (this.player.health <= 0 || this.player.oxygen <= 0) {
       this.finish(false);
       return;
+    }
+
+    if (this.state.coop.running && this.state.coop.role === 'host') {
+      this._coopSendTimer -= dt;
+      if (this._coopSendTimer <= 0) {
+        this._coopSendTimer = 0.05;
+        this.coopSession.sendState('snapshot', this._createCoopSnapshot());
+      }
     }
 
     // 10. Synchronize statistics interface gauges
@@ -1406,7 +1943,7 @@ class Game {
    */
   render() {
     this.renderer.prepareCamera(this.player, this.state);
-    this.renderer.draw(this.player, this.monster, this.map, this.state, this.hunters);
+    this.renderer.draw(this.player, this.monster, this.map, this.state, this.hunters, this.remotePlayer);
     this.renderer.drawWorldOverlay(this.player, this.map, this.state);
     this.renderer.drawCenteredVision(this.player, this.map, this.state);
     this.renderer.drawMiniMap(this.player, this.map, this.state);
@@ -1440,9 +1977,18 @@ class Game {
       }
 
       if (key === 'f') this.player.flashlight = !this.player.flashlight;
-      if (key === 'e') this.interact();
-      if (key === 'r') this.player.reload(this.audio); // Only R for reload
-      if (key === 'x') this.callExtraction(); // X for extraction
+      if (key === 'e') {
+        if (this.state.coop.running && this.state.coop.role === 'guest') this.coopSession.sendEvent('action', { action: 'interact' });
+        else this.interact();
+      }
+      if (key === 'r') {
+        if (this.state.coop.running && this.state.coop.role === 'guest') this.coopSession.sendEvent('action', { action: 'reload' });
+        else this.player.reload(this.audio);
+      }
+      if (key === 'x') {
+        if (this.state.coop.running && this.state.coop.role === 'guest') this.coopSession.sendEvent('action', { action: 'extract' });
+        else this.callExtraction();
+      }
       if (key === 'b') {
         const inv = document.getElementById('inventoryOverlay');
         inv.style.display = (inv.style.display === 'none' || inv.style.display === '') ? 'block' : 'none';
@@ -1573,7 +2119,10 @@ class Game {
 
     window.addEventListener('contextmenu', e => e.preventDefault());
     window.addEventListener('dragstart', e => e.preventDefault());
-    window.addEventListener('blur', () => { this.state.fireHeld = false; });
+    window.addEventListener('blur', () => {
+      this.state.fireHeld = false;
+      this.state.keys = {};
+    });
     
     // Unlock AudioContext on first user gesture
     window.addEventListener('pointerdown', () => this.audio.ensureAudio(), { passive: true });
@@ -1648,7 +2197,8 @@ window.addEventListener('DOMContentLoaded', () => {
     const contentIds = {
       briefing: 'briefingContent',
       storage: 'storageContent',
-      loadout: 'loadoutContent'
+      loadout: 'loadoutContent',
+      coop: 'coopContent'
     };
     if (!contentIds[tab]) return;
     Object.entries(contentIds).forEach(([key, id]) => {

@@ -99,6 +99,17 @@ class UIManager {
       pistol: document.querySelector('#loadoutPistol'),
       smg: document.querySelector('#loadoutSmg')
     };
+    this.coopStatus = document.querySelector('#coopStatus');
+    this.coopRoomCode = document.querySelector('#coopRoomCode');
+    this.coopJoinCode = document.querySelector('#coopJoinCode');
+    this.coopLobby = document.querySelector('#coopLobby');
+    this.coopHostReady = document.querySelector('#coopHostReady');
+    this.coopGuestReady = document.querySelector('#coopGuestReady');
+    this.coopReadyButton = document.querySelector('#coopReadyButton');
+    this.coopStartButton = document.querySelector('#coopStartButton');
+    this.coopLeaveButton = document.querySelector('#coopLeaveButton');
+    this.coopHostButton = document.querySelector('#coopHostButton');
+    this.coopJoinButton = document.querySelector('#coopJoinButton');
 
     this.toastTimeout = null;
   }
@@ -165,6 +176,29 @@ class UIManager {
         ? `${player.weapon.label} / 冷却 ${player.shootCooldown.toFixed(1)}s`
         : `${player.weapon.label} / 就绪`;
     this.weaponStatusText.className = player.shootCooldown > 0 || reloading ? 'warning' : 'ok';
+  }
+
+  updateCoopLobby(coop) {
+    if (!this.coopStatus) return;
+    this.coopStatus.textContent = coop.status || 'OFFLINE';
+    this.coopRoomCode.textContent = coop.code || '------';
+    this.coopLobby.hidden = !coop.role;
+    this.coopHostReady.textContent = coop.role === 'host'
+      ? (coop.localReady ? '已准备' : '未准备')
+      : (coop.remoteReady ? '已准备' : '未准备');
+    this.coopGuestReady.textContent = coop.connected
+      ? (coop.role === 'guest'
+        ? (coop.localReady ? '已准备' : '未准备')
+        : (coop.remoteReady ? '已准备' : '未准备'))
+      : '未连接';
+    this.coopReadyButton.textContent = coop.localReady ? '取消准备' : '准备';
+    this.coopReadyButton.disabled = !coop.connected || coop.running;
+    this.coopStartButton.hidden = coop.role !== 'host';
+    this.coopStartButton.disabled = !coop.connected || !coop.localReady || !coop.remoteReady || coop.running;
+    this.coopLeaveButton.disabled = coop.running;
+    this.coopHostButton.disabled = !!coop.role;
+    this.coopJoinButton.disabled = !!coop.role;
+    this.coopJoinCode.disabled = !!coop.role;
   }
 
   /**

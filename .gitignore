@@ -1,2 +1,8 @@
 dist/
 .sites-runtime/
+.sites-starter/
+public/game/
+.wrangler/
+.next/
+node_modules/
+*.tsbuildinfo
