@@ -295,28 +295,30 @@ class UIManager {
   resize(viewW, viewH) {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
+    this.frame.style.minHeight = '0';
+    this.frame.style.flex = '0 0 auto';
+    const frameWidth = this.frame.getBoundingClientRect().width;
+    this.frame.style.height = `${frameWidth * viewH / viewW}px`;
     const rect = this.frame.getBoundingClientRect();
-    const w = rect.width || viewW;
-    const h = rect.height || viewH;
 
-    this.canvas.width = w * dpr;
-    this.canvas.height = h * dpr;
-    this.visionCanvas.width = w * dpr;
-    this.visionCanvas.height = h * dpr;
+    this.canvas.width = rect.width * dpr;
+    this.canvas.height = rect.height * dpr;
+    this.visionCanvas.width = rect.width * dpr;
+    this.visionCanvas.height = rect.height * dpr;
     this.miniMap.width = 176 * dpr;
     this.miniMap.height = 176 * dpr;
 
     this.canvas.style.position = 'absolute';
     this.canvas.style.inset = '0';
-    this.canvas.style.width = '100%';
-    this.canvas.style.height = '100%';
+    this.canvas.style.width = `${rect.width}px`;
+    this.canvas.style.height = `${rect.height}px`;
 
     this.visionCanvas.style.position = 'absolute';
     this.visionCanvas.style.inset = '0';
     this.visionCanvas.style.zIndex = '2';
     this.visionCanvas.style.pointerEvents = 'none';
-    this.visionCanvas.style.width = '100%';
-    this.visionCanvas.style.height = '100%';
+    this.visionCanvas.style.width = `${rect.width}px`;
+    this.visionCanvas.style.height = `${rect.height}px`;
 
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.visionCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -500,11 +502,11 @@ class UIManager {
 
     this.noiseBar.style.width = `${Math.max(5, gameState.noise)}%`;
     this.noiseText.textContent = gameState.noise > 70 ? '危险' : gameState.noise > 30 ? '注意' : '安静';
-    if (this.hudNoise) this.hudNoise.textContent = `NOISE: ${gameState.noise > 70 ? '高' : gameState.noise > 30 ? '注意' : '静'}`;
+    this.hudNoise.textContent = `NOISE: ${gameState.noise > 70 ? '高' : gameState.noise > 30 ? '注意' : '静'}`;
 
-    if (this.lootValueText) this.lootValueText.textContent = `¥ ${gameState.lootValue}`;
-    if (this.lootCountText) this.lootCountText.textContent = `${gameState.loot} / 6`;
-    if (this.predictedValue) this.predictedValue.textContent = `¥ ${gameState.lootValue}`;
+    this.lootValueText.textContent = `¥ ${gameState.lootValue}`;
+    this.lootCountText.textContent = `${gameState.loot} / 6`;
+    this.predictedValue.textContent = `¥ ${gameState.lootValue}`;
 
     const totalSeconds = Math.max(0, Math.floor(gameState.elapsed || 0));
     const mins = String(Math.floor(totalSeconds / 60)).padStart(2, '0');

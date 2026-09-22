@@ -26,9 +26,8 @@ class Renderer {
     const visionCanvas = this.ui.visionCanvas;
     const ctx = this.ui.ctx;
 
-    const w = canvas.clientWidth || Config.VIEW_W;
-    const h = canvas.clientHeight || Config.VIEW_H;
-    const scale = Math.max(w / Config.VIEW_W, h / Config.VIEW_H);
+    const baseScaleX = canvas.clientWidth / Config.VIEW_W;
+    const baseScaleY = canvas.clientHeight / Config.VIEW_H;
     
     const aimZoom = gameState.stabilized ? 1.1 : 1;
     const lookX = gameState.stabilized ? gameState.cameraLookX : 0;
@@ -40,12 +39,10 @@ class Renderer {
     const totalOffsetX = lookX + (gameState.recoilX || 0);
     const totalOffsetY = lookY + (gameState.recoilY || 0);
 
-    // Center screen in design units
-    const centerDesignX = w / (2 * scale);
-    const centerDesignY = h / (2 * scale);
-
-    this.cameraOffsetX = -player.x + centerDesignX - totalOffsetX;
-    this.cameraOffsetY = -player.y + centerDesignY - totalOffsetY;
+    // Set the cameraOffset fields strictly in game logical units.
+    // Notice how lookX and lookY are already in logical design pixels, no scaling must occur here.
+    this.cameraOffsetX = -player.x + Config.VIEW_W / 2 - totalOffsetX;
+    this.cameraOffsetY = -player.y + Config.VIEW_H / 2 - totalOffsetY;
 
     // Reset CSS transforms entirely to avoid double-zooming and alignment bugs
     canvas.style.transform = 'none';
@@ -58,19 +55,13 @@ class Renderer {
    * Helper to apply scale, zoom and camera offset uniformly to any 2D context
    */
   applyCamera(ctx, scaleX, scaleY, gameState) {
-    const scale = scaleX;
-    ctx.scale(scale, scale);
+    ctx.scale(scaleX, scaleY);
     
-    const w = ctx.canvas.clientWidth || Config.VIEW_W;
-    const h = ctx.canvas.clientHeight || Config.VIEW_H;
-    const centerDesignX = w / (2 * scale);
-    const centerDesignY = h / (2 * scale);
-
     // Zoom around the screen center
     if (gameState.cameraZoom !== 1) {
-      ctx.translate(centerDesignX, centerDesignY);
+      ctx.translate(Config.VIEW_W / 2, Config.VIEW_H / 2);
       ctx.scale(gameState.cameraZoom, gameState.cameraZoom);
-      ctx.translate(-centerDesignX, -centerDesignY);
+      ctx.translate(-Config.VIEW_W / 2, -Config.VIEW_H / 2);
     }
     
     ctx.translate(this.cameraOffsetX, this.cameraOffsetY);
@@ -91,12 +82,13 @@ class Renderer {
    */
   draw(player, monster, mapManager, gameState, hunters) {
     const ctx = this.ui.ctx;
-    const w = this.ui.canvas.clientWidth || Config.VIEW_W;
-    const h = this.ui.canvas.clientHeight || Config.VIEW_H;
-    const scale = Math.max(w / Config.VIEW_W, h / Config.VIEW_H);
+    const w = this.ui.canvas.clientWidth;
+    const h = this.ui.canvas.clientHeight;
+    const scaleX = w / Config.VIEW_W;
+    const scaleY = h / Config.VIEW_H;
 
     ctx.save();
-    this.applyCamera(ctx, scale, scale, gameState);
+    this.applyCamera(ctx, scaleX, scaleY, gameState);
 
     // Background
     const worldW = mapManager.worldW || Config.WORLD_W;
@@ -712,16 +704,17 @@ class Renderer {
    */
   drawOccludedVision(player, mapManager, gameState) {
     const visionCtx = this.ui.visionCtx;
-    const w = this.ui.visionCanvas.clientWidth || Config.VIEW_W;
-    const h = this.ui.visionCanvas.clientHeight || Config.VIEW_H;
-    const scale = Math.max(w / Config.VIEW_W, h / Config.VIEW_H);
+    const w = this.ui.visionCanvas.clientWidth;
+    const h = this.ui.visionCanvas.clientHeight;
+    const scaleX = w / Config.VIEW_W;
+    const scaleY = h / Config.VIEW_H;
 
     visionCtx.clearRect(0, 0, w, h);
     visionCtx.save();
     
     // Apply camera transformation uniformly to the vision canvas
     visionCtx.setTransform(this.renderDpr, 0, 0, this.renderDpr, 0, 0);
-    this.applyCamera(visionCtx, scale, scale, gameState);
+    this.applyCamera(visionCtx, scaleX, scaleY, gameState);
 
     // Black out everything by default (extend beyond viewport boundaries)
     visionCtx.fillStyle = '#000';

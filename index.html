@@ -17,11 +17,9 @@
       <div class="contract-state"><i></i><span id="contractState">通讯稳定</span></div>
     </header>
 
-    <!-- Safehouse PC Main Menu Dashboard -->
-    <div class="safehouse-dashboard">
-      <!-- Panel 1: Contract Briefing & Deployment -->
-      <div class="safehouse-panel panel">
-        <div class="panel-title"><span>01</span><div><p class="kicker">CONTRACT BRIEFING</p><h2>任务简报与部署</h2></div></div>
+    <section class="game-layout">
+      <aside class="briefing-panel panel">
+        <div class="panel-title"><span>01</span><div><p class="kicker">RECOVERY BRIEF</p><h2>任务简报</h2></div></div>
         
         <div class="market-panel" style="margin-bottom:20px;">
           <div class="contract-row"><span>余额</span><strong id="moneyDisplay">¥ 1000</strong></div>
@@ -29,8 +27,9 @@
         </div>
 
         <div class="safehouse-tabs">
-          <button class="tab-btn active" onclick="switchTab('briefing')">简报</button>
-          <button class="tab-btn" onclick="switchTab('storage')">仓库</button>
+          <button class="tab-btn active" data-tab="briefing" onclick="switchTab('briefing')">简报</button>
+          <button class="tab-btn" data-tab="storage" onclick="switchTab('storage')">仓库</button>
+          <button class="tab-btn" data-tab="loadout" onclick="switchTab('loadout')">LOADOUT</button>
         </div>
 
         <div id="briefingContent">
@@ -43,6 +42,21 @@
               <button class="scale-btn active" id="scaleBtnSmall" onclick="game.setMapScale('small')">小 12舱</button>
               <button class="scale-btn" id="scaleBtnMedium" onclick="game.setMapScale('medium')">中 18舱</button>
               <button class="scale-btn" id="scaleBtnLarge" onclick="game.setMapScale('large')">大 24舱</button>
+            </div>
+            <div class="difficulty-section">
+              <div class="difficulty-header"><span>DIFFICULTY PRESET</span><strong id="currentDifficultyText">中等</strong></div>
+              <div class="difficulty-btn-group">
+                <button class="difficulty-btn" id="difficultyEasy" type="button" onclick="game.applyDifficultyPreset('easy')">简单</button>
+                <button class="difficulty-btn active" id="difficultyMedium" type="button" onclick="game.applyDifficultyPreset('medium')">中等</button>
+                <button class="difficulty-btn" id="difficultyHard" type="button" onclick="game.applyDifficultyPreset('hard')">困难</button>
+              </div>
+            </div>
+            <div class="hunter-settings">
+              <label>开场猎手<input id="hunterInitialCount" type="number" min="0" max="100" step="1"></label>
+              <label>重生秒数<input id="hunterRespawnInterval" type="number" min="1" max="120" step="1"></label>
+              <label>每轮重生<input id="hunterRespawnCount" type="number" min="0" max="100" step="1"></label>
+              <label>猎手血量<input id="hunterMaxHp" type="number" min="1" max="100" step="1"></label>
+              <button id="resetHunterSettings" type="button">恢复当前地图默认值</button>
             </div>
           </div>
           <div class="map-test-section">
@@ -65,8 +79,24 @@
           <button class="action-button" onclick="game.sellStorage()" style="margin-top: 15px; font-size: 11px;">出售仓库全部物资 <b>↘</b></button>
         </div>
 
-    <section class="game-layout" style="display:none;">
-      <aside class="briefing-panel panel" style="display:none;"></aside>
+        <div id="loadoutContent" style="display:none;">
+          <div class="loadout-grid">
+            <button class="loadout-card active" id="loadoutPistol" type="button" onclick="game.selectWeapon('pistol')">
+              <span class="loadout-type">SIDEARM</span>
+              <strong>手枪</strong>
+              <small>6 发弹匣 · 0.38s 单发 · 1.2s 换弹</small>
+            </button>
+            <button class="loadout-card" id="loadoutSmg" type="button" onclick="game.selectWeapon('smg')">
+              <span class="loadout-type">PRIMARY</span>
+              <strong>冲锋枪</strong>
+              <small>30 发弹匣 · 0.10s 自动 · 1.8s 换弹</small>
+            </button>
+          </div>
+        </div>
+
+        <div class="side-note"><span>!</span><p>灯光会暴露你的位置。噪音会吸引附近的东西。</p></div>
+        <button id="startButton" class="action-button">开始下潜 <b>↘</b></button>
+      </aside>
 
       <section class="game-panel panel">
         <div class="game-header"><div><p class="kicker">LIVE FEED / CAM 01</p><h2 id="missionTitle">等待下潜</h2></div><div class="coordinates"><span id="clock">00:00</span><small>LOCAL TIME</small></div></div>
