@@ -215,6 +215,43 @@ class Player {
 
 const PURSUIT_PROBE_OFFSETS = [0, Math.PI / 6, -Math.PI / 6, Math.PI / 3, -Math.PI / 3, Math.PI / 2, -Math.PI / 2, 2 * Math.PI / 3, -2 * Math.PI / 3];
 
+function isPointLitByPlayer(x, y, player, mapManager) {
+  if (!player || player.downed || !player.flashlight) return false;
+  const dx = x - player.x;
+  const dy = y - player.y;
+  const distance = Math.hypot(dx, dy);
+  if (distance > Config.player.flashlightRange) return false;
+
+  const angle = Math.atan2(dy, dx);
+  const angleDifference = Math.abs(Math.atan2(
+    Math.sin(angle - player.angle),
+    Math.cos(angle - player.angle)
+  ));
+  if (angleDifference > Config.player.flashlightSpread) return false;
+
+  const visibleDistance = mapManager.rayVisionDistance
+    ? mapManager.rayVisionDistance(
+      player.x,
+      player.y,
+      Math.cos(angle),
+      Math.sin(angle),
+      Config.player.flashlightRange,
+      13
+    )
+    : mapManager.rayWallDistance(
+      player.x,
+      player.y,
+      Math.cos(angle),
+      Math.sin(angle),
+      Config.player.flashlightRange
+    );
+  return distance <= visibleDistance;
+}
+
+function isPointLitByAnyPlayer(x, y, players, mapManager) {
+  return (players || []).some(player => isPointLitByPlayer(x, y, player, mapManager));
+}
+
 function getNavigationRoom(mapManager, x, y) {
   const rooms = mapManager.worldRooms || [];
   const containingRooms = rooms.filter(room => {
@@ -796,10 +833,97 @@ class Monster {
 }
 
 class Hunter {
-  constructor(spawnIndex = 0, maxHp = Config.hunter.maxHp) {
+  constructor(spawnIndex = 0, maxHp = Config.hunter.maxHp, random = Math.random) {
     this.spawnIndex = spawnIndex;
     this.maxHp = maxHp;
+    this.trait = Hunter.rollTrait(random);
     this.reset(null, maxHp);
+  }
+
+  static rollTrait(random = Math.random) {
+    const roll = random();
+    if (roll >= Config.hunter.traitChance) return null;
+    const index = Math.min(
+      Config.hunter.traitTypes.length - 1,
+      Math.floor(roll / Config.hunter.traitChance * Config.hunter.traitTypes.length)
+    );
+    return Config.hunter.traitTypes[index];
+  }
+
+  _findDarkTarget(players, mapManager, targetPlayer) {
+    let bestTarget = null;
+    let bestScore = -Infinity;
+    const angleOffset = (this.spawnIndex % 8) * Math.PI / 4;
+
+    for (const radius of Config.hunter.lightAvoidRadii) {
+      for (let index = 0; index < 8; index++) {
+        const angle = angleOffset + index * Math.PI / 4;
+        const x = this.x + Math.cos(angle) * radius;
+        const y = this.y + Math.sin(angle) * radius;
+        if (mapManager.blocked(x, y, this.radius) ||
+            !isDirectPathClear(mapManager, this.x, this.y, x, y, this.radius) ||
+            isPointLitByAnyPlayer(x, y, players, mapManager)) continue;
+
+        const score = -Math.hypot(targetPlayer.x - x, targetPlayer.y - y);
+        if (score > bestScore) {
+          bestScore = score;
+          bestTarget = { x, y };
+        }
+      }
+    }
+    return bestTarget;
+  }
+
+  _getLightAvoidTarget(dt, players, mapManager, targetPlayer) {
+    this.lightAvoidTimer -= dt;
+    const targetInvalid = !this.lightAvoidTarget ||
+      Math.hypot(this.lightAvoidTarget.x - this.x, this.lightAvoidTarget.y - this.y) < 18 ||
+      isPointLitByAnyPlayer(this.lightAvoidTarget.x, this.lightAvoidTarget.y, players, mapManager);
+    if (this.lightAvoidTimer <= 0 || targetInvalid) {
+      this.lightAvoidTimer = Config.hunter.lightAvoidRefresh;
+      this.lightAvoidTarget = this._findDarkTarget(players, mapManager, targetPlayer);
+    }
+    if (this.lightAvoidTarget) return this.lightAvoidTarget;
+
+    const nearestLight = [...players].sort((a, b) =>
+      Math.hypot(this.x - a.x, this.y - a.y) - Math.hypot(this.x - b.x, this.y - b.y)
+    )[0];
+    if (!nearestLight) return { x: this.x, y: this.y };
+    const awayAngle = Math.atan2(this.y - nearestLight.y, this.x - nearestLight.x);
+    return {
+      x: this.x + Math.cos(awayAngle) * Config.hunter.lightAvoidRadii[1],
+      y: this.y + Math.sin(awayAngle) * Config.hunter.lightAvoidRadii[1]
+    };
+  }
+
+  updateDeath(dt) {
+    if (!this.dead) return null;
+    if (!this.revivePending) {
+      this.deathFade = Math.max(0, this.deathFade - dt / Config.hunter.deathFadeDuration);
+      return { revived: false };
+    }
+
+    this.reviveTimer = Math.max(0, this.reviveTimer - dt);
+    const elapsed = Config.hunter.traitReviveDuration - this.reviveTimer;
+    this.deathFade = elapsed <= 1 ? Math.max(0, 1 - elapsed) : Math.min(1, elapsed - 1);
+    if (this.reviveTimer > 0) return { revived: false, pending: true };
+
+    this.revivePending = false;
+    this.dead = false;
+    this.active = true;
+    this.alerted = true;
+    this.hp = this.maxHp * 0.5;
+    this.deathFade = 1;
+    this.lostTime = 0;
+    this.waypoints = [];
+    this.waypointTimer = 0;
+    this.localPath = [];
+    this.localRepathTimer = 0;
+    this.patrolTarget = null;
+    this._stuckTimer = 0;
+    this._lastX = null;
+    this._lastY = null;
+    return { revived: true };
   }
 
   reset(mapManager, maxHp = this.maxHp || Config.hunter.maxHp) {
@@ -817,6 +941,12 @@ class Hunter {
     this.alerted = false;
     this.dead = false;
     this.deathFade = 0;
+    this.reviveUsed = false;
+    this.revivePending = false;
+    this.reviveTimer = 0;
+    this.lightAvoidTarget = null;
+    this.lightAvoidTimer = 0;
+    this.avoidingLight = false;
     this.maxHp = maxHp;
     this.hp = maxHp;
     this.angle = 0;
@@ -866,6 +996,9 @@ class Hunter {
     this.patrolTarget = null;
     this.localPath = [];
     this.localRepathTimer = (this.spawnIndex % 10) * 0.1;
+    this.lightAvoidTarget = null;
+    this.lightAvoidTimer = 0;
+    this.avoidingLight = false;
     this._stuckTimer = 0;
     this._lastX = null;
     this._lastY = null;
@@ -888,15 +1021,20 @@ class Hunter {
       this.dead = true;
       this.active = false;
       this.deathFade = 1;
+      if (this.trait === 'reviver' && !this.reviveUsed) {
+        this.reviveUsed = true;
+        this.revivePending = true;
+        this.reviveTimer = Config.hunter.traitReviveDuration;
+      }
       this.patrolTarget = null;
       this.waypoints = [];
       this.localPath = [];
-      return { hit: true, dead: true };
+      return { hit: true, dead: true, willRevive: this.revivePending };
     }
     return { hit: true, dead: false, hpLeft: this.hp };
   }
 
-  update(dt, player, noiseLevel, mapManager, audioManager, others) {
+  update(dt, player, noiseLevel, mapManager, audioManager, others, lightSources = [player]) {
     if (!this.active || this.dead) return null;
 
     const result = {};
@@ -910,8 +1048,14 @@ class Hunter {
     if (this.burstCooldown > 0) this.burstCooldown -= dt;
     if (this.slowTimer > 0) this.slowTimer -= dt;
 
-    // Nearby players can be tracked around corners; loud noise still carries beyond visual range
-    const canSense = distance < Config.hunter.alertDistance || noiseLevel > Config.hunter.triggerNoiseThreshold;
+    const activeLights = (lightSources || []).filter(source => source && !source.downed);
+    const illuminated = this.trait === 'photophobic' &&
+      distance > Config.hunter.lightIgnoreDistance &&
+      isPointLitByAnyPlayer(this.x, this.y, activeLights, mapManager);
+
+    // Nearby players can be tracked around corners; loud noise and direct flashlight exposure carry farther
+    const canSense = distance < Config.hunter.alertDistance ||
+      noiseLevel > Config.hunter.triggerNoiseThreshold || illuminated;
 
     if (!this.alerted && canSense) {
       this.alerted = true;
@@ -943,38 +1087,54 @@ class Hunter {
     }
 
     if (this.alerted && this.stagger <= 0) {
-      this.localRepathTimer -= dt;
-      if (distance <= Config.hunter.alertDistance && this.localRepathTimer <= 0) {
-        this.localRepathTimer = 1;
-        const hunterRoom = getNavigationRoom(mapManager, this.x, this.y);
-        const playerRoom = getNavigationRoom(mapManager, player.x, player.y);
-        if (hunterRoom && hunterRoom === playerRoom) {
-          this.localPath = buildLocalGridPath(
-            mapManager,
-            this.x,
-            this.y,
-            player.x,
-            player.y,
-            this.radius,
-            Config.hunter.alertDistance
-          );
+      let target;
+
+      if (illuminated) {
+        if (!this.avoidingLight) {
           this.waypoints = [];
           this.waypointTimer = 0;
-        } else {
           this.localPath = [];
+          this.localRepathTimer = 0;
         }
-      } else if (distance > Config.hunter.alertDistance) {
-        this.localPath = [];
-        this.localRepathTimer = (this.spawnIndex % 10) * 0.1;
-      }
+        this.avoidingLight = true;
+        target = this._getLightAvoidTarget(dt, activeLights, mapManager, player);
+        result.avoidingLight = true;
+      } else {
+        this.avoidingLight = false;
+        this.lightAvoidTarget = null;
+        this.localRepathTimer -= dt;
+        if (distance <= Config.hunter.alertDistance && this.localRepathTimer <= 0) {
+          this.localRepathTimer = 1;
+          const hunterRoom = getNavigationRoom(mapManager, this.x, this.y);
+          const playerRoom = getNavigationRoom(mapManager, player.x, player.y);
+          if (hunterRoom && hunterRoom === playerRoom) {
+            this.localPath = buildLocalGridPath(
+              mapManager,
+              this.x,
+              this.y,
+              player.x,
+              player.y,
+              this.radius,
+              Config.hunter.alertDistance
+            );
+            this.waypoints = [];
+            this.waypointTimer = 0;
+          } else {
+            this.localPath = [];
+          }
+        } else if (distance > Config.hunter.alertDistance) {
+          this.localPath = [];
+          this.localRepathTimer = (this.spawnIndex % 10) * 0.1;
+        }
 
-      while (this.localPath.length > 0 &&
-             Math.hypot(this.localPath[0].x - this.x, this.localPath[0].y - this.y) < 18) {
-        this.localPath.shift();
-      }
+        while (this.localPath.length > 0 &&
+               Math.hypot(this.localPath[0].x - this.x, this.localPath[0].y - this.y) < 18) {
+          this.localPath.shift();
+        }
 
-      const target = this.localPath[0] ||
-        getPursuitTarget(this, dt, mapManager, player.x, player.y, Config.hunter.waypointRefresh);
+        target = this.localPath[0] ||
+          getPursuitTarget(this, dt, mapManager, player.x, player.y, Config.hunter.waypointRefresh);
+      }
 
       // Speed
       const speed = this.slowTimer > 0 ? Config.hunter.slowSpeed : Config.hunter.speed;
@@ -989,7 +1149,7 @@ class Hunter {
       recoverStuckPursuer(this, dt, mapManager);
 
       // Contact damage
-      if (distance < Config.hunter.attackDistance) {
+      if (!illuminated && distance < Config.hunter.attackDistance) {
         result.playerHit = true;
         const sp = this.getFarSpawnPoint(player.x, player.y, mapManager);
         if (sp) { this.x = sp.x; this.y = sp.y; }
@@ -1011,6 +1171,7 @@ class Hunter {
     if (others) {
       for (const other of others) {
         if (other === this || !other.active) continue;
+        if (other instanceof Hunter && (this.trait === 'slim' || other.trait === 'slim')) continue;
         const sdx = this.x - other.x;
         const sdy = this.y - other.y;
         const sd = Math.hypot(sdx, sdy);

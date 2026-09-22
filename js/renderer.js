@@ -504,13 +504,13 @@ class Renderer {
       ctx.save();
       ctx.translate(player.x, player.y);
       ctx.rotate(player.angle);
-      const cone = ctx.createRadialGradient(0, 0, 5, 0, 0, 260);
+      const cone = ctx.createRadialGradient(0, 0, 5, 0, 0, Config.player.flashlightRange);
       cone.addColorStop(0, 'rgba(215,243,107,.13)');
       cone.addColorStop(1, 'rgba(215,243,107,0)');
       ctx.fillStyle = cone;
       ctx.beginPath();
       ctx.moveTo(0, 0);
-      ctx.arc(0, 0, 260, -0.38, 0.38);
+      ctx.arc(0, 0, Config.player.flashlightRange, -Config.player.flashlightSpread, Config.player.flashlightSpread);
       ctx.closePath();
       ctx.fill();
       ctx.restore();
@@ -797,8 +797,8 @@ class Renderer {
 
     // Flashlight cone casting
     if (player.flashlight) {
-      const range = 420;
-      const spread = 0.5;
+      const range = Config.player.flashlightRange;
+      const spread = Config.player.flashlightSpread;
       const steps = 80;
 
       visionCtx.beginPath();
@@ -829,8 +829,8 @@ class Renderer {
     const visionCtx = this.ui.visionCtx;
     const scaleX = this.ui.visionCanvas.clientWidth / Config.VIEW_W;
     const scaleY = this.ui.visionCanvas.clientHeight / Config.VIEW_H;
-    const range = 420;
-    const spread = 0.5;
+    const range = Config.player.flashlightRange;
+    const spread = Config.player.flashlightSpread;
     const steps = 80;
 
     visionCtx.save();

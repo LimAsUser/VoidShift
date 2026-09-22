@@ -35,6 +35,7 @@ class Game {
       elapsed: 0,
       hunterSpawnTimer: this._getHunterSettings().hunterSpawnInterval,
       huntersInitialized: false,
+      finalTerminalPressure: false,
       extractionCalled: false,
       extracted: false,
       activeQte: null,
@@ -258,8 +259,12 @@ class Game {
     } else if ((message.type === 'qte-complete' || message.type === 'qte-fail') && this.state.coop.role === 'guest') {
       if (message.type === 'qte-complete') {
         const terminal = this.map.terminals.find((item) => item.id === message.terminalId);
-        if (terminal) terminal.solved = true;
-        this.ui.showToast('控制台重写成功！');
+        let pressureActivated = false;
+        if (terminal) {
+          terminal.solved = true;
+          pressureActivated = this._activateFinalTerminalPressure();
+        }
+        if (!pressureActivated) this.ui.showToast('控制台重写成功！');
       } else {
         this.ui.showToast('控制台过载，受到电击！');
       }
@@ -274,7 +279,7 @@ class Game {
       x: player.x, y: player.y, angle: player.angle,
       health: player.health, oxygen: player.oxygen, stamina: player.stamina,
       noise: player.noise, ammo: player.ammo, reserveAmmo: player.reserveAmmo,
-      reloading: player.reloading, weaponId: player.weaponId,
+      reloading: player.reloading, weaponId: player.weaponId, flashlight: player.flashlight,
       downed: !!player.downed, bleedout: player.bleedout || 0,
       reviveProgress: player.reviveProgress || 0
     };
@@ -286,7 +291,7 @@ class Game {
     player.x += (snapshot.x - player.x) * blend;
     player.y += (snapshot.y - player.y) * blend;
     player.angle = snapshot.angle;
-    for (const key of ['health', 'oxygen', 'stamina', 'noise', 'ammo', 'reserveAmmo', 'reloading', 'bleedout', 'reviveProgress']) {
+    for (const key of ['health', 'oxygen', 'stamina', 'noise', 'ammo', 'reserveAmmo', 'reloading', 'flashlight', 'bleedout', 'reviveProgress']) {
       if (snapshot[key] != null) player[key] = snapshot[key];
     }
     player.downed = !!snapshot.downed;
@@ -304,14 +309,17 @@ class Game {
       },
       hunters: this.hunters.map((hunter) => ({
         x: hunter.x, y: hunter.y, angle: hunter.angle, active: hunter.active,
-        dead: hunter.dead, hp: hunter.hp, deathFade: hunter.deathFade
+        dead: hunter.dead, hp: hunter.hp, deathFade: hunter.deathFade,
+        trait: hunter.trait, reviveUsed: hunter.reviveUsed,
+        revivePending: hunter.revivePending, reviveTimer: hunter.reviveTimer
       })),
       doors: this.map.doors.map((door) => ({ open: door.open, openDir: door.openDir })),
       scrap: this.map.scrap.map((item) => ({ found: item.found })),
       terminals: this.map.terminals.map((terminal) => ({ solved: terminal.solved })),
       mission: {
         elapsed: this.state.elapsed, extractionCalled: this.state.extractionCalled,
-        loot: this.state.loot, lootValue: this.state.lootValue
+        loot: this.state.loot, lootValue: this.state.lootValue,
+        finalTerminalPressure: this.state.finalTerminalPressure
       },
       hostInventory: this.state.inventory,
       guestInventory: this.state.remoteInventory,
@@ -341,7 +349,17 @@ class Game {
       this.map.terminals.filter((terminal) => terminal.solved).length,
       this.map.terminals.length
     );
-    if (snapshot.mission) Object.assign(this.state, snapshot.mission);
+    if (snapshot.mission) {
+      const pressureWasActive = this.state.finalTerminalPressure;
+      Object.assign(this.state, snapshot.mission, {
+        finalTerminalPressure: !!snapshot.mission.finalTerminalPressure
+      });
+      this._lockFinalTerminalNoise();
+      if (!pressureWasActive && this.state.finalTerminalPressure) {
+        this.ui.showToast('撤离舱已解锁：噪音锁定 100 / 猎手重生 ×10');
+        this.ui.log('警报：最终终端完成，全员噪音锁定 100；猎手重生增幅 ×10。');
+      }
+    }
     this.state.inventory = Array.isArray(snapshot.guestInventory) ? snapshot.guestInventory : [];
     this.state.bulletTraces = Array.isArray(snapshot.bulletTraces) ? snapshot.bulletTraces : [];
     this.state.impactParticles = Array.isArray(snapshot.impactParticles) ? snapshot.impactParticles : [];
@@ -352,6 +370,7 @@ class Game {
     this.state.elapsed += dt;
     const keys = this.player.downed || this.state.activeQte || this.state.fullMapOpen || this.state.inventoryOpen ? {} : this.state.keys;
     this.player.update(dt, keys, this.state.stabilized, this.map, this.audio);
+    this._lockFinalTerminalNoise();
     if (this.state.activeQte?.remoteOwned) {
       this.state.activeQte.timeLeft = Math.max(0, this.state.activeQte.timeLeft - dt);
       this.ui.updateQTETimer(this.state.activeQte.timeLeft, 10);
@@ -363,6 +382,7 @@ class Game {
         seq: ++this.remoteInput.seq,
         keys: { w: !!keys.w, a: !!keys.a, s: !!keys.s, d: !!keys.d, shift: !!keys.shift, e: !!keys.e },
         aim: this.player.angle,
+        flashlight: this.player.flashlight,
         fire: !!this.state.fireHeld
       });
     }
@@ -381,6 +401,7 @@ class Game {
       this.remoteInput = { keys: {}, aim: this.remotePlayer.angle, fire: false, seq: this.remoteInput.seq || 0 };
     }
     this.remotePlayer.angle = Number.isFinite(this.remoteInput.aim) ? this.remoteInput.aim : this.remotePlayer.angle;
+    if (typeof this.remoteInput.flashlight === 'boolean') this.remotePlayer.flashlight = this.remoteInput.flashlight;
     const keys = this.remotePlayer.downed ? {} : (this.remoteInput.keys || {});
     this.remotePlayer.update(dt, keys, false, this.map, this.audio);
     if (this.remoteInput.fire && this.remotePlayer.weapon.automatic && this.remotePlayer.ammo > 0 && this.remotePlayer.reloading <= 0) {
@@ -425,6 +446,7 @@ class Game {
           this.map.terminals.filter((terminal) => terminal.solved).length,
           this.map.terminals.length
         );
+        this._activateFinalTerminalPressure();
         this.coopSession.sendEvent('qte-complete', { terminalId: qte.terminal.id });
         this.remoteQte = null;
       } else {
@@ -695,6 +717,7 @@ class Game {
       elapsed: 0,
       hunterSpawnTimer: this._getHunterSettings().hunterSpawnInterval,
       huntersInitialized: false,
+      finalTerminalPressure: false,
       extractionCalled: false,
       extracted: false,
       activeQte: null,
@@ -894,6 +917,54 @@ class Game {
       this.ui.log(reason);
       this.ui.showToast('设施内出现巡逻脚步声...');
     }
+  }
+
+  _lockFinalTerminalNoise() {
+    if (!this.state.finalTerminalPressure) return;
+    this.player.noise = 100;
+    if (this.remotePlayer) this.remotePlayer.noise = 100;
+  }
+
+  _respawnDeadHunters(count) {
+    const reviveLimit = Math.max(0, Math.floor(count));
+    if (reviveLimit === 0) return 0;
+
+    const settings = this._getHunterSettings();
+    const deadIndices = this.hunters
+      .map((hunter, index) => ({ hunter, index }))
+      .filter(({ hunter }) => hunter.dead && !hunter.revivePending)
+      .map(({ index }) => index);
+    const toRevive = Math.min(reviveLimit, deadIndices.length);
+    for (let i = 0; i < toRevive; i++) {
+      const pick = Math.floor(Math.random() * deadIndices.length);
+      const index = deadIndices.splice(pick, 1)[0];
+      const previousHunter = this.hunters[index];
+      const hunter = new Hunter(previousHunter.spawnIndex, settings.hunterMaxHp);
+      hunter.reset(this.map, settings.hunterMaxHp);
+      this.hunters[index] = hunter;
+      const spawn = hunter.getFarSpawnPoint(this.player.x, this.player.y, this.map);
+      if (spawn) { hunter.x = spawn.x; hunter.y = spawn.y; }
+      this.activateHunter(hunter, '设施深处传来稳定的踏步声。');
+    }
+    return toRevive;
+  }
+
+  _activateFinalTerminalPressure() {
+    if (this.state.finalTerminalPressure || !this.map.terminals.length ||
+        this.map.terminals.some(terminal => !terminal.solved)) return false;
+
+    this.state.finalTerminalPressure = true;
+    this._lockFinalTerminalNoise();
+
+    const settings = this._getHunterSettings();
+    const respawnCount = settings.hunterRespawnCount * Config.hunter.finalTerminalRespawnMultiplier;
+    const authoritative = this.state.coop.role !== 'guest';
+    const revived = authoritative ? this._respawnDeadHunters(respawnCount) : 0;
+    this.state.hunterSpawnTimer = settings.hunterSpawnInterval;
+
+    this.ui.showToast('撤离舱已解锁：噪音锁定 100 / 猎手重生 ×10');
+    this.ui.log(`警报：全员噪音锁定 100，立即补回 ${revived} 只猎手；后续每轮重生 ×10。`);
+    return true;
   }
 
   /**
@@ -1098,7 +1169,7 @@ class Game {
           this.ui.log(`安全控制台 #${qte.terminal.id} 已完成重写。`);
 
           if (solvedCount >= totalCount) {
-            this.ui.showToast('全舰安全协议已解除！EVAC POD 撤离舱已解锁！');
+            this._activateFinalTerminalPressure();
             this.ui.log(`警报：${totalCount}处终端全部覆盖，逃生舱主锁解除！可以撤离！`);
           }
 
@@ -1654,6 +1725,7 @@ class Game {
     const inputKeys = (this.state.activeQte || this.state.fullMapOpen || this.player.stunned > 0) ? {} : this.state.keys;
     const playerResult = this.player.update(dt, inputKeys, this.state.stabilized, this.map, this.audio);
     this._updateRemotePlayer(dt);
+    this._lockFinalTerminalNoise();
     this._checkCoopDisconnect();
     if (playerResult && playerResult.reloaded) {
       this.ui.showToast('换弹完成');
@@ -1769,23 +1841,14 @@ class Game {
     // Respawn timer: revive killed hunters every interval
     const hunterSettings = this._getHunterSettings();
     const respawnInterval = hunterSettings.hunterSpawnInterval;
-    const respawnCount = hunterSettings.hunterRespawnCount;
+    const respawnMultiplier = this.state.finalTerminalPressure
+      ? Config.hunter.finalTerminalRespawnMultiplier
+      : 1;
+    const respawnCount = hunterSettings.hunterRespawnCount * respawnMultiplier;
     if (this.state.huntersInitialized) {
       this.state.hunterSpawnTimer -= dt;
       if (this.state.hunterSpawnTimer <= 0) {
-        const dead = this.hunters.filter(h => h.dead);
-        const toRevive = Math.min(respawnCount, dead.length);
-        for (let i = 0; i < toRevive; i++) {
-          const h = dead[Math.floor(Math.random() * dead.length)];
-          dead.splice(dead.indexOf(h), 1);
-          const sp = h.getFarSpawnPoint(this.player.x, this.player.y, this.map);
-          if (sp) { h.x = sp.x; h.y = sp.y; }
-          h.dead = false;
-          h.maxHp = hunterSettings.hunterMaxHp;
-          h.hp = h.maxHp;
-          h.active = false;
-          this.activateHunter(h, '设施深处传来稳定的踏步声。');
-        }
+        this._respawnDeadHunters(respawnCount);
         this.state.hunterSpawnTimer = respawnInterval;
       }
     }
@@ -1836,13 +1899,26 @@ class Game {
     }
 
     // 6b. Drive Hunter AI (all active hunters)
+    const lightSources = [this.player, this.remotePlayer].filter(player => player && !player.downed);
     this.hunters.forEach(h => {
-      if (h.dead && h.deathFade > 0) {
-        h.deathFade = Math.max(0, h.deathFade - dt / Config.hunter.deathFadeDuration);
+      if (h.dead) {
+        const deathResult = h.updateDeath(dt);
+        if (deathResult && deathResult.revived) {
+          this.ui.showToast('猎手从暗处重新站了起来！');
+          this.ui.log('警报：一只猎手以半血状态完成自我复活。');
+        }
       }
       if (!h.active || h.dead) return;
       const hunterTarget = this._getThreatTarget(h);
-      const hunterResult = h.update(dt, hunterTarget, hunterTarget.noise, this.map, this.audio, allEntities);
+      const hunterResult = h.update(
+        dt,
+        hunterTarget,
+        hunterTarget.noise,
+        this.map,
+        this.audio,
+        allEntities,
+        lightSources
+      );
       if (!hunterResult) return;
 
       if (hunterResult.playerHit) {

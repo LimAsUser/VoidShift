@@ -65,7 +65,9 @@ const Config = {
     walkNoiseCap: 10,
     stabilizedNoiseCap: 8,
     sprintNoiseGain: 4,
-    sprintNoiseCap: 75
+    sprintNoiseCap: 75,
+    flashlightRange: 420,
+    flashlightSpread: 0.5
   },
 
   weapons: {
@@ -131,6 +133,13 @@ const Config = {
     hitStagger: 0.5,
     knockback: 10,
     deathFadeDuration: 0.6,
+    finalTerminalRespawnMultiplier: 10,
+    traitChance: 0.3,
+    traitTypes: ['photophobic', 'slim', 'reviver'],
+    lightIgnoreDistance: 50,
+    lightAvoidRefresh: 0.35,
+    lightAvoidRadii: [90, 160],
+    traitReviveDuration: 2,
     maxHp: 1,
     waypointRefresh: 0.5
   },
