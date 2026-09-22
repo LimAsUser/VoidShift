@@ -62,6 +62,44 @@
               <button id="resetHunterSettings" type="button">恢复当前地图默认值</button>
             </div>
           </div>
+          <div class="noise-update-notice" role="note" aria-label="战斗与噪音协议更新">
+            <span>SYSTEM UPDATE // BALANCE PROTOCOL</span>
+            <strong>战斗与噪音协议更新</strong>
+            <p class="update-category">PLAYER MOVEMENT</p>
+            <ul>
+              <li>普通移动：120 → 70</li>
+              <li>冲刺移动：192 → 100</li>
+            </ul>
+            <p class="update-category">MONSTER</p>
+            <ul>
+              <li>追击 / 巡逻速度：96 / 20 → 90 / 60</li>
+              <li>噪音阈值 / 脱战：&gt;48 / 4秒 → &gt;40 / 6秒</li>
+              <li>接触距离：28 → 20</li>
+              <li>接触伤害：-18 HP / -8 O₂ → -10 HP / -4 O₂</li>
+              <li>中枪硬直：0.25秒 → 1秒</li>
+              <li>瘫痪条件：10秒内3枪 → 不限时间累计5枪（瘫痪仍为10秒）</li>
+              <li>新增跨房间巡逻，并修复近距离无法重新发现玩家</li>
+            </ul>
+            <p class="update-category">HUNTER</p>
+            <ul>
+              <li>追击 / 巡逻速度：96 / 20 → 80 / 60</li>
+              <li>噪音阈值 / 脱战：&gt;48 / 4秒 → &gt;60 / 6秒</li>
+              <li>接触距离：28 → 20</li>
+              <li>接触伤害：-18 HP / -8 O₂ → -5 HP / -1 O₂</li>
+              <li>硬直 / 击退：0.25秒 / 30 → 0.5秒 / 10</li>
+              <li>死亡淡出：1.2秒 → 0.6秒</li>
+              <li>新增跨房间巡逻与自动开门；修复门口左右抖动与无法稳定穿门</li>
+            </ul>
+            <p class="update-category">NOISE</p>
+            <ul>
+              <li>手枪枪声：每发 +24 → +2</li>
+              <li>冲锋枪枪声：每发 +18 → +2</li>
+              <li>静止衰减：-12/秒 → -4/秒</li>
+              <li>移动衰减：-7/秒 → -2/秒</li>
+              <li>移动上限：28 → 10</li>
+              <li>冲刺增长：+65/秒 → +4/秒（上限维持 75）</li>
+            </ul>
+          </div>
           <div class="map-test-section">
             <button class="test-reveal-btn" id="testRevealBtn" onclick="game.toggleRevealMap()" title="快捷键 M">
               <span class="test-icon">👁</span>

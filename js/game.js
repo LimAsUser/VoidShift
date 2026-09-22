@@ -892,7 +892,7 @@ class Game {
     const activation = hunter.activate(this.player.x, this.player.y, reason, this.audio, this.map, this.player.angle);
     if (activation) {
       this.ui.log(reason);
-      this.ui.showToast('金属脚步声正在接近...');
+      this.ui.showToast('设施内出现巡逻脚步声...');
     }
   }
 
@@ -1516,24 +1516,24 @@ class Game {
         this.ui.triggerDamageFlash(0.18, 80);
 
         if (hitData.triggeredRecovery) {
-          this.ui.log('致命硬直！10秒内连续命中3次！生命体进入10秒休眠恢复期！');
-          this.ui.showToast('【重创】生命体休眠瘫痪 10秒！');
+          this.ui.log(`致命硬直！累计命中${Config.monster.recoveryHits}次，生命体进入${Config.monster.recoveryDuration}秒休眠恢复期！`);
+          this.ui.showToast(`【重创】生命体休眠瘫痪 ${Config.monster.recoveryDuration}秒！`);
           const hitSpatial = this.audio.calculateSpatial(this.player.x, this.player.y, this.player.angle, this.monster.x, this.monster.y, 650);
           this.audio.playSpatialTone(60, 0.45, 0.35, 'sawtooth', hitSpatial.pan, Math.max(0.6, hitSpatial.distanceGain), hitSpatial.isBehind);
         } else if (hitData.recovering) {
           this.ui.log(`生命体处于休眠恢复中 (剩余 ${this.monster.recoverTimer.toFixed(1)}s)。`);
           this.ui.showToast(`目标瘫痪中 [${this.monster.recoverTimer.toFixed(1)}s]`);
         } else {
-          this.ui.log(`命中。生命体被击退50px并硬直0.25s (连击: ${hitData.shotCount}/3，重置窗口: ${hitData.windowLeft.toFixed(1)}s)。`);
-          this.ui.showToast(`命中 / 目标硬直0.25s [${hitData.shotCount}/3]`);
+          this.ui.log(`命中。生命体被击退50px并硬直${Config.monster.hitStagger}s (累计: ${hitData.shotCount}/${Config.monster.recoveryHits})。`);
+          this.ui.showToast(`命中 / 目标硬直${Config.monster.hitStagger}s [${hitData.shotCount}/${Config.monster.recoveryHits}]`);
           const hitSpatial = this.audio.calculateSpatial(this.player.x, this.player.y, this.player.angle, this.monster.x, this.monster.y, 650);
           this.audio.playSpatialTone(88, 0.18, 0.22, 'sawtooth', hitSpatial.pan, Math.max(0.5, hitSpatial.distanceGain), hitSpatial.isBehind);
         }
       } else if (hunterTarget) {
         const hitResult = hunterTarget.registerHit();
         if (hitResult.hit) {
-          const knockX = hunterTarget.x + Math.cos(angle) * 30;
-          const knockY = hunterTarget.y + Math.sin(angle) * 30;
+          const knockX = hunterTarget.x + Math.cos(angle) * Config.hunter.knockback;
+          const knockY = hunterTarget.y + Math.sin(angle) * Config.hunter.knockback;
           if (!this.map.blocked(knockX, hunterTarget.y, hunterTarget.radius)) hunterTarget.x = knockX;
           if (!this.map.blocked(hunterTarget.x, knockY, hunterTarget.radius)) hunterTarget.y = knockY;
           hunterTarget.waypoints = [];
@@ -1686,13 +1686,7 @@ class Game {
       this.ui.log(`雷达已探明新区域：${currentRoom.title} (${currentRoom.label})。`);
     }
 
-    // 2. Decay movement acoustic noise
-    if (this.player.moveSpeed === 0) {
-      const stillDecay = (Config.player && Config.player.noiseDecayStill) || 12;
-      this.player.noise = Math.max(0, this.player.noise - stillDecay * dt);
-    }
-
-    // 3. Subtract survival oxygen supplies
+    // 2. Subtract survival oxygen supplies
     this.player.oxygen -= dt * (this.state.extractionCalled ? 0.8 : 0.18);
     if (this.state.coop.running && this.remotePlayer && !this.remotePlayer.downed) {
       this.remotePlayer.oxygen -= dt * (this.state.extractionCalled ? 0.8 : 0.18);
@@ -1821,8 +1815,8 @@ class Game {
 
       if (monsterResult.playerHit) {
         if (monsterTarget === this.player) this.ui.triggerDamageFlash(0.75, 130);
-        monsterTarget.health -= 18;
-        monsterTarget.oxygen -= 8;
+        monsterTarget.health -= Config.monster.contactDamage;
+        monsterTarget.oxygen -= Config.monster.contactOxygenDamage;
         monsterTarget.noise = 100;
         this.ui.log('警告：未知生命体接触！');
         this.audio.playSound('resources/injured-140224.mp3', 0.8);
@@ -1844,7 +1838,7 @@ class Game {
     // 6b. Drive Hunter AI (all active hunters)
     this.hunters.forEach(h => {
       if (h.dead && h.deathFade > 0) {
-        h.deathFade = Math.max(0, h.deathFade - dt / 1.2);
+        h.deathFade = Math.max(0, h.deathFade - dt / Config.hunter.deathFadeDuration);
       }
       if (!h.active || h.dead) return;
       const hunterTarget = this._getThreatTarget(h);
@@ -1853,8 +1847,8 @@ class Game {
 
       if (hunterResult.playerHit) {
         if (hunterTarget === this.player) this.ui.triggerDamageFlash(0.75, 130);
-        hunterTarget.health -= 18;
-        hunterTarget.oxygen -= 8;
+        hunterTarget.health -= Config.hunter.contactDamage;
+        hunterTarget.oxygen -= Config.hunter.contactOxygenDamage;
         hunterTarget.noise = 100;
         this.ui.log('警告：猎手接触！');
       }

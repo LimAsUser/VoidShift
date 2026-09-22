@@ -62,14 +62,9 @@ class Player {
       stunRecovered: (prevStunned > 0 && this.stunned === 0)
     };
 
-    if (this.downed) {
+    if (this.downed || this.stunned > 0) {
       this.moveSpeed = 0;
-      return updateResult;
-    }
-
-    // If stunned, immobilize movement and block actions
-    if (this.stunned > 0) {
-      this.moveSpeed = 0;
+      this.noise = Math.max(0, this.noise - Config.player.noiseDecayStill * dt);
       return updateResult;
     }
 
@@ -97,7 +92,7 @@ class Player {
     let dy = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
     const moving = Boolean(dx || dy);
     const running = moving && keys.shift && !stabilized && this.stamina > 1;
-    const speed = stabilized ? this.baseSpeed * 0.55 : running ? this.baseSpeed * 1.6 : this.baseSpeed;
+    const speed = stabilized ? this.baseSpeed * 0.55 : running ? Config.player.sprintSpeed : this.baseSpeed;
 
     this.moveSpeed = moving ? speed : 0;
 
@@ -113,14 +108,14 @@ class Player {
       if (!mapManager.blocked(nx, this.y, this.radius)) this.x = nx;
       if (!mapManager.blocked(this.x, ny, this.radius)) this.y = ny;
 
-      // Update current target noise level (has a maximum threshold ceiling depending on moving speed)
-      const targetMaxNoise = running ? 75 : stabilized ? 8 : 28;
+      const targetMaxNoise = running
+        ? Config.player.sprintNoiseCap
+        : stabilized ? Config.player.stabilizedNoiseCap : Config.player.walkNoiseCap;
       if (this.noise < targetMaxNoise) {
-        this.noise = Math.min(targetMaxNoise, this.noise + (running ? 65 : 35) * dt);
+        const noiseGain = running ? Config.player.sprintNoiseGain : 35;
+        this.noise = Math.min(targetMaxNoise, this.noise + noiseGain * dt);
       } else {
-        // Slowly decay towards the movement's noise cap if above it (e.g. after a gunshot)
-        const decayRate = (Config.player && Config.player.noiseDecayMoving) || 7;
-        this.noise = Math.max(targetMaxNoise, this.noise - decayRate * dt);
+        this.noise = Math.max(targetMaxNoise, this.noise - Config.player.noiseDecayMoving * dt);
       }
 
       if (running) {
@@ -136,6 +131,7 @@ class Player {
         audioManager.playTone(running ? 78 : 62, 0.055, running ? 0.045 : 0.025, 'triangle');
       }
     } else {
+      this.noise = Math.max(0, this.noise - Config.player.noiseDecayStill * dt);
       this.stamina = Math.min(100, this.stamina + 22 * dt);
     }
   }
@@ -219,20 +215,116 @@ class Player {
 
 const PURSUIT_PROBE_OFFSETS = [0, Math.PI / 6, -Math.PI / 6, Math.PI / 3, -Math.PI / 3, Math.PI / 2, -Math.PI / 2, 2 * Math.PI / 3, -2 * Math.PI / 3];
 
-function buildPursuitWaypoints(mapManager, fromX, fromY, targetX, targetY) {
-  const fromRoom = mapManager.getRoomAt(fromX, fromY);
-  const targetRoom = mapManager.getRoomAt(targetX, targetY);
+function getNavigationRoom(mapManager, x, y) {
+  const rooms = mapManager.worldRooms || [];
+  const containingRooms = rooms.filter(room => {
+    if (room.vertices && room.vertices.length) return pointInPolygon(x, y, room.vertices);
+    return x >= room.x && x < room.x + room.w && y >= room.y && y < room.y + room.h;
+  });
+  const candidates = containingRooms.length ? containingRooms : rooms;
+  let closest = null;
+  let closestDistance = Infinity;
+  for (const room of candidates) {
+    const distance = Math.hypot(room.center.x - x, room.center.y - y);
+    if (distance < closestDistance) {
+      closest = room;
+      closestDistance = distance;
+    }
+  }
+  return closest || mapManager.getRoomAt(x, y);
+}
+
+function getDoorExitPoint(mapManager, centerX, centerY, room, radius, directionX, directionY) {
+  const directionLength = Math.max(1, Math.hypot(directionX, directionY));
+  const maxDistance = 220;
+
+  for (let distance = radius + 18; distance <= maxDistance; distance += 12) {
+    const x = centerX + directionX / directionLength * distance;
+    const y = centerY + directionY / directionLength * distance;
+    if (!mapManager.blocked(x, y, radius) && getNavigationRoom(mapManager, x, y) === room) {
+      return { x, y };
+    }
+  }
+
+  return mapManager._findSafeRoomPoint ? mapManager._findSafeRoomPoint(room) : room.center;
+}
+
+function buildPursuitWaypoints(mapManager, fromX, fromY, targetX, targetY, radius = 15) {
+  const fromRoom = getNavigationRoom(mapManager, fromX, fromY);
+  const targetRoom = getNavigationRoom(mapManager, targetX, targetY);
   const waypoints = [];
 
   if (fromRoom && targetRoom) {
+    let routeRoom = fromRoom;
+    let routeX = fromX;
+    let routeY = fromY;
     for (const step of bfsRoomPath(fromRoom, targetRoom)) {
       const door = step.door;
+      const centerX = door.p1 ? (door.p1.x + door.p2.x) / 2 : door.x + door.w / 2;
+      const centerY = door.p1 ? (door.p1.y + door.p2.y) / 2 : door.y + door.h / 2;
+      const normal = door.normal || (door.axis === 'v' ? { x: 1, y: 0 } : { x: 0, y: 1 });
+      const direction = step.room === door.roomB ? normal : { x: -normal.x, y: -normal.y };
+      const entryPoint = getDoorExitPoint(
+        mapManager,
+        centerX,
+        centerY,
+        routeRoom,
+        radius,
+        -direction.x,
+        -direction.y
+      );
+      const exitPoint = getDoorExitPoint(
+        mapManager,
+        centerX,
+        centerY,
+        step.room,
+        radius,
+        direction.x,
+        direction.y
+      );
+      const approachDistance = Math.hypot(entryPoint.x - routeX, entryPoint.y - routeY);
+      const approachPath = buildLocalGridPath(
+        mapManager,
+        routeX,
+        routeY,
+        entryPoint.x,
+        entryPoint.y,
+        radius,
+        approachDistance + 140
+      );
+      for (const point of approachPath.slice(0, -1)) {
+        waypoints.push({
+          x: point.x,
+          y: point.y,
+          isDoorApproach: true,
+          door,
+          room: routeRoom
+        });
+      }
       waypoints.push({
-        x: door.p1 ? (door.p1.x + door.p2.x) / 2 : door.x + door.w / 2,
-        y: door.p1 ? (door.p1.y + door.p2.y) / 2 : door.y + door.h / 2,
-        isDoor: true,
-        door
+        x: entryPoint.x,
+        y: entryPoint.y,
+        isDoorEntry: true,
+        door,
+        room: routeRoom
       });
+      waypoints.push({
+        x: centerX,
+        y: centerY,
+        isDoor: true,
+        door,
+        room: step.room
+      });
+      waypoints.push({
+        x: exitPoint.x,
+        y: exitPoint.y,
+        isDoorExit: true,
+        door,
+        room: step.room
+      });
+      routeRoom = step.room;
+      routeX = exitPoint.x;
+      routeY = exitPoint.y;
     }
   }
 
@@ -305,21 +397,31 @@ function buildLocalGridPath(mapManager, fromX, fromY, targetX, targetY, radius, 
 
 function getPursuitTarget(entity, dt, mapManager, targetX, targetY, refreshInterval) {
   entity.waypointTimer -= dt;
-  if (entity.waypointTimer <= 0 || entity.waypoints.length === 0) {
+  const currentWaypoint = entity.waypoints[0];
+  const traversingDoor = currentWaypoint &&
+    (currentWaypoint.isDoorApproach || currentWaypoint.isDoorEntry ||
+      currentWaypoint.isDoor || currentWaypoint.isDoorExit);
+  if (entity.waypoints.length === 0 || (entity.waypointTimer <= 0 && !traversingDoor)) {
     entity.waypointTimer = refreshInterval;
-    entity.waypoints = buildPursuitWaypoints(mapManager, entity.x, entity.y, targetX, targetY);
+    entity.waypoints = buildPursuitWaypoints(mapManager, entity.x, entity.y, targetX, targetY, entity.radius);
   }
 
   const first = entity.waypoints[0];
-  if (first && first.isDoor && first.door && !first.door.open) {
-    if (Math.hypot(first.x - entity.x, first.y - entity.y) < 50) {
+  if (first && (first.isDoorEntry || first.isDoor || first.isDoorExit) && first.door && !first.door.open) {
+    if (Math.hypot(first.x - entity.x, first.y - entity.y) < 60) {
       mapManager.toggleDoor(first.door, entity.x, entity.y);
     }
   }
 
   while (entity.waypoints.length > 0) {
     const waypoint = entity.waypoints[0];
-    if (Math.hypot(waypoint.x - entity.x, waypoint.y - entity.y) >= 30) break;
+    const completionDistance = waypoint.isDoor ? 10 :
+      waypoint.isDoorApproach ? 18 :
+        (waypoint.isDoorEntry || waypoint.isDoorExit) ? 16 : 30;
+    const distance = Math.hypot(waypoint.x - entity.x, waypoint.y - entity.y);
+    const enteredTargetRoom = !waypoint.isDoorExit ||
+      getNavigationRoom(mapManager, entity.x, entity.y) === waypoint.room;
+    if (distance >= completionDistance || !enteredTargetRoom) break;
     entity.waypoints.shift();
   }
 
@@ -369,6 +471,7 @@ function recoverStuckPursuer(entity, dt, mapManager) {
   if (entity._lastX === null) {
     entity._lastX = entity.x;
     entity._lastY = entity.y;
+    return;
   }
 
   if (Math.hypot(entity.x - entity._lastX, entity.y - entity._lastY) > 8) {
@@ -402,6 +505,41 @@ function recoverStuckPursuer(entity, dt, mapManager) {
   }
 }
 
+function updatePatrol(entity, dt, mapManager, speed, refreshInterval) {
+  const reachedTarget = entity.patrolTarget &&
+    Math.hypot(entity.patrolTarget.x - entity.x, entity.patrolTarget.y - entity.y) < 30;
+
+  if (!entity.patrolTarget || reachedTarget) {
+    const currentRoom = getNavigationRoom(mapManager, entity.x, entity.y);
+    const allPoints = mapManager.monsterSpawns || [];
+    let candidates = allPoints.filter(point => {
+      const pointRoom = getNavigationRoom(mapManager, point.x, point.y);
+      return pointRoom !== currentRoom && Math.hypot(point.x - entity.x, point.y - entity.y) > 80;
+    });
+    if (!candidates.length) {
+      candidates = allPoints.filter(point => Math.hypot(point.x - entity.x, point.y - entity.y) > 80);
+    }
+    if (!candidates.length) return;
+
+    const random = mapManager.random ? mapManager.random() : Math.random();
+    const target = candidates[Math.floor(random * candidates.length)];
+    entity.patrolTarget = { x: target.x, y: target.y };
+    entity.waypoints = [];
+    entity.waypointTimer = 0;
+  }
+
+  const target = getPursuitTarget(
+    entity,
+    dt,
+    mapManager,
+    entity.patrolTarget.x,
+    entity.patrolTarget.y,
+    refreshInterval
+  );
+  moveWithAvoidance(entity, mapManager, target.x, target.y, speed, dt);
+  recoverStuckPursuer(entity, dt, mapManager);
+}
+
 class Monster {
   constructor() {
     this.reset();
@@ -430,10 +568,10 @@ class Monster {
     this.slowTimer = 0;
     this.stagger = 0;
     this.shotCount = 0;
-    this.shotWindowTimer = 0;
     this.recoverTimer = 0;
     this.waypoints = [];
     this.waypointTimer = 0;
+    this.patrolTarget = null;
     this._stuckTimer = 0;
     this._lastX = null;
     this._lastY = null;
@@ -441,34 +579,26 @@ class Monster {
 
   /**
    * Registers bullet hit from player.
-   * If hit 3 times within 10 seconds, triggers 10-second stunned recovery.
-   * If 10 seconds elapse without reaching 3 hits, hit counter resets.
+   * Every fifth accumulated hit triggers a 10-second stunned recovery.
    */
   registerHit() {
     if (this.recoverTimer > 0) {
       return { hit: true, triggeredRecovery: false, recovering: true };
     }
 
-    if (this.shotWindowTimer <= 0) {
-      this.shotCount = 1;
-      this.shotWindowTimer = 10.0;
-    } else {
-      this.shotCount++;
-    }
+    this.shotCount++;
 
-    if (this.shotCount >= 3) {
-      this.recoverTimer = 10.0;
-      this.stagger = 10.0;
+    if (this.shotCount >= Config.monster.recoveryHits) {
+      this.recoverTimer = Config.monster.recoveryDuration;
+      this.stagger = Config.monster.recoveryDuration;
       this.shotCount = 0;
-      this.shotWindowTimer = 0;
-      return { hit: true, triggeredRecovery: true, recovering: true, shotCount: 3 };
+      return { hit: true, triggeredRecovery: true, recovering: true, shotCount: Config.monster.recoveryHits };
     }
 
-    // Normal hit: stun monster for 0.25s and cancel any active burst charge
-    this.stagger = 0.25;
+    this.stagger = Config.monster.hitStagger;
     this.burstTimer = 0;
 
-    return { hit: true, triggeredRecovery: false, recovering: false, shotCount: this.shotCount, windowLeft: this.shotWindowTimer, stunDuration: 0.25 };
+    return { hit: true, triggeredRecovery: false, recovering: false, shotCount: this.shotCount, stunDuration: Config.monster.hitStagger };
   }
 
   /**
@@ -507,16 +637,17 @@ class Monster {
    * Activates the monster and teleports it to a distant position
    */
   activate(playerX, playerY, reason, audioManager, mapManager, playerAngle = 0) {
-    if (this.active && this.alerted) return null;
+    if (this.active) return null;
     
     this.active = true;
-    this.alerted = true;
+    this.alerted = false;
     this.lostTime = 0;
     this.burstTimer = 0;
     this.burstCooldown = 1.8;
     this.slowTimer = 0;
     this.waypoints = [];
     this.waypointTimer = 0;
+    this.patrolTarget = null;
     this._stuckTimer = 0;
     this._lastX = null;
     this._lastY = null;
@@ -550,14 +681,6 @@ class Monster {
     this.burstCooldown = Math.max(0, this.burstCooldown - dt);
     this.slowTimer = Math.max(0, this.slowTimer - dt);
 
-    // 10s window timer for 3-shot combo
-    if (this.shotWindowTimer > 0) {
-      this.shotWindowTimer -= dt;
-      if (this.shotWindowTimer <= 0) {
-        this.shotCount = 0;
-      }
-    }
-
     const result = {
       playerHit: false,
       burstTriggered: false,
@@ -581,14 +704,23 @@ class Monster {
 
     const canSense = distance < Config.monster.alertDistance || noiseLevel > Config.monster.triggerNoiseThreshold;
 
+    if (!this.alerted && canSense) {
+      this.alerted = true;
+      this.lostTime = 0;
+      this.patrolTarget = null;
+      this.waypoints = [];
+      this.waypointTimer = 0;
+    }
+
     // De-aggro tracking states
     if (this.alerted && !canSense) {
       this.lostTime += dt;
-      if (this.lostTime > Config.monster.alertDeaggroTimeout) {
+      if (this.lostTime >= Config.monster.alertDeaggroTimeout) {
         this.alerted = false;
         this.lostTime = 0;
         this.waypoints = [];
         this.waypointTimer = 0;
+        this.patrolTarget = null;
         this._stuckTimer = 0;
         this._lastX = null;
         this._lastY = null;
@@ -616,13 +748,9 @@ class Monster {
       this.angle = angle;
     }
 
-    // Patrol roaming when de-aggroed
+    // Patrol between rooms when de-aggroed
     if (!this.alerted && this.stagger <= 0) {
-      this.patrolAngle += dt * 0.35;
-      const patrolX = this.x + Math.cos(this.patrolAngle) * Config.monster.patrolSpeedScale * dt;
-      const patrolY = this.y + Math.sin(this.patrolAngle) * Config.monster.patrolSpeedScale * dt;
-      if (!mapManager.blocked(patrolX, this.y, this.radius)) this.x = patrolX;
-      if (!mapManager.blocked(this.x, patrolY, this.radius)) this.y = patrolY;
+      updatePatrol(this, dt, mapManager, Config.monster.patrolSpeedScale, Config.monster.waypointRefresh);
     }
 
     // Separation from hunters — sideways-only so narrow corridors stay passable
@@ -646,7 +774,7 @@ class Monster {
     }
 
     // Contact / Damage trigger
-    if (distance < 28) {
+    if (distance < Config.monster.attackDistance) {
       result.playerHit = true;
       this.alerted = true;
       this.lostTime = 0;
@@ -657,6 +785,7 @@ class Monster {
       this.y = spawn.y;
       this.waypoints = [];
       this.waypointTimer = 0;
+      this.patrolTarget = null;
       this._stuckTimer = 0;
       this._lastX = null;
       this._lastY = null;
@@ -700,6 +829,7 @@ class Hunter {
     // Pathfinding state
     this.waypoints = [];
     this.waypointTimer = 0;
+    this.patrolTarget = null;
     this.localPath = [];
     this.localRepathTimer = (this.spawnIndex % 10) * 0.1;
     // Stuck detection
@@ -728,11 +858,12 @@ class Hunter {
     const sp = this.getFarSpawnPoint(playerX, playerY, mapManager);
     if (sp) { this.x = sp.x; this.y = sp.y; }
     this.active = true;
-    this.alerted = true;
+    this.alerted = false;
     this.deathFade = 0;
     this.burstCooldown = 1.8;
     this.waypoints = [];
     this.waypointTimer = 0;
+    this.patrolTarget = null;
     this.localPath = [];
     this.localRepathTimer = (this.spawnIndex % 10) * 0.1;
     this._stuckTimer = 0;
@@ -749,7 +880,7 @@ class Hunter {
   registerHit() {
     if (this.dead || !this.active) return { hit: false };
     this.hp--;
-    this.stagger = 0.25;
+    this.stagger = Config.hunter.hitStagger;
     this.burstTimer = 0;
     this.localPath = [];
     this.localRepathTimer = 0;
@@ -757,6 +888,9 @@ class Hunter {
       this.dead = true;
       this.active = false;
       this.deathFade = 1;
+      this.patrolTarget = null;
+      this.waypoints = [];
+      this.localPath = [];
       return { hit: true, dead: true };
     }
     return { hit: true, dead: false, hpLeft: this.hp };
@@ -782,6 +916,9 @@ class Hunter {
     if (!this.alerted && canSense) {
       this.alerted = true;
       this.lostTime = 0;
+      this.patrolTarget = null;
+      this.waypoints = [];
+      this.waypointTimer = 0;
     }
 
     if (this.alerted) {
@@ -789,13 +926,14 @@ class Hunter {
         this.lostTime = 0;
       } else {
         this.lostTime += dt;
-        if (this.lostTime > Config.hunter.alertDeaggroTimeout) {
+        if (this.lostTime >= Config.hunter.alertDeaggroTimeout) {
           this.alerted = false;
           this.lostTime = 0;
           this.waypoints = [];
           this.waypointTimer = 0;
           this.localPath = [];
           this.localRepathTimer = 0;
+          this.patrolTarget = null;
           this._stuckTimer = 0;
           this._lastX = null;
           this._lastY = null;
@@ -808,8 +946,8 @@ class Hunter {
       this.localRepathTimer -= dt;
       if (distance <= Config.hunter.alertDistance && this.localRepathTimer <= 0) {
         this.localRepathTimer = 1;
-        const hunterRoom = mapManager.getRoomAt(this.x, this.y);
-        const playerRoom = mapManager.getRoomAt(player.x, player.y);
+        const hunterRoom = getNavigationRoom(mapManager, this.x, this.y);
+        const playerRoom = getNavigationRoom(mapManager, player.x, player.y);
         if (hunterRoom && hunterRoom === playerRoom) {
           this.localPath = buildLocalGridPath(
             mapManager,
@@ -851,7 +989,7 @@ class Hunter {
       recoverStuckPursuer(this, dt, mapManager);
 
       // Contact damage
-      if (distance < 28) {
+      if (distance < Config.hunter.attackDistance) {
         result.playerHit = true;
         const sp = this.getFarSpawnPoint(player.x, player.y, mapManager);
         if (sp) { this.x = sp.x; this.y = sp.y; }
@@ -859,18 +997,14 @@ class Hunter {
         this.waypointTimer = 0;
         this.localPath = [];
         this.localRepathTimer = 0;
+        this.patrolTarget = null;
         this._stuckTimer = 0;
         this._lastX = null;
         this._lastY = null;
       }
 
     } else if (!this.alerted && this.stagger <= 0) {
-      // Patrol: spiral pattern with wall sliding
-      this.patrolAngle += dt * 0.35;
-      const patrolX = this.x + Math.cos(this.patrolAngle) * Config.hunter.patrolSpeedScale * dt;
-      const patrolY = this.y + Math.sin(this.patrolAngle) * Config.hunter.patrolSpeedScale * dt;
-      if (!mapManager.blocked(patrolX, this.y, this.radius)) this.x = patrolX;
-      if (!mapManager.blocked(this.x, patrolY, this.radius)) this.y = patrolY;
+      updatePatrol(this, dt, mapManager, Config.hunter.patrolSpeedScale, Config.hunter.waypointRefresh);
     }
 
     // Separation: only push sideways relative to travel direction so corridor queues flow through
