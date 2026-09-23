@@ -13,6 +13,15 @@ class Game {
     this.monster = new Monster();
     this.hunters = this._createHunters();
 
+    // Tetris-style backpack grid (see js/inventory.js).
+    // Swap layouts by changing Config.activeBackpack / passing a definition:
+    //   new BackpackManager({ cols: 6, rows: 4, cellSize: 40, gap: 5 })
+    this.backpack = BackpackManager.fromType(Config.activeBackpack);
+    this.selectedItemId = null;
+    this._itemDrag = null;
+    this._boundItemDragMove = (event) => this._handleItemDragMove(event);
+    this._boundItemDragEnd = (event) => this._handleItemDragEnd(event);
+
     this.state = {
       running: false,
       completed: false,
@@ -29,8 +38,6 @@ class Game {
       hunterSettings: this._sanitizeHunterSettings(),
       selectedDifficulty: 'medium',
       selectedWeapon: 'pistol',
-      inventory: [],
-      inventoryCapacity: 12,
       elapsed: 0,
       hunterSpawnTimer: this._getHunterSettings().hunterSpawnInterval,
       huntersInitialized: false,
@@ -48,7 +55,7 @@ class Game {
       recoilX: 0,
       recoilY: 0,
       qteMonsterTpCooldown: 0,
-      lastJumpscareTime: 0,
+      lastJumpscareTime: -1,
       fireHeld: false
     };
 
@@ -242,7 +249,7 @@ class Game {
       mouseX: 0,
       mouseY: 0,
       lastTime: 0,
-      lastJumpscareTime: 0,
+      lastJumpscareTime: -1,
       fireHeld: false
     });
     this.state.keys = {};
@@ -258,6 +265,13 @@ class Game {
     this.hunters = this._createHunters();
     this.hunters.forEach(h => h.reset(this.map));
 
+    this._cancelItemDrag();
+    this.selectedItemId = null;
+    // Built from the active layout definition, so switching Config.activeBackpack (or
+    // handing the operator a different backpack model) takes effect on the next dive
+    this.backpack = BackpackManager.fromType(Config.activeBackpack);
+    this.updateInventoryUI();
+
     this.ui.updateResetState();
     this.ui.updateScaleButtons(Config.currentScale);
     this.updateDifficultyUI();
@@ -268,17 +282,7 @@ class Game {
     this.updateMoneyUI();
     
     // Initial UI state update
-    const compositeState = {
-      oxygen: this.player.oxygen,
-      health: this.player.health,
-      stamina: this.player.stamina,
-      noise: this.player.noise,
-      loot: this.state.loot,
-      lootValue: this.state.lootValue,
-      elapsed: this.state.elapsed,
-      reloading: this.player.reloading
-    };
-    this.ui.update(compositeState, this.player, this.monster);
+    this.ui.update(this._buildCompositeState(), this.player, this.monster);
     this.render();
   }
 
@@ -361,6 +365,14 @@ class Game {
     
     this.audio.ensureAudio();
 
+    // Warm the recorded cue buffers so combat audio fires without load latency
+    this.audio.preloadSounds([
+      'resources/injured-140224.mp3',
+      'resources/jumpscare-94984.mp3',
+      'resources/gun-shot-359196.mp3',
+      'resources/gun-reload-2-511308.mp3'
+    ]);
+
     this.state.completed = false; 
     this.state.running = true; 
     this.state.fireHeld = false;
@@ -430,6 +442,78 @@ class Game {
   }
 
   /**
+   * Applies hostile contact damage: impact flash, HP/oxygen loss, noise spike,
+   * field log entry and the "injured" pain cue
+   */
+  _applyContactDamage(logMessage) {
+    this.ui.triggerDamageFlash(0.75, 130);
+    this.player.health -= 18;
+    this.player.oxygen -= 8;
+    this.player.noise = 100;
+    this.ui.log(logMessage);
+    this.audio.playSound('resources/injured-140224.mp3', 0.8);
+  }
+
+  /**
+   * Checks whether a light source currently illuminates the active hostile entity:
+   * the helmet flashlight cone, the muzzle flash burst or the suit ambient glow
+   */
+  _isMonsterLitByLight(distance) {
+    if (!this.monster.active) return false;
+
+    // 1. Helmet flashlight cone (mirrors the rendered beam: 420px range, 0.5rad half angle)
+    if (this.player.flashlight && distance <= 420) {
+      const angleToMonster = Math.atan2(this.monster.y - this.player.y, this.monster.x - this.player.x);
+      const angleDelta = Math.atan2(
+        Math.sin(angleToMonster - this.player.angle),
+        Math.cos(angleToMonster - this.player.angle)
+      );
+      const bodyAllowance = Math.asin(Math.min(1, this.monster.radius / Math.max(distance, 1)));
+      if (Math.abs(angleDelta) <= 0.5 + bodyAllowance) return true;
+    }
+
+    // 2. Muzzle flash — omni-directional light burst while the timer decays
+    if (this.state.muzzleFlashTimer > 0) {
+      const flashAlpha = Math.min(1, this.state.muzzleFlashTimer / 0.45);
+      const flashRange = 550 * (0.3 + 0.7 * flashAlpha);
+      if (distance <= flashRange) return true;
+    }
+
+    // 3. Suit ambient glow (74px ambient radius in the vision mask)
+    return distance <= 74 + this.monster.radius;
+  }
+
+  /**
+   * Jumpscare cue: fires the scare stinger the moment light reveals the active
+   * hostile entity in direct line of sight (15s cooldown between scares)
+   */
+  _updateMonsterJumpscare() {
+    if (!this.monster.active || this.monster.recoverTimer > 0) return;
+
+    const dx = this.monster.x - this.player.x;
+    const dy = this.monster.y - this.player.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance > 520 || distance <= 0.001) return;
+
+    // Occlusion check — only a lit AND visible entity triggers the scare
+    const dirX = dx / distance;
+    const dirY = dy / distance;
+    const wallDistance = this.map.rayWallDistance(this.player.x, this.player.y, dirX, dirY, 520);
+    if (distance >= wallDistance + 25) return;
+
+    if (!this._isMonsterLitByLight(distance)) return;
+
+    // Cooldown so the stinger only plays on fresh encounters (-1 = never scared yet)
+    const lastScare = this.state.lastJumpscareTime;
+    if (lastScare >= 0 && this.state.elapsed - lastScare <= 15.0) return;
+    this.state.lastJumpscareTime = this.state.elapsed;
+
+    this.audio.playSound('resources/jumpscare-94984.mp3', 0.85);
+    this.ui.showToast('⚠️ 遭遇到未知生命体！');
+    this.ui.log('警报：视野内突然出现敌对生命体！');
+  }
+
+  /**
    * Concludes the exploration run with a final report status
    */
   finish(success) {
@@ -447,9 +531,17 @@ class Game {
     this.ui.hideQTE();
 
     if (success) {
-      // Add inventory to storage
-      this.state.storageItems.push(...this.state.inventory);
-      this.state.inventory = [];
+      // Move every carried item into the safehouse storage (grid placement is dropped)
+      this.state.storageItems.push(...this.backpack.items.map(item => ({
+        name: item.name,
+        value: item.value,
+        size: item.size,
+        rarity: item.rarity,
+        shape: item.shape,
+        roomType: item.roomType
+      })));
+      this.backpack.reset();
+      this.selectedItemId = null;
       this.updateStorageUI();
       this._save();
     }
@@ -459,17 +551,7 @@ class Game {
     this.updateHunterSettingsUI();
     this.updateLoadoutUI();
     
-    const compositeState = {
-      oxygen: this.player.oxygen,
-      health: this.player.health,
-      stamina: this.player.stamina,
-      noise: this.player.noise,
-      loot: this.state.loot,
-      lootValue: this.state.lootValue,
-      elapsed: this.state.elapsed,
-      reloading: this.player.reloading
-    };
-    this.ui.update(compositeState, this.player, this.monster);
+    this.ui.update(this._buildCompositeState(), this.player, this.monster);
   }
 
   /**
@@ -666,6 +748,7 @@ class Game {
       this.audio.playElectricShock();
     }
     this.audio.playLoudAlarmSound();
+    this.audio.playSound('resources/injured-140224.mp3', 0.6);
     this.ui.triggerDamageFlash(0.85, 220);
 
     // 3. Status notification and log
@@ -760,7 +843,7 @@ class Game {
   }
 
   /**
-   * Scavenges nearby valid waste scrap
+   * Scavenges a nearby recoverable scrap item into the backpack grid
    */
   collect() {
     if (!this.state.running) return;
@@ -770,39 +853,23 @@ class Game {
       this.ui.showToast('附近没有可回收物');
       return;
     }
-    
-    // Find free slots in 12-slot grid
-    const occupiedSlots = new Set();
-    this.state.inventory.forEach(i => {
-      for(let s = i.slot; s < i.slot + i.size; s++) occupiedSlots.add(s);
-    });
 
-    let freeSlot = -1;
-    for(let i = 0; i < 12; i++) {
-      if(!occupiedSlots.has(i)) {
-        let canFit = true;
-        for(let j = 0; j < (item.size || 1); j++) {
-          if(occupiedSlots.has(i + j) || i + j >= 12) canFit = false;
-        }
-        if(canFit) { freeSlot = i; break; }
-      }
-    }
-
-    if (freeSlot === -1) {
-      this.ui.showToast('背包空间不足！');
+    // Auto-placement tries the current rotation first, then every other rotation
+    if (!this.backpack.place(item)) {
+      this.ui.showToast('背包空间不足！无法容纳该物资');
+      this.ui.log(`背包已满：${item.name || '废料'} 无法回收，请先整理或丢弃物资。`);
       return;
     }
 
     item.found = true;
-    item.slot = freeSlot;
-    item.id = Date.now();
-    this.state.inventory.push(item);
-    
+    this.state.loot += 1;
+    this.state.lootValue += item.value || 0;
     this.player.noise = Math.min(100, this.player.noise + 20);
-    
-    this.ui.log(`拾取：${item.name || '废料'}。`);
-    this.ui.showToast(`拾取 ${item.name || '物品'}`);
-    
+
+    const size = this.backpack.sizeFor(item);
+    this.ui.log(`拾取：${item.name || '废料'} (占地 ${size.w}×${size.h} 格)。`);
+    this.ui.showToast(`拾取 ${item.name || '物品'} [${size.w}×${size.h}]`);
+
     this.updateInventoryUI();
   }
 
@@ -818,11 +885,19 @@ class Game {
   }
 
   sellInventory() {
-    this.state.inventory.forEach(item => {
-      this.state.money += item.value || 50;
-    });
-    this.state.inventory = [];
-    this.ui.showToast('物资已出售');
+    if (!this.backpack.items.length) {
+      this.ui.showToast('背包里没有可出售的物资！');
+      return;
+    }
+    const total = this.backpack.totalValue();
+    const count = this.backpack.items.length;
+    this.backpack.clear();
+    this.selectedItemId = null;
+    this.state.money += total;
+    this.state.loot = 0;
+    this.state.lootValue = 0;
+    this.ui.showToast(`背包物资已全部出售，获得 ¥ ${total}`);
+    this.ui.log(`交易完成：出售 ${count} 件物资，进账 ¥ ${total}。`);
     this.updateInventoryUI();
     this.updateMoneyUI();
   }
@@ -848,55 +923,563 @@ class Game {
     document.getElementById('moneyDisplay').textContent = `¥ ${this.state.money}`;
   }
 
+  /**
+   * Builds the composite telemetry payload consumed by UIManager.update()
+   */
+  _buildCompositeState() {
+    return {
+      oxygen: this.player.oxygen,
+      health: this.player.health,
+      stamina: this.player.stamina,
+      noise: this.player.noise,
+      loot: this.state.loot,
+      lootValue: this.state.lootValue,
+      lootCells: this.backpack.usedCells(),
+      lootCellCapacity: this.backpack.capacity,
+      elapsed: this.state.elapsed,
+      reloading: this.player.reloading
+    };
+  }
+
+  /**
+   * Redraws the Tetris-style backpack grid: one background cell per slot plus a
+   * spanned tile for every stored item.
+   *
+   * All geometry (columns, rows, cell size, gap) is written inline from the backpack
+   * definition rather than read from CSS, so the cells can never be re-sized by content,
+   * a stale stylesheet or a flex squeeze — and any other backpack layout renders correctly.
+   */
   updateInventoryUI() {
     const grid = document.getElementById('inventoryGrid');
-    const descBox = document.getElementById('itemDesc');
     if (!grid) return;
+
+    const backpack = this.backpack;
+    const cellSize = backpack.cellSize;
+    const gap = backpack.gap;
+    const pitch = backpack.pitch;
+
+    // The whole layout box is written inline: cell size, tracks, gaps and every element's
+    // explicit width/height. Content, a stale stylesheet or an implicit track can then never
+    // stretch the grid or shift a tile out of alignment.
+    grid.style.display = 'grid';
+    grid.style.setProperty('--bp-cell', `${cellSize}px`);
+    grid.style.setProperty('--bp-gap', `${gap}px`);
+    grid.style.gap = `${gap}px`;
+    grid.style.padding = `${gap}px`;
+    grid.style.boxSizing = 'border-box';
+    grid.style.flex = 'none';
+    grid.style.width = 'max-content';
+    grid.style.minWidth = '0';
+    grid.style.minHeight = '0';
+    grid.style.alignContent = 'start';
+    grid.style.justifyContent = 'start';
+    grid.style.gridTemplateColumns = `repeat(${backpack.cols}, ${cellSize}px)`;
+    grid.style.gridTemplateRows = `repeat(${backpack.rows}, ${cellSize}px)`;
+    // Hard guard: any implicit track is zero-sized, so a stray/overhanging item can never
+    // add a cell and stretch the backpack (the explicit tracks alone define its size)
+    grid.style.gridAutoColumns = '0px';
+    grid.style.gridAutoRows = '0px';
     grid.innerHTML = '';
-    
-    // Create fixed 4x3 grid (12 slots)
-    for (let i = 0; i < 12; i++) {
-      const slot = document.createElement('div');
-      slot.className = 'storage-item';
-      slot.dataset.index = i;
-      slot.style.borderColor = 'var(--line)';
-      grid.appendChild(slot);
+
+    const titleEl = document.getElementById('inventoryTitle');
+    if (titleEl) titleEl.textContent = backpack.label || '物资背包';
+
+    // The side column is locked to the exact grid height: adding or selecting items can
+    // never make the backpack panel grow, the details simply scroll inside.
+    const sideEl = document.querySelector('.inventory-side');
+    if (sideEl) {
+      sideEl.style.flex = '0 0 170px';
+      sideEl.style.boxSizing = 'border-box';
+      sideEl.style.height = this._spanPx(backpack.rows);
+      sideEl.style.overflowY = 'auto';
     }
 
-    // Populate slots
-    this.state.inventory.forEach(item => {
-      const slots = grid.children;
-      if (item.slot !== undefined && item.slot < slots.length) {
-        const slot = slots[item.slot];
-        if (slot) {
-          slot.textContent = (item.name ? item.name.charAt(0) : '?');
-          slot.style.borderColor = 'var(--acid)';
-          slot.style.backgroundColor = 'var(--panel-2)';
-          slot.style.color = 'var(--acid)';
-          slot.style.cursor = 'pointer';
-          slot.onclick = () => {
-            if (descBox) {
-              descBox.textContent = `${item.name}: ${item.desc || '一件在旧星舰废墟中发现的珍贵物资，回收价值很高。'}`;
-            }
-          };
-        }
+    // Background cells double as the drag & drop hit target.
+    // They are placed EXPLICITLY (never auto-placed): auto-placed cells would be pushed into
+    // an implicit track as soon as a tile covers a slot, which is what produced a stray row
+    // of cells below the grid (and previously a visibly wider/taller backpack).
+    for (let gy = 0; gy < backpack.rows; gy++) {
+      for (let gx = 0; gx < backpack.cols; gx++) {
+        const cell = document.createElement('div');
+        cell.className = 'bp-cell';
+        cell.dataset.gx = gx;
+        cell.dataset.gy = gy;
+        cell.style.gridColumn = `${gx + 1} / span 1`;
+        cell.style.gridRow = `${gy + 1} / span 1`;
+        cell.style.width = `${cellSize}px`;
+        cell.style.height = `${cellSize}px`;
+        cell.style.boxSizing = 'border-box';
+        cell.style.minWidth = '0';
+        cell.style.minHeight = '0';
+        cell.style.padding = '0';
+        grid.appendChild(cell);
       }
+    }
+
+    backpack.items.forEach(item => {
+      const matrix = backpack.matrixFor(item);
+      const tile = document.createElement('div');
+      tile.className = `bp-item rarity-${item.rarity || 'common'}`;
+      tile.dataset.itemId = item.id;
+      tile.title = `${item.name || '物资'} · ¥${item.value || 0} · 占地 ${matrix[0].length}×${matrix.length} 格`;
+
+      // Plain relative box, fully sized inline. Resetting margin/padding/border/background
+      // here means an older cached stylesheet can neither shrink, expand nor shift the tile.
+      tile.style.position = 'relative';
+      tile.style.display = 'block';
+      tile.style.margin = '0';
+      tile.style.padding = '0';
+      tile.style.border = 'none';
+      tile.style.background = 'transparent';
+      tile.style.boxSizing = 'border-box';
+      tile.style.minWidth = '0';
+      tile.style.minHeight = '0';
+      tile.style.pointerEvents = 'none';
+      this._placeItemElement(tile, item.gx, item.gy, matrix);
+      if (item.id === this.selectedItemId) tile.classList.add('selected');
+      // Keep an in-flight drag alive if the grid is rebuilt mid-drag
+      if (this._itemDrag && this._itemDrag.item.id === item.id) {
+        this._itemDrag.tile = tile;
+        tile.classList.add('dragging');
+      }
+
+      // Only the occupied footprint cells are drawn/hit-tested, so an L really looks like an L.
+      // Every block is placed at an exact multiple of the grid pitch, which is what keeps it
+      // perfectly aligned with the background cell it represents.
+      this._renderTileBlocks(tile, item, matrix);
+
+      grid.appendChild(tile);
     });
+
+    this._updateBackpackReadout();
   }
 
-  sortInventory() {
-    this.state.inventory.sort((a, b) => (b.value || 0) - (a.value || 0));
-    // Re-assign slots sequentially
-    this.state.inventory.forEach((item, index) => {
-      item.slot = index;
+  /**
+   * (Re)builds the footprint blocks of one tile. Called by the grid render and again whenever
+   * a mid-drag rotation changes the silhouette, so what is drawn always matches what is judged.
+   */
+  _renderTileBlocks(tile, item, matrix) {
+    if (!tile) return;
+    tile.innerHTML = '';
+
+    const cellSize = this.backpack.cellSize;
+    const pitch = this.backpack.pitch;
+    let labelled = false;
+
+    matrix.forEach((row, rowIndex) => {
+      row.forEach((cell, colIndex) => {
+        if (!cell) return;
+        const block = document.createElement('div');
+        block.className = 'bp-block';
+        block.style.position = 'absolute';
+        block.style.left = `${colIndex * pitch}px`;
+        block.style.top = `${rowIndex * pitch}px`;
+        block.style.margin = '0';
+        block.style.width = `${cellSize}px`;
+        block.style.height = `${cellSize}px`;
+        block.style.boxSizing = 'border-box';
+        block.style.overflow = 'hidden';
+        block.style.minWidth = '0';
+        block.style.minHeight = '0';
+        block.style.pointerEvents = 'auto';
+        block.addEventListener('pointerdown', event => this._beginItemDrag(event, item));
+        block.addEventListener('contextmenu', event => {
+          event.preventDefault();
+          this.rotateItem(item.id);
+        });
+
+        if (!labelled) {
+          labelled = true;
+          const label = document.createElement('span');
+          label.className = 'bp-item-name';
+          label.textContent = item.name || '物资';
+          const value = document.createElement('span');
+          value.className = 'bp-item-value';
+          value.textContent = `¥${item.value || 0}`;
+          block.appendChild(label);
+          block.appendChild(value);
+        }
+
+        tile.appendChild(block);
+      });
     });
+
+    tile.dataset.blockSignature = this._matrixSignature(matrix);
+  }
+
+  /** Compact signature used to detect that a rotated footprint needs re-drawing */
+  _matrixSignature(matrix) {
+    return matrix.map(row => row.join('')).join('|');
+  }
+
+  /**
+   * Anchors an item tile to the grid cells it covers.
+   *
+   * CSS grid line numbers start at 1: feeding an out-of-range line (0 or negative) makes
+   * the browser drop the declaration and auto-place the tile somewhere else entirely, which
+   * is what made the drag preview disagree with the drop result. The anchor is therefore
+   * clamped, and since every catalogued footprint is a tight bounding box (filled first row
+   * and first column) an out-of-range anchor is always an invalid placement anyway — the
+   * tile is simply pinned to the nearest edge and flagged red.
+   */
+  /** Pixel size of a run of `count` cells including the gaps between them */
+  _spanPx(count) {
+    const { cellSize, gap } = this.backpack;
+    return `${count * cellSize + Math.max(0, count - 1) * gap}px`;
+  }
+
+  /** Footprint span clamped to the current grid (defensive against absurd layouts) */
+  _clampedSpan(matrix) {
+    return {
+      w: Math.max(1, Math.min(matrix[0].length, this.backpack.cols)),
+      h: Math.max(1, Math.min(matrix.length, this.backpack.rows))
+    };
+  }
+
+  /**
+   * Anchors an item tile to the grid cells it covers and gives it the matching pixel box.
+   *
+   * The anchor is always clamped into the grid: CSS grid lines must be >= 1, and a line past
+   * the last track would make an implicit track / auto-placement kick in and visibly stretch
+   * the backpack. Non-finite values are sanitised as well so a bad model value can never
+   * produce an invalid `grid-column` (which the browser would silently auto-place).
+   */
+  _placeItemElement(tile, gx, gy, matrix) {
+    const { cols, rows } = this.backpack;
+    const { w, h } = this._clampedSpan(matrix);
+
+    const safeGx = Number.isFinite(gx) ? Math.trunc(gx) : 0;
+    const safeGy = Number.isFinite(gy) ? Math.trunc(gy) : 0;
+    const column = Math.max(0, Math.min(cols - w, safeGx)) + 1;
+    const row = Math.max(0, Math.min(rows - h, safeGy)) + 1;
+
+    const columnSpec = `${column} / span ${w}`;
+    const rowSpec = `${row} / span ${h}`;
+    const widthSpec = this._spanPx(w);
+    const heightSpec = this._spanPx(h);
+
+    // Guarded writes: during a drag this runs on every pointer move, so avoid touching
+    // style properties that are already correct (each write invalidates layout).
+    if (tile.style.gridColumn !== columnSpec) tile.style.gridColumn = columnSpec;
+    if (tile.style.gridRow !== rowSpec) tile.style.gridRow = rowSpec;
+    if (tile.style.width !== widthSpec) tile.style.width = widthSpec;
+    if (tile.style.height !== heightSpec) tile.style.height = heightSpec;
+  }
+
+  /** Refreshes the backpack header, description panel and action buttons */
+  _updateBackpackReadout() {
+    const backpack = this.backpack;
+    const selected = backpack.getItem(this.selectedItemId);
+    const countEl = document.getElementById('inventoryCount');
+    const capacityEl = document.getElementById('inventoryCapacity');
+    const descEl = document.getElementById('itemDesc');
+    const rotateBtn = document.getElementById('rotateItemBtn');
+    const discardBtn = document.getElementById('discardItemBtn');
+
+    if (countEl) countEl.textContent = `${backpack.items.length} 件物资`;
+    if (capacityEl) {
+      const used = backpack.usedCells();
+      capacityEl.textContent = `${used} / ${backpack.capacity} 格`;
+      capacityEl.className = used >= backpack.capacity ? 'warning' : '';
+    }
+    if (rotateBtn) rotateBtn.disabled = !selected;
+    if (discardBtn) discardBtn.disabled = !selected;
+    if (!descEl) return;
+
+    if (!selected) {
+      descEl.textContent = '点击物资查看详情 · 拖拽自由摆放 · 右键或 [R] 旋转 · 深色格为空格';
+      return;
+    }
+
+    const size = backpack.sizeFor(selected);
+    const rarityLabel = { common: '常见', uncommon: '稀有', rare: '珍贵' }[selected.rarity] || '常见';
+    descEl.textContent = `${selected.name || '物资'} [${rarityLabel}] · 占地 ${size.w}×${size.h} 格 · 回收价 ¥${selected.value || 0} · 朝向 ${backpack.rotationFor(selected) * 90}°`;
+  }
+
+  /** Opens/closes the backpack overlay (B key) */
+  toggleInventory(force = null) {
+    const overlay = document.getElementById('inventoryOverlay');
+    if (!overlay) return;
+
+    const next = typeof force === 'boolean' ? force : !this.state.inventoryOpen;
+    overlay.style.display = next ? 'block' : 'none';
+    this.state.inventoryOpen = next;
+
+    if (next) {
+      this.state.fireHeld = false;
+      this.updateInventoryUI();
+      this.ui.log('打开背包网格 [拖拽摆放 / 右键或 R 旋转 / B 关闭]');
+    } else {
+      this._cancelItemDrag();
+      this.selectedItemId = null;
+    }
+  }
+
+  /** Selects an item (highlight + detail panel) without rebuilding the grid */
+  selectInventoryItem(itemId) {
+    this.selectedItemId = itemId;
+    const grid = document.getElementById('inventoryGrid');
+    if (grid) {
+      grid.querySelectorAll('.bp-item').forEach(tile => {
+        tile.classList.toggle('selected', Number(tile.dataset.itemId) === itemId);
+      });
+    }
+    this._updateBackpackReadout();
+  }
+
+  /** Rotates the selected (or given) item 90° inside the grid */
+  rotateItem(itemId = null) {
+    const target = this.backpack.getItem(itemId == null ? this.selectedItemId : itemId);
+    if (!target) {
+      this.ui.showToast('请先选中一件物资');
+      return false;
+    }
+    if (this.backpack.isRotationInvariant(target)) {
+      this.ui.showToast(`${target.name || '物资'} 外形对称，旋转后没有变化`);
+      return false;
+    }
+    if (!this.backpack.rotateItem(target)) {
+      this.ui.showToast('周围空间不足，无法旋转该物资');
+      return false;
+    }
     this.updateInventoryUI();
-    this.ui.showToast('背包道具已按回收价值降序重排');
+    this.ui.showToast(`${target.name || '物资'} 已旋转至 ${this.backpack.rotationFor(target) * 90}°`);
+    return true;
   }
 
-  dragItem(item, e) {
-    this.ui.showToast(`拖拽 ${item.name}`);
-    // Basic interaction: simple swap or reorder logic would go here
+  /** Drops the selected item back onto the facility floor at the operator's feet */
+  discardItem(itemId = null) {
+    const item = this.backpack.removeItem(itemId == null ? this.selectedItemId : itemId);
+    if (!item) {
+      this.ui.showToast('请先选中一件物资');
+      return;
+    }
+
+    item.found = false;
+    item.x = this.player.x + (Math.random() - 0.5) * 24;
+    item.y = this.player.y + (Math.random() - 0.5) * 24;
+
+    this.state.loot = Math.max(0, this.state.loot - 1);
+    this.state.lootValue = Math.max(0, this.state.lootValue - (item.value || 0));
+    this.selectedItemId = null;
+
+    this.ui.log(`丢弃：${item.name || '物资'} 已放回地面。`);
+    this.ui.showToast(`已丢弃 ${item.name || '物资'}`);
+    this.updateInventoryUI();
+  }
+
+  /** Compacts every carried item into the smallest possible footprint (keeps pickup order) */
+  packInventory() {
+    if (!this.backpack.items.length) {
+      this.ui.showToast('背包是空的');
+      return;
+    }
+    const result = this.backpack.autoPack('insert');
+    this.updateInventoryUI();
+    this.ui.showToast(`背包已整理：${result.packed} 件物资重新排布`);
+  }
+
+  /** Re-packs everything ordered by recoverable value (highest first) */
+  sortInventory() {
+    if (!this.backpack.items.length) {
+      this.ui.showToast('背包是空的');
+      return;
+    }
+    const result = this.backpack.autoPack('value');
+    this.updateInventoryUI();
+    if (result.failed.length) {
+      this.ui.showToast('空间不足，无法按价值重排');
+      return;
+    }
+    this.ui.showToast('背包物资已按回收价值降序重排');
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Backpack drag & drop
+   * ------------------------------------------------------------------ */
+
+  /** Reads the rendered cell pitch so pointer coordinates map onto grid cells */
+  _gridMetrics(grid) {
+    const cells = grid.querySelectorAll('.bp-cell');
+    if (!cells.length) return null;
+
+    const first = cells[0].getBoundingClientRect();
+    const nextX = cells[1] ? cells[1].getBoundingClientRect() : null;
+    const nextY = cells[this.backpack.cols] ? cells[this.backpack.cols].getBoundingClientRect() : null;
+    return {
+      left: first.left,
+      top: first.top,
+      stepX: Math.max(1, nextX ? nextX.left - first.left : first.width),
+      stepY: Math.max(1, nextY ? nextY.top - first.top : first.height)
+    };
+  }
+
+  /** Converts viewport coordinates into grid cell coordinates */
+  _cellFromPoint(clientX, clientY, grid) {
+    const metrics = this._gridMetrics(grid);
+    if (!metrics) return { gx: 0, gy: 0 };
+    return {
+      gx: Math.floor((clientX - metrics.left) / metrics.stepX),
+      gy: Math.floor((clientY - metrics.top) / metrics.stepY)
+    };
+  }
+
+  /** Finds the tile element of a stored item */
+  _itemTileFor(itemId) {
+    const grid = document.getElementById('inventoryGrid');
+    return grid ? grid.querySelector(`.bp-item[data-item-id="${itemId}"]`) : null;
+  }
+
+  /**
+   * Applies the pending pointer position to the dragged footprint.
+   * Runs at most once per animation frame (see _handleItemDragMove) and never reads layout,
+   * so a fast mouse can not cause a forced reflow per event.
+   */
+  _applyDragPreview(drag) {
+    if (!drag || !drag.metrics) return;
+    const hoveredGx = Math.floor((drag.pointerX - drag.metrics.left) / drag.metrics.stepX);
+    const hoveredGy = Math.floor((drag.pointerY - drag.metrics.top) / drag.metrics.stepY);
+    drag.gx = hoveredGx - drag.grabX;
+    drag.gy = hoveredGy - drag.grabY;
+    this._refreshDragPreview(drag);
+  }
+
+  /**
+   * Re-renders the dragged footprint.
+   * The tile itself is the only feedback: it follows the judged anchor and turns red when
+   * the spot is refused (no cell highlighting — it was visual noise).
+   */
+  _refreshDragPreview(drag = this._itemDrag) {
+    if (!drag) return;
+
+    const matrix = this.backpack.matrixFor(drag.item, drag.rot);
+    drag.valid = this.backpack.canPlace(matrix, drag.gx, drag.gy, drag.item.id);
+
+    if (!drag.tile || drag.tile.isConnected === false) drag.tile = this._itemTileFor(drag.item.id);
+    const tile = drag.tile;
+    if (!tile) return;
+
+    // Re-draw the silhouette when a mid-drag rotation changed it, then anchor it to the
+    // very same position that is being judged
+    if (tile.dataset.blockSignature !== this._matrixSignature(matrix)) {
+      this._renderTileBlocks(tile, drag.item, matrix);
+    }
+    this._placeItemElement(tile, drag.gx, drag.gy, matrix);
+
+    const invalid = !drag.valid;
+    if (tile.classList.contains('invalid') !== invalid) tile.classList.toggle('invalid', invalid);
+  }
+
+  /** Starts dragging an item tile (a plain click still selects it) */
+  _beginItemDrag(event, item) {
+    if (event.button !== 0 || !item) return;
+    const grid = document.getElementById('inventoryGrid');
+    if (!grid) return;
+    event.preventDefault();
+
+    // The grid geometry is read ONCE per drag: reading it inside every pointer move would
+    // force a synchronous layout on each event and make the tile feel laggy.
+    const metrics = this._gridMetrics(grid);
+    const anchor = this._cellFromPoint(event.clientX, event.clientY, grid);
+    this._itemDrag = {
+      item,
+      rot: this.backpack.rotationFor(item),
+      grabX: anchor.gx - item.gx,
+      grabY: anchor.gy - item.gy,
+      gx: item.gx,
+      gy: item.gy,
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      metrics,
+      tile: this._itemTileFor(item.id),
+      valid: true,
+      moved: false,
+      startX: event.clientX,
+      startY: event.clientY
+    };
+
+    this.selectInventoryItem(item.id);
+    const tile = this._itemTileFor(item.id);
+    if (tile) tile.classList.add('dragging');
+
+    window.addEventListener('pointermove', this._boundItemDragMove);
+    window.addEventListener('pointerup', this._boundItemDragEnd);
+    window.addEventListener('pointercancel', this._boundItemDragEnd);
+  }
+
+  /**
+   * Live placement preview following the cursor.
+   * Only records the pointer position here and lets the next animation frame apply it: mouse
+   * events can fire far more often than the screen refreshes and each DOM write costs layout.
+   */
+  _handleItemDragMove(event) {
+    const drag = this._itemDrag;
+    if (!drag) return;
+
+    drag.pointerX = event.clientX;
+    drag.pointerY = event.clientY;
+    if (Math.abs(event.clientX - drag.startX) > 3 || Math.abs(event.clientY - drag.startY) > 3) {
+      drag.moved = true;
+    }
+
+    if (drag.framePending) return;
+    drag.framePending = true;
+
+    const flush = () => {
+      drag.framePending = false;
+      if (this._itemDrag === drag) this._applyDragPreview(drag);
+    };
+    if (typeof requestAnimationFrame === 'function' && drag.moved) {
+      requestAnimationFrame(flush);
+    } else {
+      flush();
+    }
+  }
+
+  /** Rotates the footprint currently being dragged (R key / right-click while dragging) */
+  _rotateDraggedItem() {
+    const drag = this._itemDrag;
+    if (!drag) return false;
+    drag.rot = BackpackManager.normalizeRotation(drag.rot + 1);
+    this._refreshDragPreview(drag);
+    return true;
+  }
+
+  /** Commits the drop, or snaps the item back when the target spot is invalid */
+  _handleItemDragEnd() {
+    const drag = this._itemDrag;
+    this._itemDrag = null;
+    window.removeEventListener('pointermove', this._boundItemDragMove);
+    window.removeEventListener('pointerup', this._boundItemDragEnd);
+    window.removeEventListener('pointercancel', this._boundItemDragEnd);
+    if (!drag) return;
+
+    // Apply a still-pending frame so the drop uses the very last pointer position
+    if (drag.framePending) {
+      drag.framePending = false;
+      this._applyDragPreview(drag);
+    }
+
+    const tile = drag.tile || this._itemTileFor(drag.item.id);
+    if (tile) tile.classList.remove('dragging', 'invalid');
+
+    if (!drag.moved) {
+      // plain click: keep the selection and snap the tile back onto its stored cells
+      if (tile) this._placeItemElement(tile, drag.item.gx, drag.item.gy, this.backpack.matrixFor(drag.item));
+      return;
+    }
+
+    const moved = drag.valid && this.backpack.moveItem(drag.item, drag.gx, drag.gy, drag.rot);
+    if (!moved) this.ui.showToast('无法放置：越界或与其他物资重叠');
+    this.updateInventoryUI();
+  }
+
+  /** Aborts any in-flight drag (overlay closed or run reset) */
+  _cancelItemDrag() {
+    this._itemDrag = null;
+    window.removeEventListener('pointermove', this._boundItemDragMove);
+    window.removeEventListener('pointerup', this._boundItemDragEnd);
+    window.removeEventListener('pointercancel', this._boundItemDragEnd);
   }
 
   /**
@@ -1302,12 +1885,7 @@ class Game {
       }
 
       if (monsterResult.playerHit) {
-        this.ui.triggerDamageFlash(0.75, 130);
-        this.player.health -= 18;
-        this.player.oxygen -= 8;
-        this.player.noise = 100;
-        this.ui.log('警告：未知生命体接触！');
-        this.audio.playSound('resources/injured-140224.mp3', 0.8);
+        this._applyContactDamage('警告：未知生命体接触！');
       }
 
       if (monsterResult.recovering) {
@@ -1333,17 +1911,16 @@ class Game {
       if (!hunterResult) return;
 
       if (hunterResult.playerHit) {
-        this.ui.triggerDamageFlash(0.75, 130);
-        this.player.health -= 18;
-        this.player.oxygen -= 8;
-        this.player.noise = 100;
-        this.ui.log('警告：猎手接触！');
+        this._applyContactDamage('警告：猎手接触！');
       }
 
       if (hunterResult.deaggro) {
         this.ui.log('猎手失去了你的踪迹。');
       }
     });
+
+    // 6c. Jumpscare stinger the moment light reveals the hostile entity in sight
+    this._updateMonsterJumpscare();
 
     // 7. Update synthesized ambient acoustics (breathing audio removed per user specification)
     this.audio.update(this.player, this.monster, this.map, this.hunters);
@@ -1367,17 +1944,7 @@ class Game {
     }
 
     // 10. Synchronize statistics interface gauges
-    const compositeState = {
-      oxygen: this.player.oxygen,
-      health: this.player.health,
-      stamina: this.player.stamina,
-      noise: this.player.noise,
-      loot: this.state.loot,
-      lootValue: this.state.lootValue,
-      elapsed: this.state.elapsed,
-      reloading: this.player.reloading
-    };
-    this.ui.update(compositeState, this.player, this.monster);
+    this.ui.update(this._buildCompositeState(), this.player, this.monster);
   }
 
   /**
@@ -1439,19 +2006,24 @@ class Game {
         }
       }
 
+      // Backpack grid: R rotates the dragged/selected item, ESC closes the panel
+      if (this.state.inventoryOpen) {
+        if (key === 'escape') {
+          this.toggleInventory(false);
+          return;
+        }
+        if (key === 'r') {
+          e.preventDefault();
+          if (!this._rotateDraggedItem()) this.rotateItem();
+          return;
+        }
+      }
+
       if (key === 'f') this.player.flashlight = !this.player.flashlight;
       if (key === 'e') this.interact();
       if (key === 'r') this.player.reload(this.audio); // Only R for reload
       if (key === 'x') this.callExtraction(); // X for extraction
-      if (key === 'b') {
-        const inv = document.getElementById('inventoryOverlay');
-        inv.style.display = (inv.style.display === 'none' || inv.style.display === '') ? 'block' : 'none';
-        this.state.inventoryOpen = inv.style.display === 'block';
-        if (this.state.inventoryOpen) {
-          this.state.fireHeld = false;
-          this.updateInventoryUI();
-        }
-      }
+      if (key === 'b') this.toggleInventory();
       if (key === 'm') this.toggleFullMap();
       
       // Removed Space key firing: Fire is strictly restricted to M1 (Mouse left click)

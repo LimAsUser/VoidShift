@@ -505,7 +505,9 @@ class UIManager {
     this.hudNoise.textContent = `NOISE: ${gameState.noise > 70 ? '高' : gameState.noise > 30 ? '注意' : '静'}`;
 
     this.lootValueText.textContent = `¥ ${gameState.lootValue}`;
-    this.lootCountText.textContent = `${gameState.loot} / 6`;
+    const lootCells = gameState.lootCells != null ? gameState.lootCells : 0;
+    const lootCellCapacity = gameState.lootCellCapacity || 0;
+    this.lootCountText.textContent = `${gameState.loot} 件 · ${lootCells}/${lootCellCapacity} 格`;
     this.predictedValue.textContent = `¥ ${gameState.lootValue}`;
 
     const totalSeconds = Math.max(0, Math.floor(gameState.elapsed || 0));

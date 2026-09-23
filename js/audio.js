@@ -18,8 +18,10 @@ class AudioManager {
     this.lastVisiblePulse = 0;
     this.lastClawSound = 0;
 
-    // Ambient loop nodes
-    this.ambientSource = null;
+    // Decoded pre-recorded sound effects (url -> AudioBuffer) and urls that must
+    // use the HTMLAudioElement fallback instead of fetch/decode
+    this.bufferCache = new Map();
+    this.htmlFallbackUrls = new Set();
   }
 
   /**
@@ -61,33 +63,6 @@ class AudioManager {
     this.proximityOscillator.connect(this.proximityGain);
     this.proximityOscillator.start();
 
-    // Start background white noise loop
-    this.playAmbientNoiseLoop();
-  }
-
-  /**
-   * Loads and plays the casual horror background noise in an infinite loop
-   */
-  async playAmbientNoiseLoop() {
-    if (!this.context) return;
-    try {
-      const response = await fetch('resources/casual horror background white noise-253834.mp3');
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
-      
-      this.ambientSource = this.context.createBufferSource();
-      this.ambientSource.buffer = audioBuffer;
-      this.ambientSource.loop = true;
-
-      const ambientGain = this.context.createGain();
-      ambientGain.gain.value = 0.22; // Low background white noise volume
-
-      this.ambientSource.connect(ambientGain);
-      ambientGain.connect(this.master);
-      this.ambientSource.start(0);
-    } catch (e) {
-      console.warn('Failed to load background white noise:', e);
-    }
   }
 
   /**
@@ -164,60 +139,6 @@ class AudioManager {
   }
 
   /**
-   * High-voltage electrical shock / zap sound effect when QTE fails or times out
-   */
-  playElectricShock() {
-    if (!this.context) return;
-    try {
-      const now = this.context.currentTime;
-      const osc = this.context.createOscillator();
-      const crackle = this.context.createOscillator();
-      const shockGain = this.context.createGain();
-
-      osc.type = 'sawtooth';
-      crackle.type = 'square';
-
-      // Harsh pitch dive from 2400Hz to 80Hz
-      osc.frequency.setValueAtTime(2400, now);
-      osc.frequency.exponentialRampToValueAtTime(80, now + 0.35);
-
-      // Jitter crackle frequency
-      crackle.frequency.setValueAtTime(140, now);
-      crackle.frequency.setValueAtTime(280, now + 0.05);
-      crackle.frequency.setValueAtTime(95, now + 0.12);
-      crackle.frequency.setValueAtTime(320, now + 0.2);
-      crackle.frequency.setValueAtTime(60, now + 0.3);
-
-      shockGain.gain.setValueAtTime(0.5, now);
-      shockGain.gain.linearRampToValueAtTime(0.65, now + 0.06);
-      shockGain.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
-
-      osc.connect(shockGain);
-      crackle.connect(shockGain);
-      shockGain.connect(this.master);
-
-      osc.start(now);
-      crackle.start(now);
-      osc.stop(now + 0.45);
-      crackle.stop(now + 0.45);
-    } catch (e) {
-      console.warn('Failed to play electric shock sound:', e);
-    }
-  }
-
-  /**
-   * Short error buzz when an incorrect QTE key is entered
-   */
-  playQTEErrorBeep() {
-    if (!this.context) return;
-    try {
-      this.playTone(135, 0.16, 0.12, 'sawtooth');
-    } catch (e) {
-      console.warn('Failed to play QTE error beep:', e);
-    }
-  }
-
-  /**
    * Calculates directional stereo panning (-1.0 left to +1.0 right)
    * and distance attenuation relative to listener position and facing angle
    */
@@ -247,14 +168,117 @@ class AudioManager {
   }
 
   /**
-   * Plays a pre-recorded sound effect
+   * Decodes an encoded audio file into a reusable AudioBuffer.
+   * Supports both promise-based and legacy callback-based decodeAudioData.
+   */
+  _decodeAudioBuffer(arrayBuffer) {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const onDone = (buffer) => {
+        if (settled) return;
+        settled = true;
+        resolve(buffer);
+      };
+      const onFail = (error) => {
+        if (settled) return;
+        settled = true;
+        reject(error || new Error('decodeAudioData failed'));
+      };
+
+      let pending = null;
+      try {
+        pending = this.context.decodeAudioData(arrayBuffer, onDone, onFail);
+      } catch (error) {
+        onFail(error);
+        return;
+      }
+
+      if (pending && typeof pending.then === 'function') {
+        pending.then(onDone, onFail);
+      }
+    });
+  }
+
+  /**
+   * Fallback playback path using an HTMLAudioElement.
+   * Keeps pre-recorded cues audible even when fetch()/decodeAudioData is blocked
+   * (for example when the page is opened straight from disk via file://).
+   */
+  _playHtmlAudio(url, volume = 1.0) {
+    try {
+      const element = new Audio(url);
+      element.volume = Math.max(0, Math.min(1, volume));
+      const playback = element.play();
+      if (playback && typeof playback.catch === 'function') {
+        playback.catch(error => console.warn('Failed to play sound effect:', error));
+      }
+    } catch (error) {
+      console.warn('Failed to play sound effect:', error);
+    }
+  }
+
+  /**
+   * Fetches and decodes a recorded cue once, then serves every later request from cache
+   */
+  async getSoundBuffer(url) {
+    let audioBuffer = this.bufferCache.get(url);
+    if (!audioBuffer) {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const arrayBuffer = await response.arrayBuffer();
+      audioBuffer = await this._decodeAudioBuffer(arrayBuffer);
+      this.bufferCache.set(url, audioBuffer);
+    }
+    return audioBuffer;
+  }
+
+  /**
+   * Warms the decoded cue cache so combat effects start without fetch/decode latency
+   */
+  async preloadSounds(urls = []) {
+    if (!this.context) this.ensureAudio();
+    if (!this.context) return;
+
+    for (const url of urls) {
+      if (this.bufferCache.has(url) || this.htmlFallbackUrls.has(url)) continue;
+      try {
+        await this.getSoundBuffer(url);
+      } catch (error) {
+        // Remember the asset so later playback uses the HTML audio fallback directly
+        this.htmlFallbackUrls.add(url);
+        console.warn(`Could not preload ${url}:`, error);
+      }
+    }
+  }
+
+  /**
+   * Plays a pre-recorded sound effect (decoded buffers are cached for instant replay)
    */
   async playSound(url, volume = 1.0) {
-    if (!this.context) return;
+    if (!this.context) this.ensureAudio(); // 确保尝试播放时音频已初始化
+
+    if (!this.context) {
+      // Web Audio unavailable — still deliver the cue through an <audio> element
+      this._playHtmlAudio(url, volume);
+      return;
+    }
+
+    if (this.htmlFallbackUrls.has(url)) {
+      this._playHtmlAudio(url, volume);
+      return;
+    }
+
+    if (this.context.state === 'suspended') {
+      try {
+        await this.context.resume(); // 异步恢复上下文
+      } catch (error) {
+        console.warn('Failed to resume audio context:', error);
+      }
+    }
+
     try {
-      const response = await fetch(url);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
+      const audioBuffer = await this.getSoundBuffer(url);
+
       const source = this.context.createBufferSource();
       const gain = this.context.createGain();
 
@@ -265,7 +289,10 @@ class AudioManager {
       gain.connect(this.master);
       source.start(0);
     } catch (e) {
-      console.error('Failed to play sound:', e);
+      // fetch/decode unavailable for this asset — remember it and fall back
+      console.warn(`Web Audio playback failed for ${url}, using HTML audio fallback:`, e);
+      this.htmlFallbackUrls.add(url);
+      this._playHtmlAudio(url, volume);
     }
   }
 
@@ -345,33 +372,20 @@ class AudioManager {
   /**
    * Updates proximity rumble, heartbeat audio cues, and directional panning
    */
-  update(player, monster, mapManager, hunters) {
-    // Pick the nearest active threat (ghost or any hunter) to drive proximity audio
-    const activeHunters = (hunters && Array.isArray(hunters))
-      ? hunters.filter(h => h.active && !h.dead)
-      : [];
-    let activeThreat = null;
-    const candidates = monster.active ? [monster, ...activeHunters] : activeHunters;
-    candidates.forEach(c => {
-      const d = Math.hypot(c.x - player.x, c.y - player.y);
-      if (!activeThreat || d < Math.hypot(activeThreat.x - player.x, activeThreat.y - player.y)) {
-        activeThreat = c;
-      }
-    });
-
-    if (!this.context || !activeThreat) {
+  update(player, monster, mapManager) {
+    if (!this.context || !monster.active) {
       if (this.proximityGain) {
         this.proximityGain.gain.setTargetAtTime(0, this.context.currentTime, 0.05);
       }
       return;
     }
 
-    const spatial = this.calculateSpatial(player.x, player.y, player.angle, activeThreat.x, activeThreat.y, 650);
+    const spatial = this.calculateSpatial(player.x, player.y, player.angle, monster.x, monster.y, 650);
     const distance = spatial.distance;
-    const proximity = activeThreat.alerted ? Math.max(0, 1 - distance / 650) : 0;
-    const toMonster = Math.atan2(activeThreat.y - player.y, activeThreat.x - player.x);
+    const proximity = monster.alerted ? Math.max(0, 1 - distance / 650) : 0;
+    const toMonster = Math.atan2(monster.y - player.y, monster.x - player.x);
     const wallDistance = mapManager.rayWallDistance(player.x, player.y, Math.cos(toMonster), Math.sin(toMonster), 650);
-    const visible = activeThreat.alerted && distance < wallDistance + activeThreat.radius + 12;
+    const visible = monster.alerted && distance < wallDistance + monster.radius + 12;
     const now = performance.now();
 
     // Update continuous directional stereo panning for the monster
@@ -385,7 +399,7 @@ class AudioManager {
 
     // Heartbeat pulse cadence with directional stereo position
     const pulseGap = 720 - proximity * 650;
-    if (activeThreat.alerted && now - this.lastPulse > pulseGap) {
+    if (monster.alerted && now - this.lastPulse > pulseGap) {
       this.lastPulse = now;
       this.playSpatialTone(58 + proximity * 65, 0.13, 0.12 + proximity * 0.2, 'sine', spatial.pan, 1, spatial.isBehind);
 

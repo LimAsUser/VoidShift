@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=4" />
+  <link rel="stylesheet" href="styles.css?v=5" />
 </head>
 <body>
   <main class="app-shell">
@@ -69,7 +69,7 @@
           <div class="objective"><span class="objective-icon">◈</span><div><p>当前目标</p><strong>收集并撤离废料</strong></div></div>
           <div class="contract-row"><span>本轮报价</span><strong id="quotaValue">¥ 420</strong></div>
           <div class="contract-row"><span>已回收价值</span><strong id="lootValue">¥ 0</strong></div>
-          <div class="contract-row"><span>携带物</span><strong id="lootCount">0 / 6</strong></div>
+          <div class="contract-row"><span>携带物</span><strong id="lootCount">0 件 · 0/40 格</strong></div>
           <div class="contract-row"><span>安全重写终端</span><strong id="terminalsStatus" style="color:#f5a623;">0 / 3</strong></div>
         </div>
 
@@ -102,14 +102,32 @@
         <div class="game-header"><div><p class="kicker">LIVE FEED / CAM 01</p><h2 id="missionTitle">等待下潜</h2></div><div class="coordinates"><span id="clock">00:00</span><small>LOCAL TIME</small></div></div>
         <div class="game-frame" id="gameFrame">
           
-          <!-- 干净、优雅的背包 (B键切换) -->
-          <div id="inventoryOverlay" class="panel" style="display:none; position:absolute; top:50%; right:50px; transform:translateY(-50%); z-index:100; width:300px; padding:20px; background:rgba(19,23,23,0.95); border:1px solid var(--acid);">
-            <div class="inventory-header" style="display:flex; justify-content:space-between; align-items:center;">
-              <h2 style="margin:0; font-size:18px; color:var(--acid);">背包 (B 键关闭)</h2>
-              <button class="action-button" onclick="game.sortInventory()" style="padding:4px 8px; font-size:11px; width:auto;">排序</button>
+          <!-- 俄罗斯方块式网格背包 (B键切换) -->
+          <div id="inventoryOverlay" class="panel" style="display:none;">
+            <div class="inventory-header">
+              <div>
+                <p class="kicker">FIELD BACKPACK</p>
+                <h2><span id="inventoryTitle">物资背包</span> <small>(B 关闭)</small></h2>
+              </div>
+              <div class="inventory-readout">
+                <span id="inventoryCount">0 件物资</span>
+                <strong id="inventoryCapacity">0 / 0 格</strong>
+              </div>
             </div>
-            <div class="storage-grid" id="inventoryGrid" style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:15px;"></div>
-            <div id="itemDesc" class="item-desc" style="margin-top:15px; padding:10px; background:var(--bg); border:1px solid var(--line); font-size:11px; color:var(--muted); min-height:45px;">选择道具以查看描述...</div>
+            <div class="inventory-body">
+              <div class="bp-grid" id="inventoryGrid"></div>
+              <aside class="inventory-side">
+                <div id="itemDesc" class="item-desc">点击物资查看详情 · 拖拽自由摆放 · 右键或 [R] 旋转</div>
+                <div class="inventory-actions">
+                  <button class="action-button" id="rotateItemBtn" type="button" onclick="game.rotateItem()">旋转 [R]</button>
+                  <button class="action-button" id="discardItemBtn" type="button" onclick="game.discardItem()">丢弃到地面</button>
+                  <button class="action-button" type="button" onclick="game.packInventory()">整理</button>
+                  <button class="action-button" type="button" onclick="game.sortInventory()">按价值排序</button>
+                  <button class="action-button" type="button" onclick="game.sellInventory()">全部出售</button>
+                </div>
+              </aside>
+            </div>
+            <div class="inventory-hint">拖拽摆放 · 右键或 [R] 旋转 · 点击选中 · 空格子可自由编排</div>
           </div>
           <canvas id="gameCanvas" aria-label="废墟探索游戏区域"></canvas>
           <canvas id="visionCanvas" aria-hidden="true"></canvas>
@@ -237,13 +255,14 @@
     <section class="result-strip panel"><div><p class="kicker">CONTRACT OUTCOME</p><h2 id="resultTitle">今晚的账单还没写完</h2></div><div class="result-metric"><span>预测结算</span><strong id="predictedValue">¥ 0</strong></div><div class="result-metric"><span>航程状态</span><strong id="missionState">未开始</strong></div></section>
     <footer><span>VOID SHIFT <b>•</b> RECOVERY OPERATIONS DIVISION</span><span>DEMO BUILD 0.7</span></footer>
   </main>
-  <script src="js/config.js"></script>
-  <script src="js/audio.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/entities.js"></script>
-  <script src="js/map.js"></script>
-  <script src="js/renderer.js"></script>
-  <script src="js/game.js?v=4"></script>
+  <script src="js/config.js?v=5"></script>
+  <script src="js/audio.js?v=5"></script>
+  <script src="js/ui.js?v=5"></script>
+  <script src="js/entities.js?v=5"></script>
+  <script src="js/map.js?v=5"></script>
+  <script src="js/inventory.js?v=5"></script>
+  <script src="js/renderer.js?v=5"></script>
+  <script src="js/game.js?v=5"></script>
 </body>
 </html>
 

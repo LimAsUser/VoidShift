@@ -92,6 +92,50 @@ const Config = {
     }
   },
 
+  // ---- Tetris-style backpack grids (B key) ----
+  // Every backpack layout is pure data: cols x rows of cells, cell size in px and the
+  // gap between cells. `Config.backpack` always resolves to the ACTIVE layout, so the
+  // game can be pointed at another backpack by changing `activeBackpack` (or by passing
+  // a definition straight into BackpackManager / BackpackManager.fromType()).
+  activeBackpack: 'field',
+  backpackTypes: {
+    field: { id: 'field', label: '物资背包', cols: 8, rows: 5, cellSize: 34, gap: 4 },
+    light: { id: 'light', label: '轻型携行包', cols: 6, rows: 4, cellSize: 34, gap: 4 },
+    heavy: { id: 'heavy', label: '重型货运包', cols: 9, rows: 6, cellSize: 30, gap: 3 }
+  },
+  get backpack() {
+    const types = this.backpackTypes || {};
+    return types[this.activeBackpack] || types.field || { id: 'field', label: '物资背包', cols: 8, rows: 5, cellSize: 34, gap: 4 };
+  },
+
+  // Item footprints: 1 marks a cell the item occupies. Every item can be rotated 90° in the backpack.
+  itemShapes: {
+    '1x1': [[1]],
+    '2x1': [[1, 1]],
+    '1x2': [[1], [1]],
+    '3x1': [[1, 1, 1]],
+    '1x3': [[1], [1], [1]],
+    '2x2': [[1, 1], [1, 1]],
+    'S2': [[0, 1, 1], [1, 1, 0]],
+    'Z2': [[1, 1, 0], [0, 1, 1]],
+    'T3': [[1, 1, 1], [0, 1, 0]],
+    'L2': [[1, 0], [1, 1]],
+    'J2': [[0, 1], [1, 1]],
+    'L3': [[1, 0, 0], [1, 0, 0], [1, 1, 1]],
+    'J3': [[0, 0, 1], [0, 0, 1], [1, 1, 1]],
+    '3x2': [[1, 1, 1], [1, 1, 1]],
+    '2x3': [[1, 1], [1, 1], [1, 1]],
+    '3x3': [[1, 1, 1], [1, 1, 1], [1, 1, 1]]
+  },
+
+  // Fallback footprint pools keyed by the legacy loot "size" (1/2/3). A loot template may
+  // override its footprint by declaring an explicit `shape` id from itemShapes.
+  shapePools: {
+    1: ['1x1', '2x1', '1x2'],
+    2: ['2x2', '3x1', '1x3', 'L2', 'J2', 'S2'],
+    3: ['3x3', '3x2', '2x3', 'L3', 'J3', 'T3']
+  },
+
   monster: {
     spawnX: 1600,
     spawnY: 1100,
@@ -392,8 +436,8 @@ const Config = {
 
   // Fallback items catalog for generic trade / store
   items: {
-    scrap: { name: '废铁', rarity: 'common', size: 1, baseValue: 50 },
-    circuit: { name: '电路板', rarity: 'uncommon', size: 2, baseValue: 150 },
-    rareData: { name: '加密数据', rarity: 'rare', size: 3, baseValue: 400 }
+    scrap: { name: '废铁', rarity: 'common', size: 1, baseValue: 50, shape: '1x1' },
+    circuit: { name: '电路板', rarity: 'uncommon', size: 2, baseValue: 150, shape: '2x2' },
+    rareData: { name: '加密数据', rarity: 'rare', size: 3, baseValue: 400, shape: '3x3' }
   }
 };

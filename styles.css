@@ -611,16 +611,21 @@ body.in-dive #gameFrame {
   border: none !important;
 }
 
-/* 3. REFACTORED FLOATING BACKPACK OVERLAY (B KEY) */
+/* 3. REFACTORED TETRIS-STYLE BACKPACK OVERLAY (B KEY) */
 #inventoryOverlay {
   position: absolute;
   top: 50%;
   right: 40px;
   transform: translateY(-50%);
-  width: 320px;
+  /* Sized by content so any backpack layout fits without squeezing the cells */
+  width: max-content;
+  min-width: 320px;
+  max-width: calc(100% - 60px);
+  max-height: calc(100% - 48px);
+  overflow: auto;
   background: rgba(19, 23, 23, 0.95) !important;
   border: 1px solid var(--acid) !important;
-  padding: 20px !important;
+  padding: 16px !important;
   z-index: 1000 !important;
   box-shadow: 0 0 25px rgba(0,0,0,0.85);
 }
@@ -631,16 +636,175 @@ body.in-dive #gameFrame {
   align-items: center;
   border-bottom: 1px solid var(--line);
   padding-bottom: 10px;
-  margin-bottom: 15px;
+  margin-bottom: 12px;
+}
+
+.inventory-header h2 {
+  margin: 2px 0 0;
+  font: 600 20px var(--display);
+  color: var(--acid);
+}
+
+.inventory-header h2 small {
+  font-size: 10px;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+
+.inventory-readout {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.inventory-readout strong {
+  color: var(--acid);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.inventory-readout strong.warning {
+  color: var(--rust);
+}
+
+.inventory-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  /* stretch keeps the row exactly as tall as the grid, so the panel can never grow */
+  align-items: stretch;
+}
+
+.inventory-side {
+  /* Fixed width + fixed height (set from the backpack definition) keep the panel stable */
+  flex: 0 0 170px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inventory-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.inventory-actions .action-button {
+  width: auto !important;
+  padding: 6px 4px !important;
+  font-size: 10px !important;
+}
+
+.inventory-actions .action-button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.inventory-hint {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+
+/* Backpack grid cells + item tiles.
+   Cell size / gap are written inline by Game.updateInventoryUI (from the backpack
+   definition); the values here are only fallbacks for hand-written markup. */
+.bp-grid {
+  --bp-cell: 34px;
+  --bp-gap: 4px;
+  display: grid;
+  /* Never let the flex row squeeze the grid: cells must keep their exact pixel size */
+  flex: none;
+  gap: var(--bp-gap);
+  padding: var(--bp-gap);
+  background: #070a09;
+  border: 1px solid var(--line);
+  touch-action: none;
+  user-select: none;
+}
+
+.bp-cell {
+  width: var(--bp-cell);
+  height: var(--bp-cell);
+  background: #101715;
+  border: 1px solid #1e2a24;
+}
+
+.bp-item {
+  z-index: 2;
+  pointer-events: none;
+}
+
+.bp-block {
+  pointer-events: auto;
+  cursor: grab;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  padding: 2px 3px;
+  background: var(--panel-2);
+  border: 1px solid var(--acid);
+  color: var(--acid);
+  font-family: var(--mono);
+  transition: border-color 0.1s linear, box-shadow 0.1s linear;
+}
+
+.bp-item-name {
+  font-size: 9px;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bp-item-value {
+  font-size: 8px;
+  color: var(--muted);
+  text-align: right;
+}
+
+.bp-item.rarity-uncommon .bp-block { border-color: var(--cyan); color: var(--cyan); }
+.bp-item.rarity-rare .bp-block { border-color: #f5a623; color: #f5a623; }
+
+.bp-item.selected .bp-block {
+  border-width: 2px;
+  box-shadow: 0 0 12px rgba(215, 243, 107, 0.45), inset 0 0 8px rgba(215, 243, 107, 0.18);
+}
+
+/* While dragging the tile becomes a translucent ghost so the green / red cell
+   feedback underneath stays visible */
+.bp-item.dragging {
+  z-index: 5;
+  opacity: 0.62;
+}
+
+.bp-item.dragging .bp-block {
+  cursor: grabbing;
+  background: rgba(24, 29, 28, 0.4);
+  box-shadow: 0 0 16px rgba(0, 0, 0, 0.85);
+}
+
+.bp-item.invalid .bp-block {
+  border-color: var(--rust);
+  background: rgba(232, 117, 78, 0.28);
+  color: var(--rust);
 }
 
 .item-desc {
-  margin-top: 15px;
+  margin-top: 0;
   padding: 10px;
   background: var(--bg);
   border: 1px solid var(--line);
-  font-size: 11px;
+  font-size: 10px;
   color: var(--muted);
-  min-height: 45px;
-  line-height: 1.4;
+  min-height: 62px;
+  line-height: 1.5;
 }
