@@ -93,13 +93,13 @@ class Renderer {
     // Background
     const worldW = mapManager.worldW || Config.WORLD_W;
     const worldH = mapManager.worldH || Config.WORLD_H;
-    ctx.fillStyle = '#111714';
+    ctx.fillStyle = '#070f19';
     ctx.fillRect(0, 0, worldW, worldH);
-    ctx.fillStyle = '#151c18';
+    ctx.fillStyle = '#0b1722';
     ctx.fillRect(22, 22, worldW - 44, worldH - 44);
 
     // Sector gridlines
-    ctx.strokeStyle = 'rgba(215,243,107,.05)';
+    ctx.strokeStyle = 'rgba(101,221,235,.045)';
     ctx.lineWidth = 1;
     for (let x = 40; x < worldW; x += 40) {
       ctx.beginPath();
@@ -124,17 +124,65 @@ class Renderer {
           ctx.lineTo(room.vertices[i].x, room.vertices[i].y);
         }
         ctx.closePath();
-        ctx.fillStyle = '#141c18';
+        ctx.fillStyle = '#0d1924';
         ctx.fill();
         ctx.fillStyle = room.accent || '#75ddd0';
-        ctx.globalAlpha = 0.04;
+        ctx.globalAlpha = 0.035;
         ctx.fill();
-        ctx.globalAlpha = 0.15;
+        ctx.globalAlpha = 0.18;
         ctx.strokeStyle = room.accent || '#75ddd0';
         ctx.lineWidth = 1;
         ctx.stroke();
+
+        // Subtle room-specific floor markings stay clipped to the existing room polygon.
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(room.vertices[0].x, room.vertices[0].y);
+        for (let i = 1; i < room.vertices.length; i++) {
+          ctx.lineTo(room.vertices[i].x, room.vertices[i].y);
+        }
+        ctx.closePath();
+        ctx.clip();
+        const bounds = room.vertices.reduce((box, point) => ({
+          minX: Math.min(box.minX, point.x), minY: Math.min(box.minY, point.y),
+          maxX: Math.max(box.maxX, point.x), maxY: Math.max(box.maxY, point.y)
+        }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+        const center = room.center || { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 };
+        ctx.globalAlpha = 0.11;
+        ctx.strokeStyle = '#65ddeb';
+        ctx.lineWidth = 2;
+
+        if (room.type === 'reactor' || room.type === 'reactor_aux' || room.type === 'centrifuge') {
+          [22, 34].forEach(radius => {
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+            ctx.stroke();
+          });
+          ctx.beginPath();
+          ctx.moveTo(center.x - 42, center.y);
+          ctx.lineTo(center.x + 42, center.y);
+          ctx.moveTo(center.x, center.y - 42);
+          ctx.lineTo(center.x, center.y + 42);
+          ctx.stroke();
+        } else if (room.type === 'cargo' || room.type === 'hangar_bay' || room.type === 'foundry') {
+          for (let x = bounds.minX + 42; x < bounds.maxX; x += 72) {
+            ctx.beginPath();
+            ctx.moveTo(x, bounds.minY);
+            ctx.lineTo(x, bounds.maxY);
+            ctx.stroke();
+          }
+        } else {
+          ctx.strokeRect(center.x - 24, center.y - 24, 48, 48);
+          ctx.beginPath();
+          ctx.moveTo(center.x - 36, center.y);
+          ctx.lineTo(center.x - 28, center.y);
+          ctx.moveTo(center.x + 28, center.y);
+          ctx.lineTo(center.x + 36, center.y);
+          ctx.stroke();
+        }
+        ctx.restore();
       } else {
-        ctx.fillStyle = '#141c18';
+        ctx.fillStyle = '#0d1924';
         ctx.fillRect(room.x, room.y, room.w, room.h);
       }
       ctx.restore();
@@ -148,7 +196,7 @@ class Renderer {
         // Heavy structural casing
         ctx.lineWidth = 14;
         ctx.lineCap = 'butt';
-        ctx.strokeStyle = '#222b27';
+        ctx.strokeStyle = '#172633';
         ctx.beginPath();
         ctx.moveTo(wall.x1, wall.y1);
         ctx.lineTo(wall.x2, wall.y2);
@@ -156,7 +204,7 @@ class Renderer {
 
         // Inner metallic plate
         ctx.lineWidth = 8;
-        ctx.strokeStyle = '#2a3530';
+        ctx.strokeStyle = '#203545';
         ctx.beginPath();
         ctx.moveTo(wall.x1, wall.y1);
         ctx.lineTo(wall.x2, wall.y2);
@@ -164,7 +212,7 @@ class Renderer {
 
         // Structural bevel highlight
         ctx.lineWidth = 1.5;
-        ctx.strokeStyle = '#526658';
+        ctx.strokeStyle = '#477184';
         ctx.beginPath();
         ctx.moveTo(wall.x1, wall.y1);
         ctx.lineTo(wall.x2, wall.y2);
@@ -174,20 +222,20 @@ class Renderer {
         ctx.save();
         if (wall.isBox) {
           // Cargo Crate: heavy reinforced container with industrial bevel, warning accents & latch
-          ctx.fillStyle = '#1c2621';
+          ctx.fillStyle = '#142432';
           ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
 
           // Inner plate
-          ctx.fillStyle = '#26342c';
+          ctx.fillStyle = '#203748';
           ctx.fillRect(wall.x + 3, wall.y + 3, wall.w - 6, wall.h - 6);
 
           // Border
-          ctx.strokeStyle = '#4b5f52';
+          ctx.strokeStyle = '#4c7182';
           ctx.lineWidth = 1.5;
           ctx.strokeRect(wall.x + 0.5, wall.y + 0.5, wall.w - 1, wall.h - 1);
 
           // Diagonal hazard accent corner
-          ctx.fillStyle = '#e8754e';
+          ctx.fillStyle = '#e9a950';
           ctx.beginPath();
           ctx.moveTo(wall.x + 3, wall.y + 3);
           ctx.lineTo(wall.x + 12, wall.y + 3);
@@ -200,13 +248,13 @@ class Renderer {
           ctx.fillRect(wall.x + wall.w / 2 - 3, wall.y + wall.h / 2 - 3, 6, 6);
         } else if (wall.isProp) {
           // Thematic machinery unit (servers, reactors, lab stations, planters)
-          ctx.fillStyle = '#16201b';
+          ctx.fillStyle = '#101f2b';
           ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
 
-          ctx.fillStyle = '#202a24';
+          ctx.fillStyle = '#1a2f3d';
           ctx.fillRect(wall.x + 2, wall.y + 2, wall.w - 4, wall.h - 4);
 
-          ctx.strokeStyle = '#3e5245';
+          ctx.strokeStyle = '#416578';
           ctx.lineWidth = 1.5;
           ctx.strokeRect(wall.x + 0.5, wall.y + 0.5, wall.w - 1, wall.h - 1);
 
@@ -221,7 +269,7 @@ class Renderer {
           }
 
           // Indicator LED
-          const ledColor = wall.subType === 'reactor_core' ? '#ff4d4d' :
+          const ledColor = wall.subType === 'reactor_core' ? '#e9a950' :
                            wall.subType === 'server_rack' ? '#50e3c2' : '#d7f36b';
           ctx.shadowColor = ledColor;
           ctx.shadowBlur = 6;
@@ -232,19 +280,19 @@ class Renderer {
           ctx.shadowBlur = 0;
         } else {
           // Standard AABB architectural barrier
-          ctx.fillStyle = '#222b27';
+          ctx.fillStyle = '#172633';
           ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
 
           if (wall.w > 8 && wall.h > 8) {
-            ctx.fillStyle = '#2a3530';
+            ctx.fillStyle = '#203545';
             ctx.fillRect(wall.x + 2, wall.y + 2, wall.w - 4, wall.h - 4);
           }
 
-          ctx.strokeStyle = '#3d4d42';
+          ctx.strokeStyle = '#355366';
           ctx.lineWidth = 1;
           ctx.strokeRect(wall.x + 0.5, wall.y + 0.5, wall.w - 1, wall.h - 1);
 
-          ctx.strokeStyle = '#526658';
+          ctx.strokeStyle = '#477184';
           ctx.beginPath();
           ctx.moveTo(wall.x + wall.w - 1, wall.y + 1);
           ctx.lineTo(wall.x + 1, wall.y + 1);
@@ -263,14 +311,14 @@ class Renderer {
       const ey = pt.y;
       const r = 40;
 
-      ctx.fillStyle = 'rgba(39,55,45,0.75)';
+      ctx.fillStyle = 'rgba(14,31,43,0.82)';
       ctx.fillRect(ex - r, ey - r, r * 2, r * 2);
-      ctx.strokeStyle = gameState.extractionCalled ? '#d7f36b' : '#607157';
+      ctx.strokeStyle = gameState.extractionCalled ? '#d7f36b' : '#477184';
       ctx.lineWidth = 2;
       ctx.strokeRect(ex - r, ey - r, r * 2, r * 2);
 
       // Inner pad circle
-      ctx.strokeStyle = gameState.extractionCalled ? '#d7f36b' : '#99b65c';
+      ctx.strokeStyle = gameState.extractionCalled ? '#d7f36b' : '#65ddeb';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.arc(ex, ey, 22, 0, Math.PI * 2);
@@ -440,6 +488,17 @@ class Renderer {
       ctx.fillStyle = '#f5a623';
       ctx.fillRect(2, -2, 8, 4);
       ctx.restore();
+      if (remotePlayer.invulnerable) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(117,221,208,.85)';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = '#75ddd0';
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.arc(remotePlayer.x, remotePlayer.y, 17, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
 
     // Player entity
@@ -458,6 +517,30 @@ class Renderer {
     ctx.fillStyle = '#d7f36b';
     ctx.fillRect(2, -2, 8, 4);
     ctx.restore();
+
+    if (player.invulnerable) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(117,221,208,.92)';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#75ddd0';
+      ctx.shadowBlur = 14;
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, 17, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+    if (player.meleeVisualTimer > 0) {
+      const progress = 1 - player.meleeVisualTimer / 0.22;
+      ctx.save();
+      ctx.strokeStyle = `rgba(215,243,107,${1 - progress * 0.6})`;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = '#d7f36b';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, 18 + 32 * progress, player.angle - 1.25, player.angle + 1.25);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     if (player.downed) {
       ctx.save();
@@ -634,9 +717,9 @@ class Renderer {
       if (!p1 || !p2) {
         // Fallback for AABB doors
         if (!door.open) {
-          ctx.fillStyle = '#1e2621';
+          ctx.fillStyle = '#172b3a';
           ctx.fillRect(door.x, door.y, door.w, door.h);
-          ctx.strokeStyle = '#e8754e';
+          ctx.strokeStyle = '#e9a950';
           ctx.lineWidth = 1.5;
           ctx.strokeRect(door.x + 0.5, door.y + 0.5, door.w - 1, door.h - 1);
         }
@@ -662,16 +745,16 @@ class Renderer {
 
         // Warning amber hazard stripe
         ctx.lineWidth = 3.5;
-        ctx.strokeStyle = '#e8754e';
+        ctx.strokeStyle = '#e9a950';
         ctx.beginPath();
         ctx.moveTo(p1.x, p1.y);
         ctx.lineTo(p2.x, p2.y);
         ctx.stroke();
 
         // Center lock LED (Red glow)
-        ctx.shadowColor = '#ff4d4d';
+        ctx.shadowColor = '#e9a950';
         ctx.shadowBlur = 6;
-        ctx.fillStyle = '#ff4d4d';
+        ctx.fillStyle = '#e9a950';
         ctx.beginPath();
         ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
         ctx.fill();
@@ -679,7 +762,7 @@ class Renderer {
       } else {
         // OPEN: Swung 90° against the wall
         // Doorway jamb stops
-        ctx.fillStyle = '#37453b';
+        ctx.fillStyle = '#284454';
         ctx.beginPath();
         ctx.arc(p1.x, p1.y, 5, 0, Math.PI * 2);
         ctx.arc(p2.x, p2.y, 5, 0, Math.PI * 2);
@@ -694,7 +777,7 @@ class Renderer {
 
         ctx.lineWidth = 6;
         ctx.lineCap = 'round';
-        ctx.strokeStyle = '#26382f';
+        ctx.strokeStyle = '#284454';
         ctx.beginPath();
         ctx.moveTo(p1.x, p1.y);
         ctx.lineTo(slabEndX, slabEndY);
@@ -866,7 +949,7 @@ class Renderer {
     const size = 176;
 
     miniCtx.clearRect(0, 0, size, size);
-    miniCtx.fillStyle = '#040806';
+    miniCtx.fillStyle = '#04101b';
     miniCtx.fillRect(0, 0, size, size);
 
     const isRevealed = gameState && gameState.revealAllMap;
@@ -886,18 +969,18 @@ class Renderer {
       if (Math.hypot(rx - player.x, ry - player.y) > 1650) return;
       if (!room.discovered && !isRevealed) return;
 
-      let roomFill = 'rgba(215, 243, 107, 0.08)';
-      let roomStroke = room.accent || 'rgba(117, 221, 208, 0.55)';
-      let labelFill = 'rgba(215, 243, 107, 0.85)';
+      let roomFill = 'rgba(101, 221, 235, 0.09)';
+      let roomStroke = room.accent || 'rgba(101, 221, 235, 0.65)';
+      let labelFill = 'rgba(190, 239, 242, 0.9)';
 
       if (room.isStart || room.type === 'airlock') {
-        roomFill = 'rgba(59, 130, 246, 0.22)';
-        roomStroke = '#3b82f6';
-        labelFill = '#60a5fa';
+        roomFill = 'rgba(215, 243, 107, 0.12)';
+        roomStroke = '#d7f36b';
+        labelFill = '#d7f36b';
       } else if (room.isExit || room.type === 'evacpod') {
-        roomFill = 'rgba(239, 68, 68, 0.22)';
-        roomStroke = '#ef4444';
-        labelFill = '#f87171';
+        roomFill = 'rgba(233, 169, 80, 0.18)';
+        roomStroke = '#e9a950';
+        labelFill = '#ffd18a';
       }
 
       miniCtx.save();
@@ -1173,10 +1256,13 @@ class Renderer {
     const scale = Math.min(availW / roomSpanW, availH / roomSpanH);
     const offsetX = pad + (availW - roomSpanW * scale) / 2 - minRX * scale;
     const offsetY = pad + (availH - roomSpanH * scale) / 2 - minRY * scale;
+    const zoom = Math.max(0.5, Math.min(4, Number(gameState && gameState.fullMapZoom) || 1));
+    const panX = Number(gameState && gameState.fullMapPanX) || 0;
+    const panY = Number(gameState && gameState.fullMapPanY) || 0;
 
     ctx.save();
-    ctx.translate(offsetX, offsetY);
-    ctx.scale(scale, scale);
+    ctx.translate(panX + offsetX * zoom, panY + offsetY * zoom);
+    ctx.scale(scale * zoom, scale * zoom);
 
     // 1. Draw Rooms
     mapManager.worldRooms.forEach(room => {
@@ -1189,9 +1275,9 @@ class Renderer {
             ctx.lineTo(room.vertices[i].x, room.vertices[i].y);
           }
           ctx.closePath();
-          ctx.fillStyle = 'rgba(18, 25, 22, 0.4)';
+          ctx.fillStyle = 'rgba(8, 19, 31, 0.48)';
           ctx.fill();
-          ctx.strokeStyle = 'rgba(60, 80, 70, 0.3)';
+          ctx.strokeStyle = 'rgba(101, 221, 235, 0.28)';
           ctx.lineWidth = 1.5;
           ctx.stroke();
         }
@@ -1208,17 +1294,17 @@ class Renderer {
         ctx.closePath();
         const isStart = room.isStart || room.type === 'airlock';
         const isExit = room.isExit || room.type === 'evacpod';
-        ctx.fillStyle = isExit ? 'rgba(239, 68, 68, 0.22)' : (isStart ? 'rgba(59, 130, 246, 0.22)' : 'rgba(215, 243, 107, 0.08)');
+        ctx.fillStyle = isExit ? 'rgba(233, 169, 80, 0.22)' : (isStart ? 'rgba(215, 243, 107, 0.14)' : 'rgba(101, 221, 235, 0.08)');
         ctx.fill();
-        ctx.strokeStyle = isExit ? '#ef4444' : (isStart ? '#3b82f6' : (room.accent || '#75ddd0'));
+        ctx.strokeStyle = isExit ? '#e9a950' : (isStart ? '#d7f36b' : (room.accent || '#65ddeb'));
         ctx.lineWidth = 3;
         ctx.stroke();
       } else {
         const isStart = room.isStart || room.type === 'airlock';
         const isExit = room.isExit || room.type === 'evacpod';
-        ctx.fillStyle = isExit ? 'rgba(239, 68, 68, 0.22)' : (isStart ? 'rgba(59, 130, 246, 0.22)' : 'rgba(215, 243, 107, 0.08)');
+        ctx.fillStyle = isExit ? 'rgba(233, 169, 80, 0.22)' : (isStart ? 'rgba(215, 243, 107, 0.14)' : 'rgba(101, 221, 235, 0.08)');
         ctx.fillRect(room.x, room.y, room.w, room.h);
-        ctx.strokeStyle = isExit ? '#ef4444' : (isStart ? '#3b82f6' : '#75ddd0');
+        ctx.strokeStyle = isExit ? '#e9a950' : (isStart ? '#d7f36b' : '#65ddeb');
         ctx.lineWidth = 2.5;
         ctx.strokeRect(room.x, room.y, room.w, room.h);
       }
@@ -1234,15 +1320,15 @@ class Renderer {
 
       // Sub-label for special rooms
       if (room.isStart || room.type === 'airlock') {
-        ctx.fillStyle = '#3b82f6';
+        ctx.fillStyle = '#d7f36b';
         ctx.font = '12px monospace';
         ctx.fillText('[ 起降气闸 ]', rx, ry + 14);
       } else if (room.isExit || room.type === 'evacpod') {
-        ctx.fillStyle = '#ef4444';
+        ctx.fillStyle = '#e9a950';
         ctx.font = '12px monospace';
         ctx.fillText('[ 逃生撤离舱 ]', rx, ry + 14);
       } else if (room.type === 'reactor' || room.type === 'quantum_core') {
-        ctx.fillStyle = '#e8754e';
+        ctx.fillStyle = '#e9a950';
         ctx.font = '12px monospace';
         ctx.fillText('[ 高压核心 ]', rx, ry + 14);
       }
@@ -1255,7 +1341,7 @@ class Renderer {
         const nearDiscovered = isRevealed || mapManager.worldRooms.some(r => r.discovered && distToSegment(r.center.x, r.center.y, wall.x1, wall.y1, wall.x2, wall.y2) < 450);
         if (nearDiscovered) {
           ctx.lineWidth = 3.5;
-          ctx.strokeStyle = 'rgba(215, 243, 107, 0.6)';
+          ctx.strokeStyle = 'rgba(101, 221, 235, 0.6)';
           ctx.beginPath();
           ctx.moveTo(wall.x1, wall.y1);
           ctx.lineTo(wall.x2, wall.y2);
@@ -1267,9 +1353,9 @@ class Renderer {
         const r = mapManager.getRoomAt(wallCenterX, wallCenterY);
         if (isRevealed || (r && r.discovered)) {
           if (wall.isBox) {
-            ctx.fillStyle = '#e8754e';
+            ctx.fillStyle = '#e9a950';
           } else if (wall.isProp) {
-            ctx.fillStyle = '#50e3c2';
+            ctx.fillStyle = '#65ddeb';
           } else {
             ctx.fillStyle = 'rgba(215, 243, 107, 0.35)';
           }

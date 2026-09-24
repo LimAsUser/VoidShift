@@ -104,6 +104,150 @@ function bfsRoomPath(fromRoom, toRoom) {
   return [];
 }
 
+function getRoomGraphDistances(fromRoom) {
+  const distances = new Map([[fromRoom, 0]]);
+  const queue = [fromRoom];
+  for (let head = 0; head < queue.length; head++) {
+    const room = queue[head];
+    for (const door of room.doors) {
+      const next = door.roomA === room ? door.roomB : door.roomA;
+      if (distances.has(next)) continue;
+      distances.set(next, distances.get(room) + 1);
+      queue.push(next);
+    }
+  }
+  return distances;
+}
+
+function findSafeLoopDoorCandidates(rooms) {
+  const linkedPairs = new Set();
+  rooms.forEach(room => room.doors.forEach(door => {
+    const ids = [door.roomA.id, door.roomB.id].sort((a, b) => a - b);
+    linkedPairs.add(`${ids[0]}:${ids[1]}`);
+  }));
+
+  const roomArea = vertices => vertices.reduce((sum, point, index) => {
+    const next = vertices[(index + 1) % vertices.length];
+    return sum + point.x * next.y - next.x * point.y;
+  }, 0) / 2;
+  const allEdges = rooms.flatMap(room => room.vertices.map((a, index) => ({
+    room,
+    index,
+    a,
+    b: room.vertices[(index + 1) % room.vertices.length]
+  })));
+  const candidates = [];
+
+  for (let roomAIndex = 0; roomAIndex < rooms.length; roomAIndex++) {
+    const roomA = rooms[roomAIndex];
+    const verticesA = roomA.vertices;
+    const outwardA = roomArea(verticesA) > 0 ? 1 : -1;
+    const edgesA = verticesA.map((a, index) => {
+      const b = verticesA[(index + 1) % verticesA.length];
+      const length = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const tx = (b.x - a.x) / length;
+      const ty = (b.y - a.y) / length;
+      return { a, b, tx, ty, nx: ty * outwardA, ny: -tx * outwardA };
+    });
+
+    for (let roomBIndex = roomAIndex + 1; roomBIndex < rooms.length; roomBIndex++) {
+      const roomB = rooms[roomBIndex];
+      const pairIds = [roomA.id, roomB.id].sort((a, b) => a - b);
+      if (linkedPairs.has(`${pairIds[0]}:${pairIds[1]}`)) continue;
+      const verticesB = roomB.vertices;
+      const outwardB = roomArea(verticesB) > 0 ? 1 : -1;
+
+      for (let edgeAIndex = 0; edgeAIndex < edgesA.length; edgeAIndex++) {
+        const edgeA = edgesA[edgeAIndex];
+        const normalProjectionA = (edgeA.a.x + edgeA.b.x) / 2 * edgeA.nx +
+          (edgeA.a.y + edgeA.b.y) / 2 * edgeA.ny;
+        const tangentProjectionA = point => point.x * edgeA.tx + point.y * edgeA.ty;
+        const edgeAMin = Math.min(tangentProjectionA(edgeA.a), tangentProjectionA(edgeA.b));
+        const edgeAMax = Math.max(tangentProjectionA(edgeA.a), tangentProjectionA(edgeA.b));
+
+        for (let edgeBIndex = 0; edgeBIndex < verticesB.length; edgeBIndex++) {
+          const edgeA2 = verticesB[edgeBIndex];
+          const edgeB2 = verticesB[(edgeBIndex + 1) % verticesB.length];
+          const lengthB = Math.hypot(edgeB2.x - edgeA2.x, edgeB2.y - edgeA2.y) || 1;
+          const txB = (edgeB2.x - edgeA2.x) / lengthB;
+          const tyB = (edgeB2.y - edgeA2.y) / lengthB;
+          const nxB = tyB * outwardB;
+          const nyB = -txB * outwardB;
+          if (Math.abs(edgeA.tx * txB + edgeA.ty * tyB) < 0.98 ||
+              edgeA.nx * nxB + edgeA.ny * nyB > -0.95) continue;
+
+          const normalProjectionB = (edgeA2.x + edgeB2.x) / 2 * edgeA.nx +
+            (edgeA2.y + edgeB2.y) / 2 * edgeA.ny;
+          const gap = normalProjectionB - normalProjectionA;
+          if (gap < 0 || gap > 24) continue;
+
+          const edgeBMin = Math.min(tangentProjectionA(edgeA2), tangentProjectionA(edgeB2));
+          const edgeBMax = Math.max(tangentProjectionA(edgeA2), tangentProjectionA(edgeB2));
+          const overlapMin = Math.max(edgeAMin, edgeBMin);
+          const overlapMax = Math.min(edgeAMax, edgeBMax);
+          if (overlapMax - overlapMin < 56) continue;
+
+          const centerAlong = (overlapMin + overlapMax) / 2;
+          const centerNormal = (normalProjectionA + normalProjectionB) / 2;
+          const center = {
+            x: edgeA.tx * centerAlong + edgeA.nx * centerNormal,
+            y: edgeA.ty * centerAlong + edgeA.ny * centerNormal
+          };
+          if (distToSegment(center.x, center.y, edgeA.a.x, edgeA.a.y, edgeA.b.x, edgeA.b.y) >= 12 ||
+              distToSegment(center.x, center.y, edgeA2.x, edgeA2.y, edgeB2.x, edgeB2.y) >= 12) continue;
+          const doorTangent = { x: -edgeA.ny, y: edgeA.nx };
+          const clearance = (Config.hunter && Config.hunter.radius || 15) + 8;
+          let blockedByNearbyWall = false;
+          for (const wallEdge of allEdges) {
+            if ((wallEdge.room === roomA && wallEdge.index === edgeAIndex) ||
+                (wallEdge.room === roomB && wallEdge.index === edgeBIndex)) continue;
+            const edgeMinX = Math.min(wallEdge.a.x, wallEdge.b.x);
+            const edgeMaxX = Math.max(wallEdge.a.x, wallEdge.b.x);
+            const edgeMinY = Math.min(wallEdge.a.y, wallEdge.b.y);
+            const edgeMaxY = Math.max(wallEdge.a.y, wallEdge.b.y);
+            if (edgeMaxX < center.x - 48 || edgeMinX > center.x + 48 ||
+                edgeMaxY < center.y - 40 || edgeMinY > center.y + 40) continue;
+            for (const normalOffset of [-18, -9, 0, 9, 18]) {
+              for (const tangentOffset of [-12, 0, 12]) {
+                const sampleX = center.x + edgeA.nx * normalOffset + doorTangent.x * tangentOffset;
+                const sampleY = center.y + edgeA.ny * normalOffset + doorTangent.y * tangentOffset;
+                if (distToSegment(sampleX, sampleY, wallEdge.a.x, wallEdge.a.y, wallEdge.b.x, wallEdge.b.y) < clearance) {
+                  blockedByNearbyWall = true;
+                  break;
+                }
+              }
+              if (blockedByNearbyWall) break;
+            }
+            if (blockedByNearbyWall) break;
+          }
+          if (blockedByNearbyWall) continue;
+          const nearExistingDoor = roomA.doors.concat(roomB.doors).some(door => {
+            const x = (door.p1.x + door.p2.x) / 2;
+            const y = (door.p1.y + door.p2.y) / 2;
+            return Math.hypot(center.x - x, center.y - y) < 80;
+          });
+          if (nearExistingDoor) continue;
+
+          const tangent = { x: -edgeA.ny, y: edgeA.nx };
+          const halfWidth = 28;
+          candidates.push({
+            roomA,
+            roomB,
+            gap,
+            overlap: overlapMax - overlapMin,
+            center,
+            normal: { x: edgeA.nx, y: edgeA.ny },
+            p1: { x: center.x - tangent.x * halfWidth, y: center.y - tangent.y * halfWidth },
+            p2: { x: center.x + tangent.x * halfWidth, y: center.y + tangent.y * halfWidth }
+          });
+        }
+      }
+    }
+  }
+
+  return candidates.sort((a, b) => a.gap - b.gap || b.overlap - a.overlap);
+}
+
 const RoomTemplates = {
   square: () => {
     const w = 580, h = 580;
@@ -237,9 +381,14 @@ class MapManager {
     this.monsterSpawns = [];
 
     const templateKeys = ['square', 'rect', 'l_shape', 'pentagon', 'triangle', 'corridor'];
+    const loopTargets = { small: 1, medium: 2, large: 3 };
+    const targetLoops = loopTargets[scaleKey] || 1;
     let placedRooms = null;
+    let placedLoopCandidates = [];
+    let fallbackLayout = null;
 
     for (let attempt = 0; attempt < 50; attempt++) {
+      this.doors = [];
       const rootTpl = RoomTemplates.square();
       const rootRoom = {
         id: 1,
@@ -366,14 +515,71 @@ class MapManager {
       }
 
       if (currentRooms.length === targetCount) {
-        placedRooms = currentRooms;
-        break;
+        const candidates = findSafeLoopDoorCandidates(currentRooms);
+        const selected = [];
+        const loopRooms = new Set();
+        const selectedPairs = new Set();
+        for (const allowSharedRoom of [false, true]) {
+          for (const candidate of candidates) {
+            const pairIds = [candidate.roomA.id, candidate.roomB.id].sort((a, b) => a - b);
+            const pairKey = `${pairIds[0]}:${pairIds[1]}`;
+            if (selectedPairs.has(pairKey) ||
+                (!allowSharedRoom && (loopRooms.has(candidate.roomA) || loopRooms.has(candidate.roomB)))) continue;
+            selected.push(candidate);
+            selectedPairs.add(pairKey);
+            loopRooms.add(candidate.roomA);
+            loopRooms.add(candidate.roomB);
+            if (selected.length >= targetLoops) break;
+          }
+          if (selected.length >= targetLoops) break;
+        }
+
+        if (!fallbackLayout || selected.length > fallbackLayout.loopCandidates.length) {
+          fallbackLayout = {
+            rooms: currentRooms,
+            doors: [...this.doors],
+            loopCandidates: selected
+          };
+        }
+        if (selected.length >= targetLoops) {
+          placedRooms = currentRooms;
+          placedLoopCandidates = selected;
+          break;
+        }
       }
+    }
+
+    if (!placedRooms && fallbackLayout) {
+      placedRooms = fallbackLayout.rooms;
+      this.doors = fallbackLayout.doors;
+      placedLoopCandidates = fallbackLayout.loopCandidates;
     }
 
     if (!placedRooms) {
       throw new Error(`Failed to generate organic station of ${targetCount} rooms`);
     }
+
+    placedLoopCandidates.slice(0, targetLoops).forEach(candidate => {
+      const doorObj = {
+        id: `loop_${candidate.roomA.id}_${candidate.roomB.id}`,
+        x: candidate.center.x - 12,
+        y: candidate.center.y - 12,
+        w: 24,
+        h: 24,
+        p1: candidate.p1,
+        p2: candidate.p2,
+        normal: candidate.normal,
+        axis: Math.abs(candidate.normal.y) > 0.5 ? 'h' : 'v',
+        roomA: candidate.roomA,
+        roomB: candidate.roomB,
+        open: false,
+        openDir: 1,
+        isLoop: true
+      };
+      this.doors.push(doorObj);
+      candidate.roomA.doors.push(doorObj);
+      candidate.roomB.doors.push(doorObj);
+    });
 
     // Shift to positive world coordinates
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -429,17 +635,18 @@ class MapManager {
     const airlock = placedRooms[0];
     airlock.type = 'airlock';
 
-    // Evac Pod furthest from Airlock
-    let maxDist = -1;
-    let exitRoom = placedRooms[1];
-    placedRooms.forEach(r => {
-      if (r === airlock) return;
-      const d = Vec2.dist(airlock.center, r.center);
-      if (d > maxDist) {
-        maxDist = d;
-        exitRoom = r;
-      }
-    });
+    // Place extraction at the end of the longest navigable route, not just the farthest Euclidean point.
+    const airlockDistances = getRoomGraphDistances(airlock);
+    const exitCandidates = placedRooms.filter(r => r !== airlock && r.doors.length > 1);
+    const exitPool = exitCandidates.length ? exitCandidates : placedRooms.filter(r => r !== airlock);
+    const exitRoom = exitPool.reduce((farthest, room) => {
+      const distance = airlockDistances.get(room) || 0;
+      const farthestDistance = airlockDistances.get(farthest) || 0;
+      return distance > farthestDistance ||
+        (distance === farthestDistance && Vec2.dist(room.center, airlock.center) > Vec2.dist(farthest.center, airlock.center))
+        ? room
+        : farthest;
+    }, exitPool[0] || placedRooms[1]);
     exitRoom.type = 'evacpod';
 
     // 22 Distinct Functional Room Types Pool
@@ -550,13 +757,31 @@ class MapManager {
     }
 
     // Security Override QTE Terminals
-    const candidateRooms = placedRooms.filter(r => r.type !== 'airlock' && r.type !== 'evacpod');
-    for (let i = candidateRooms.length - 1; i > 0; i--) {
-      const j = Math.floor(this.random() * (i + 1));
-      [candidateRooms[i], candidateRooms[j]] = [candidateRooms[j], candidateRooms[i]];
-    }
     const terminalCount = scaleConfig.terminals || 3;
-    const chosenRooms = candidateRooms.slice(0, terminalCount);
+    let candidateRooms = placedRooms.filter(r => r.type !== 'airlock' && r.type !== 'evacpod' && r.doors.length > 1);
+    if (candidateRooms.length < terminalCount) {
+      candidateRooms = placedRooms.filter(r => r.type !== 'airlock' && r.type !== 'evacpod');
+    }
+    const terminalDistances = new Map(candidateRooms.map(room => [room, getRoomGraphDistances(room)]));
+    const chosenRooms = [];
+    while (chosenRooms.length < terminalCount && candidateRooms.length) {
+      let bestScore = -Infinity;
+      let bestRooms = [];
+      candidateRooms.forEach(room => {
+        const distances = terminalDistances.get(room);
+        const anchors = [airlock, exitRoom, ...chosenRooms];
+        const score = Math.min(...anchors.map(anchor => distances.get(anchor) ?? 0));
+        if (score > bestScore) {
+          bestScore = score;
+          bestRooms = [room];
+        } else if (score === bestScore) {
+          bestRooms.push(room);
+        }
+      });
+      const selected = bestRooms[Math.floor(this.random() * bestRooms.length)];
+      chosenRooms.push(selected);
+      candidateRooms = candidateRooms.filter(room => room !== selected);
+    }
     this.terminals = chosenRooms.map((room, idx) => {
       const pos = this.findWallMountedTerminalPos(room);
       // Register terminal console pillar in physical walls list
@@ -892,6 +1117,84 @@ class MapManager {
     }
   }
 
+  _doorBlocksPoint(door, x, y, padding) {
+    if (door.p1 && door.p2) {
+      return distToSegment(x, y, door.p1.x, door.p1.y, door.p2.x, door.p2.y) < padding + 8;
+    }
+    if (door.x !== undefined) {
+      return x > door.x - padding && x < door.x + door.w + padding &&
+        y > door.y - padding && y < door.y + door.h + padding;
+    }
+    return false;
+  }
+
+  planDoorwayClearance(door, players = []) {
+    if (!door || !door.open || !Array.isArray(players)) return [];
+    const actors = [...new Set(players.filter(player => player && Number.isFinite(player.x) && Number.isFinite(player.y)))];
+    const radiusFor = player => Number.isFinite(player.radius) ? player.radius : Config.player.radius;
+    const occupants = actors.filter(player => this._doorBlocksPoint(door, player.x, player.y, radiusFor(player)));
+    if (!occupants.length) return [];
+
+    const centerX = door.p1 && door.p2 ? (door.p1.x + door.p2.x) / 2 : door.x + door.w / 2;
+    const centerY = door.p1 && door.p2 ? (door.p1.y + door.p2.y) / 2 : door.y + door.h / 2;
+    let normalX = door.normal && Number.isFinite(door.normal.x) ? door.normal.x : (door.axis === 'v' ? 1 : 0);
+    let normalY = door.normal && Number.isFinite(door.normal.y) ? door.normal.y : (door.axis === 'h' ? 1 : 0);
+    const normalLength = Math.hypot(normalX, normalY);
+    if (normalLength < 0.001) return null;
+    normalX /= normalLength;
+    normalY /= normalLength;
+
+    const occupantSet = new Set(occupants);
+    const moves = [];
+    const assignNext = index => {
+      if (index >= occupants.length) return true;
+      const actor = occupants[index];
+      const radius = radiusFor(actor);
+      const sideDistance = (actor.x - centerX) * normalX + (actor.y - centerY) * normalY;
+      const preferredSide = Math.abs(sideDistance) < 0.001 ? -1 : Math.sign(sideDistance);
+      const initialOffset = door.p1 && door.p2
+        ? radius + 12
+        : radius + (door.axis === 'v' ? door.w / 2 : door.h / 2) + 4;
+      const candidates = [];
+
+      for (const side of [preferredSide, -preferredSide]) {
+        for (const distance of [0, 12, 24, 36, 48].map(offset => initialOffset + offset)) {
+          const x = centerX + normalX * side * distance;
+          const y = centerY + normalY * side * distance;
+          candidates.push({
+            x,
+            y,
+            side,
+            travel: Math.hypot(x - actor.x, y - actor.y)
+          });
+        }
+      }
+      candidates.sort((a, b) => a.travel - b.travel || (a.side === b.side ? 0 : a.side === preferredSide ? -1 : 1));
+
+      for (const candidate of candidates) {
+        if (this._doorBlocksPoint(door, candidate.x, candidate.y, radius) ||
+            this.blocked(candidate.x, candidate.y, radius)) continue;
+
+        const overlapsPlayer = actors.some(other => {
+          if (other === actor) return false;
+          const planned = moves.find(move => move.player === other);
+          if (!planned && occupantSet.has(other)) return false;
+          const otherX = planned ? planned.x : other.x;
+          const otherY = planned ? planned.y : other.y;
+          return Math.hypot(candidate.x - otherX, candidate.y - otherY) < radius + radiusFor(other) + 2;
+        });
+        if (overlapsPlayer) continue;
+
+        moves.push({ player: actor, x: candidate.x, y: candidate.y });
+        if (assignNext(index + 1)) return true;
+        moves.pop();
+      }
+      return false;
+    };
+
+    return assignNext(0) ? moves : null;
+  }
+
   blocked(x, y, padding = 10) {
     // 1. World outer boundary limit
     if (x < padding || x > Config.WORLD_W - padding || 
@@ -902,18 +1205,7 @@ class MapManager {
     // 2. Closed doors physically block movement
     for (let i = 0; i < this.doors.length; i++) {
       const d = this.doors[i];
-      if (!d.open) {
-        if (d.p1 && d.p2) {
-          if (distToSegment(x, y, d.p1.x, d.p1.y, d.p2.x, d.p2.y) < padding + 8) {
-            return true;
-          }
-        } else if (d.x !== undefined) {
-          if (x > d.x - padding && x < d.x + d.w + padding && 
-              y > d.y - padding && y < d.y + d.h + padding) {
-            return true;
-          }
-        }
-      }
+      if (!d.open && this._doorBlocksPoint(d, x, y, padding)) return true;
     }
 
     // 3. Walls (line segments and AABB obstacles)

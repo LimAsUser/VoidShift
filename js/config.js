@@ -17,16 +17,37 @@ const Config = {
 
   // Facility Scale Presets: Small (12), Medium (18), Large (24)
   mapScales: {
-    small: { id: 'small', label: '小型 (12 舱)', cols: 4, rows: 3, roomCount: 12, quota: 420, terminals: 3, hunters: 24, hunterSpawnInterval: 30, hunterRespawnCount: 1, hunterMaxHp: 2 },
-    medium: { id: 'medium', label: '中型 (18 舱)', cols: 6, rows: 3, roomCount: 18, quota: 780, terminals: 3, hunters: 32, hunterSpawnInterval: 30, hunterRespawnCount: 2, hunterMaxHp: 2 },
-    large: { id: 'large', label: '大型 (24 舱)', cols: 6, rows: 4, roomCount: 24, quota: 1200, terminals: 4, hunters: 50, hunterSpawnInterval: 30, hunterRespawnCount: 3, hunterMaxHp: 2 }
+    small: { id: 'small', label: '小型 (12 舱)', cols: 4, rows: 3, roomCount: 12, quota: 420, terminals: 3, hunters: 4, hunterSpawnInterval: 30, hunterRespawnCount: 1, hunterMaxHp: 2 },
+    medium: { id: 'medium', label: '中型 (18 舱)', cols: 6, rows: 3, roomCount: 18, quota: 780, terminals: 3, hunters: 6, hunterSpawnInterval: 30, hunterRespawnCount: 2, hunterMaxHp: 2 },
+    large: { id: 'large', label: '大型 (24 舱)', cols: 6, rows: 4, roomCount: 24, quota: 1200, terminals: 4, hunters: 8, hunterSpawnInterval: 30, hunterRespawnCount: 3, hunterMaxHp: 2 }
   },
   currentScale: 'small',
 
   difficultyPresets: {
-    easy: { id: 'easy', label: '简单', hunterScale: 0.5, respawnScale: 0.5, intervalScale: 1, hunterMaxHp: 1 },
-    medium: { id: 'medium', label: '中等', hunterScale: 1, respawnScale: 1, intervalScale: 1, hunterMaxHp: 2 },
-    hard: { id: 'hard', label: '困难', hunterScale: 1, respawnScale: 1, intervalScale: 1, hunterMaxHp: 5 }
+    easy: {
+      id: 'easy', label: '简单', finalTerminalSpawnCount: 3, finalTerminalSpawnInterval: 30,
+      maps: {
+        small: { hunters: 2, hunterMaxHp: 1, hunterRespawnCount: 1, hunterSpawnInterval: 30 },
+        medium: { hunters: 4, hunterMaxHp: 1, hunterRespawnCount: 1, hunterSpawnInterval: 30 },
+        large: { hunters: 6, hunterMaxHp: 1, hunterRespawnCount: 1, hunterSpawnInterval: 30 }
+      }
+    },
+    medium: {
+      id: 'medium', label: '中等', finalTerminalSpawnCount: 5, finalTerminalSpawnInterval: 30,
+      maps: {
+        small: { hunters: 4, hunterMaxHp: 2, hunterRespawnCount: 1, hunterSpawnInterval: 30 },
+        medium: { hunters: 6, hunterMaxHp: 2, hunterRespawnCount: 2, hunterSpawnInterval: 30 },
+        large: { hunters: 8, hunterMaxHp: 2, hunterRespawnCount: 3, hunterSpawnInterval: 30 }
+      }
+    },
+    hard: {
+      id: 'hard', label: '困难', finalTerminalSpawnCount: 8, finalTerminalSpawnInterval: 30,
+      maps: {
+        small: { hunters: 5, hunterMaxHp: 3, hunterRespawnCount: 2, hunterSpawnInterval: 30 },
+        medium: { hunters: 8, hunterMaxHp: 3, hunterRespawnCount: 3, hunterSpawnInterval: 30 },
+        large: { hunters: 12, hunterMaxHp: 3, hunterRespawnCount: 4, hunterSpawnInterval: 30 }
+      }
+    }
   },
 
   // Calculated dynamic world dimensions
@@ -55,11 +76,15 @@ const Config = {
     radius: 10,
     speed: 70,
     sprintSpeed: 100,
-    maxAmmo: 6,
-    maxReserveAmmo: 9000,
-    reloadDuration: 1.2,
-    shootCooldownDuration: 0.38,
-    ammoPrice: 50,
+    dodgeDistance: 100,
+    dodgeDuration: 0.35,
+    dodgeStaminaCost: 20,
+    staminaRegenDelay: 1,
+    meleeRange: 50,
+    meleeStaminaCost: 10,
+    meleeCooldown: 1,
+    meleeDamage: 1,
+    meleeKnockback: 50,
     noiseDecayStill: 4,
     noiseDecayMoving: 2,
     walkNoiseCap: 10,
@@ -74,29 +99,86 @@ const Config = {
     pistol: {
       id: 'pistol',
       label: '手枪',
+      slot: 'sidearm',
       maxAmmo: 6,
+      initialReserve: 120,
+      purchasePrice: 0,
       shootCooldownDuration: 0.38,
       reloadDuration: 1.2,
+      reloadMode: 'magazine',
       hipSpread: 0.38,
       aimSpread: 0.01,
       shotNoise: 2,
       recoilAim: 16,
       recoilHip: 28,
-      automatic: false
+      automatic: false,
+      damage: 1,
+      penetrationTargets: 1
     },
     smg: {
       id: 'smg',
       label: '冲锋枪',
-      maxAmmo: 30,
+      slot: 'primary',
+      maxAmmo: 24,
+      initialReserve: 240,
+      purchasePrice: 2000,
       shootCooldownDuration: 0.1,
       reloadDuration: 1.8,
+      reloadMode: 'magazine',
       hipSpread: 0.52,
       aimSpread: 0.04,
       shotNoise: 2,
       recoilAim: 2,
       recoilHip: 4,
-      automatic: true
+      automatic: true,
+      damage: 1,
+      penetrationTargets: 1
+    },
+    shotgun: {
+      id: 'shotgun',
+      label: '散弹枪',
+      slot: 'primary',
+      maxAmmo: 8,
+      initialReserve: 80,
+      purchasePrice: 2000,
+      shootCooldownDuration: 0.8,
+      reloadDuration: 0.5,
+      reloadMode: 'shell',
+      pelletCount: 4,
+      hipSpreadDegrees: 40,
+      aimSpreadDegrees: 8,
+      shotNoise: 4,
+      recoilAim: 8,
+      recoilHip: 22,
+      automatic: false,
+      damage: 1,
+      penetrationTargets: 1
+    },
+    revolver: {
+      id: 'revolver',
+      label: '左轮',
+      slot: 'sidearm',
+      maxAmmo: 4,
+      initialReserve: 24,
+      purchasePrice: 2000,
+      shootCooldownDuration: 1.2,
+      reloadDuration: 1,
+      reloadMode: 'shell',
+      hipSpread: 0.38,
+      aimSpread: 0.01,
+      shotNoise: 2,
+      recoilAim: 18,
+      recoilHip: 32,
+      automatic: false,
+      damage: 1,
+      penetrationTargets: 3
     }
+  },
+
+  ammo: {
+    standardUnitsPerRound: { pistol: 1, smg: 1, revolver: 2, shotgun: 4 },
+    unitsPerPurchase: 100,
+    pricePerPurchase: 1000
   },
 
   monster: {
@@ -133,7 +215,6 @@ const Config = {
     hitStagger: 0.5,
     knockback: 10,
     deathFadeDuration: 0.6,
-    finalTerminalRespawnMultiplier: 10,
     traitChance: 0.3,
     traitTypes: ['photophobic', 'slim', 'reviver'],
     lightIgnoreDistance: 50,

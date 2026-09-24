@@ -8,10 +8,69 @@ class Player {
     this.reset();
   }
 
+  static createDefaultArmory() {
+    const weaponAmmo = {};
+    Object.keys(Config.weapons).forEach(weaponId => {
+      weaponAmmo[weaponId] = { magazine: 0, reserve: 0 };
+    });
+    weaponAmmo.pistol = { magazine: Config.weapons.pistol.maxAmmo, reserve: 120 };
+    return {
+      ownedWeapons: { pistol: true, smg: false, shotgun: false, revolver: false },
+      loadout: { primary: null, sidearm: 'pistol' },
+      activeSlot: 'sidearm',
+      weaponAmmo,
+      standardAmmoUnits: 0
+    };
+  }
+
+  static normalizeArmory(data = null) {
+    const defaults = Player.createDefaultArmory();
+    if (!data || typeof data !== 'object') return defaults;
+    const ownedWeapons = { ...defaults.ownedWeapons };
+    for (const weaponId of Object.keys(Config.weapons)) {
+      if (typeof data.ownedWeapons?.[weaponId] === 'boolean') {
+        ownedWeapons[weaponId] = data.ownedWeapons[weaponId];
+      }
+    }
+    ownedWeapons.pistol = true;
+
+    const loadout = { primary: null, sidearm: 'pistol' };
+    const primary = Config.weapons[data.loadout?.primary];
+    const sidearm = Config.weapons[data.loadout?.sidearm];
+    if (primary && primary.slot === 'primary' && ownedWeapons[primary.id]) loadout.primary = primary.id;
+    if (sidearm && sidearm.slot === 'sidearm' && ownedWeapons[sidearm.id]) loadout.sidearm = sidearm.id;
+
+    const weaponAmmo = {};
+    for (const weaponId of Object.keys(Config.weapons)) {
+      const saved = data.weaponAmmo?.[weaponId] || {};
+      const defaultState = defaults.weaponAmmo[weaponId];
+      const magazine = Number(saved.magazine);
+      const reserve = Number(saved.reserve);
+      weaponAmmo[weaponId] = ownedWeapons[weaponId]
+        ? {
+            magazine: Number.isFinite(magazine) ? Math.max(0, Math.min(Config.weapons[weaponId].maxAmmo, Math.floor(magazine))) : defaultState.magazine,
+            reserve: Number.isFinite(reserve) ? Math.max(0, Math.floor(reserve)) : defaultState.reserve
+          }
+        : { magazine: 0, reserve: 0 };
+    }
+
+    const standardAmmoUnits = Number(data.standardAmmoUnits);
+    const activeSlot = data.activeSlot === 'primary' && loadout.primary
+      ? 'primary'
+      : data.activeSlot === 'sidearm' ? 'sidearm' : loadout.primary ? 'primary' : 'sidearm';
+    return {
+      ownedWeapons,
+      loadout,
+      activeSlot,
+      weaponAmmo,
+      standardAmmoUnits: Number.isFinite(standardAmmoUnits) ? Math.max(0, Math.floor(standardAmmoUnits)) : 0
+    };
+  }
+
   /**
    * Resets player telemetry and position
    */
-  reset(mapManager, weaponId = this.weaponId || 'pistol') {
+  reset(mapManager, armory = null, activeSlot = null) {
     this.x = (mapManager && mapManager.spawnPoint) ? mapManager.spawnPoint.x : Config.player.spawnX;
     this.y = (mapManager && mapManager.spawnPoint) ? mapManager.spawnPoint.y : Config.player.spawnY;
     this.radius = Config.player.radius;
@@ -22,33 +81,155 @@ class Player {
     this.oxygen = 100;
     this.health = 100;
     this.stamina = 100;
+    this.staminaLocked = false;
+    this.staminaRegenDelay = 0;
     this.noise = 0;
-    
-    // Weapon stats
+
     this.flashlight = true;
-    this.reserveAmmo = Config.player.maxReserveAmmo;
-    this.setWeapon(weaponId);
+    this.configureArmory(armory || this.armory || Player.createDefaultArmory(), activeSlot);
+    this.weaponTimers = Object.fromEntries(Object.keys(Config.weapons).map(weaponId => [weaponId, {
+      shootCooldown: 0, reloadTimer: 0, reloadMode: null
+    }]));
     this.moveSpeed = 0;
+    this.dodgeTimer = 0;
+    this.dodgeDirectionX = 0;
+    this.dodgeDirectionY = 0;
+    this.invulnerableThisFrame = false;
+    this.meleeCooldown = 0;
+    this.meleeVisualTimer = 0;
     this.stunned = 0; // Stun duration timer in seconds
     this.downed = false;
     this.bleedout = 0;
     this.reviveProgress = 0;
   }
 
+  configureArmory(armory, activeSlot = null) {
+    this.armory = Player.normalizeArmory(armory);
+    const selectedSlot = activeSlot || this.armory.activeSlot || (this.armory.loadout.primary ? 'primary' : 'sidearm');
+    this.activeSlot = selectedSlot === 'primary' && this.armory.loadout.primary ? 'primary' : 'sidearm';
+    this.armory.activeSlot = this.activeSlot;
+  }
+
+  exportArmory() {
+    return {
+      ownedWeapons: { ...this.armory.ownedWeapons },
+      loadout: { ...this.armory.loadout },
+      activeSlot: this.activeSlot,
+      weaponAmmo: Object.fromEntries(Object.entries(this.armory.weaponAmmo).map(([weaponId, stock]) => [weaponId, { ...stock }])),
+      standardAmmoUnits: this.armory.standardAmmoUnits
+    };
+  }
+
+  get weaponId() {
+    return this.armory.loadout[this.activeSlot] || this.armory.loadout.sidearm || 'pistol';
+  }
+
+  get weapon() {
+    return Config.weapons[this.weaponId] || Config.weapons.pistol;
+  }
+
+  get weaponState() {
+    return this.armory.weaponAmmo[this.weaponId];
+  }
+
+  get weaponTimer() {
+    return this.weaponTimers[this.weaponId];
+  }
+
+  get ammo() { return this.weaponState.magazine; }
+  set ammo(value) { this.weaponState.magazine = Math.max(0, Math.min(this.weapon.maxAmmo, Math.floor(Number(value) || 0))); }
+  get reserveAmmo() { return this.weaponState.reserve; }
+  set reserveAmmo(value) { this.weaponState.reserve = Math.max(0, Math.floor(Number(value) || 0)); }
+  get shootCooldown() { return this.weaponTimer.shootCooldown; }
+  set shootCooldown(value) { this.weaponTimer.shootCooldown = Math.max(0, Number(value) || 0); }
+  get reloading() { return this.weaponTimer.reloadTimer; }
+  set reloading(value) {
+    this.weaponTimer.reloadTimer = Math.max(0, Number(value) || 0);
+    if (this.weaponTimer.reloadTimer === 0) this.weaponTimer.reloadMode = null;
+  }
+  get invulnerable() { return this.dodgeTimer > 0 || this.invulnerableThisFrame; }
+
+  switchWeaponSlot(slot) {
+    if (!['primary', 'sidearm'].includes(slot) || !this.armory.loadout[slot] || this.activeSlot === slot) return false;
+    this.cancelReload(this.weaponId);
+    this.activeSlot = slot;
+    this.armory.activeSlot = slot;
+    return true;
+  }
+
   setWeapon(weaponId) {
-    const weapon = Config.weapons[weaponId] || Config.weapons.pistol;
-    this.weaponId = weapon.id;
-    this.weapon = weapon;
-    this.ammo = weapon.maxAmmo;
-    this.shootCooldown = 0;
-    this.reloading = 0;
+    const weapon = Config.weapons[weaponId];
+    if (!weapon || !this.armory.ownedWeapons[weaponId]) return false;
+    return this.equipWeapon(weapon.slot, weaponId);
+  }
+
+  equipWeapon(slot, weaponId) {
+    const weapon = Config.weapons[weaponId];
+    if (!weapon || weapon.slot !== slot || !this.armory.ownedWeapons[weaponId]) return false;
+    if (this.armory.loadout[slot] === weaponId) return true;
+    if (this.activeSlot === slot) this.cancelReload(this.weaponId);
+    this.armory.loadout[slot] = weaponId;
+    return true;
+  }
+
+  unlockWeapon(weaponId) {
+    const weapon = Config.weapons[weaponId];
+    if (!weapon || weaponId === 'pistol' || this.armory.ownedWeapons[weaponId]) return false;
+    this.armory.ownedWeapons[weaponId] = true;
+    this.armory.weaponAmmo[weaponId] = {
+      magazine: weapon.maxAmmo,
+      reserve: weapon.initialReserve
+    };
+    this.weaponTimers[weaponId] = { shootCooldown: 0, reloadTimer: 0, reloadMode: null };
+    return true;
+  }
+
+  cancelReload(weaponId = this.weaponId) {
+    const timer = this.weaponTimers[weaponId];
+    if (!timer || timer.reloadTimer <= 0) return false;
+    timer.reloadTimer = 0;
+    timer.reloadMode = null;
+    return true;
+  }
+
+  consumeStamina(amount) {
+    if (this.staminaLocked || this.downed || this.stunned > 0 || this.stamina < amount) return false;
+    this.stamina = Math.max(0, this.stamina - amount);
+    this.staminaRegenDelay = Config.player.staminaRegenDelay;
+    if (this.stamina === 0) this.staminaLocked = true;
+    return true;
+  }
+
+  startRoll(dx, dy) {
+    const length = Math.hypot(dx, dy);
+    if (this.dodgeTimer > 0 || this.downed || this.stunned > 0 || length === 0 ||
+        this.stamina <= 0 || !this.consumeStamina(Math.min(Config.player.dodgeStaminaCost, this.stamina))) return false;
+    this.dodgeDirectionX = dx / length;
+    this.dodgeDirectionY = dy / length;
+    this.dodgeTimer = Config.player.dodgeDuration;
+    this.invulnerableThisFrame = true;
+    return true;
+  }
+
+  startMelee() {
+    if (this.meleeCooldown > 0 || this.dodgeTimer > 0 ||
+        !this.consumeStamina(Config.player.meleeStaminaCost)) return false;
+    this.meleeCooldown = Config.player.meleeCooldown;
+    this.meleeVisualTimer = 0.22;
+    return true;
   }
 
   /**
    * Updates player cooldowns, reloading state and movement
    */
   update(dt, keys, stabilized, mapManager, audioManager) {
+    if (this.stamina <= 0) this.staminaLocked = true;
+    else if (this.stamina >= 100) this.staminaLocked = false;
+    this.staminaRegenDelay = Math.max(0, this.staminaRegenDelay - dt);
     this.shootCooldown = Math.max(0, this.shootCooldown - dt);
+    this.meleeCooldown = Math.max(0, this.meleeCooldown - dt);
+    this.meleeVisualTimer = Math.max(0, this.meleeVisualTimer - dt);
+    this.invulnerableThisFrame = false;
 
     const prevStunned = this.stunned;
     if (this.stunned > 0) {
@@ -57,6 +238,8 @@ class Player {
 
     const updateResult = {
       reloaded: false,
+      shellLoaded: false,
+      rollFinished: false,
       stunned: this.stunned > 0,
       stunTimeLeft: this.stunned,
       stunRecovered: (prevStunned > 0 && this.stunned === 0)
@@ -68,20 +251,57 @@ class Player {
       return updateResult;
     }
 
-    if (this.reloading > 0) {
-      this.reloading = Math.max(0, this.reloading - dt);
-      if (this.reloading === 0) {
-        const needed = this.weapon.maxAmmo - this.ammo;
-        const loaded = Math.min(needed, this.reserveAmmo);
-        this.ammo += loaded;
-        this.reserveAmmo -= loaded;
-        updateResult.reloaded = true;
+    if (this.dodgeTimer > 0) {
+      const rollDt = Math.min(dt, this.dodgeTimer);
+      this.invulnerableThisFrame = rollDt > 0;
+      const distance = Config.player.dodgeDistance * rollDt / Config.player.dodgeDuration;
+      const nextX = this.x + this.dodgeDirectionX * distance;
+      const nextY = this.y + this.dodgeDirectionY * distance;
+      if (!mapManager.blocked(nextX, this.y, this.radius)) this.x = nextX;
+      if (!mapManager.blocked(this.x, nextY, this.radius)) this.y = nextY;
+      this.moveSpeed = Config.player.dodgeDistance / Config.player.dodgeDuration;
+      this.dodgeTimer = Math.max(0, this.dodgeTimer - dt);
+      if (this.dodgeTimer === 0) {
+        this.moveSpeed = 0;
+        updateResult.rollFinished = true;
       }
+      return updateResult;
     }
 
+    this._updateReload(dt, updateResult);
     this.move(dt, keys, stabilized, mapManager, audioManager);
 
     return updateResult;
+  }
+
+  _updateReload(dt, updateResult) {
+    const timer = this.weaponTimer;
+    if (timer.reloadTimer <= 0) return;
+    timer.reloadTimer = Math.max(0, timer.reloadTimer - dt);
+    if (timer.reloadTimer > 0) return;
+
+    if (timer.reloadMode === 'shell') {
+      if (this.ammo < this.weapon.maxAmmo && this.reserveAmmo > 0) {
+        this.ammo += 1;
+        this.reserveAmmo -= 1;
+        updateResult.shellLoaded = true;
+      }
+      if (this.ammo < this.weapon.maxAmmo && this.reserveAmmo > 0) {
+        timer.reloadTimer = this.weapon.reloadDuration;
+      } else {
+        timer.reloadTimer = 0;
+        timer.reloadMode = null;
+        updateResult.reloaded = true;
+      }
+      return;
+    }
+
+    const loaded = Math.min(this.weapon.maxAmmo - this.ammo, this.reserveAmmo);
+    this.ammo += loaded;
+    this.reserveAmmo -= loaded;
+    timer.reloadTimer = 0;
+    timer.reloadMode = null;
+    updateResult.reloaded = true;
   }
 
   /**
@@ -91,7 +311,7 @@ class Player {
     let dx = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
     let dy = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
     const moving = Boolean(dx || dy);
-    const running = moving && keys.shift && !stabilized && this.stamina > 1;
+    const running = moving && keys.shift && !stabilized && !this.staminaLocked && this.stamina > 1;
     const speed = stabilized ? this.baseSpeed * 0.55 : running ? Config.player.sprintSpeed : this.baseSpeed;
 
     this.moveSpeed = moving ? speed : 0;
@@ -120,8 +340,11 @@ class Player {
 
       if (running) {
         this.stamina = Math.max(0, this.stamina - 30 * dt);
-      } else {
+        this.staminaRegenDelay = Config.player.staminaRegenDelay;
+        if (this.stamina === 0) this.staminaLocked = true;
+      } else if (this.staminaRegenDelay <= 0) {
         this.stamina = Math.min(100, this.stamina + 16 * dt);
+        if (this.staminaLocked && this.stamina >= 100) this.staminaLocked = false;
       }
 
       // Play moving footsteps sound effects
@@ -132,7 +355,10 @@ class Player {
       }
     } else {
       this.noise = Math.max(0, this.noise - Config.player.noiseDecayStill * dt);
-      this.stamina = Math.min(100, this.stamina + 22 * dt);
+      if (this.staminaRegenDelay <= 0) {
+        this.stamina = Math.min(100, this.stamina + 22 * dt);
+        if (this.staminaLocked && this.stamina >= 100) this.staminaLocked = false;
+      }
     }
   }
 
@@ -140,11 +366,12 @@ class Player {
    * Triggers a weapon reload sequence
    */
   reload(audioManager) {
-    if (this.stunned > 0 || this.reloading > 0 || this.ammo === this.weapon.maxAmmo || this.reserveAmmo <= 0) {
+    if (!this.weaponId || this.stunned > 0 || this.dodgeTimer > 0 || this.reloading > 0 || this.ammo >= this.weapon.maxAmmo || this.reserveAmmo <= 0) {
       return false;
     }
-    this.reloading = this.weapon.reloadDuration;
-    audioManager.playSound('resources/gun-reload-2-511308.mp3', 0.5);
+    this.weaponTimer.reloadTimer = this.weapon.reloadDuration;
+    this.weaponTimer.reloadMode = this.weapon.reloadMode;
+    if (audioManager?.playSound) audioManager.playSound('resources/gun-reload-2-511308.mp3', 0.5);
     return true;
   }
 
@@ -152,11 +379,15 @@ class Player {
    * Fires the hand weapon and resolves line of sight targeting
    */
   shoot(stabilized, mapManager, audioManager, monster) {
+    if (!this.weaponId) return { fired: false, reason: 'unarmed' };
     if (this.stunned > 0) {
       return { fired: false, reason: 'stunned' };
     }
+    let reloadInterrupted = false;
     if (this.reloading > 0) {
-      return { fired: false, reason: 'reloading' };
+      if (this.weapon.reloadMode !== 'shell' || this.ammo <= 0) return { fired: false, reason: 'reloading' };
+      this.cancelReload();
+      reloadInterrupted = true;
     }
     if (this.shootCooldown > 0) {
       return { fired: false, reason: 'cooldown' };
@@ -168,47 +399,29 @@ class Player {
     this.ammo -= 1;
     this.shootCooldown = this.weapon.shootCooldownDuration;
     this.noise = Math.min(100, this.noise + this.weapon.shotNoise);
-    audioManager.playSound('resources/gun-shot-359196.mp3', 0.3);
+    if (audioManager?.playSound) audioManager.playSound('resources/gun-shot-359196.mp3', 0.3);
 
-    // Calculate spread. Aiming has no spread. Not aiming has a massive random spread.
-    const maxSpread = stabilized ? this.weapon.aimSpread : this.weapon.hipSpread;
-    const spread = (Math.random() - 0.5) * 2 * maxSpread;
-    const shotAngle = this.angle + spread;
-    
-    // Calculate final line-of-sight and length of trace
-    const wallDistance = mapManager.rayWallDistance(this.x, this.y, Math.cos(shotAngle), Math.sin(shotAngle), 650);
+    let shotAngles;
+    if (this.weapon.pelletCount > 1) {
+      const coneDegrees = stabilized ? this.weapon.aimSpreadDegrees : this.weapon.hipSpreadDegrees;
+      const halfCone = coneDegrees * Math.PI / 360;
+      shotAngles = Array.from({ length: this.weapon.pelletCount }, (_, index) =>
+        this.angle - halfCone + (2 * halfCone * index) / (this.weapon.pelletCount - 1)
+      );
+    } else {
+      const maxSpread = stabilized ? this.weapon.aimSpread : this.weapon.hipSpread;
+      shotAngles = [this.angle + (Math.random() - 0.5) * 2 * maxSpread];
+    }
+    const shotAngle = shotAngles.length === 1 ? shotAngles[0] : this.angle;
 
     const result = {
       fired: true,
-      hit: false,
       ammo: this.ammo,
-      distance: 0,
-      toMonster: 0,
-      shotAngle: shotAngle,
-      traceLength: wallDistance
+      weaponId: this.weaponId,
+      shotAngle,
+      shotAngles,
+      reloadInterrupted
     };
-
-    if (monster.active) {
-      const distance = Math.hypot(monster.x - this.x, monster.y - this.y);
-      const toMonster = Math.atan2(monster.y - this.y, monster.x - this.x);
-
-      const angleDifference = Math.atan2(Math.sin(toMonster - shotAngle), Math.cos(toMonster - shotAngle));
-
-      // Hit tolerance based on the monster's angular size from player's view
-      const hitTolerance = Math.max(0.12, 15 / distance);
-
-      // Broaden emergency self-defense tolerance angle if sticking extremely close (point blank)
-      const emergencyTolerance = distance < 90 ? 0.7 : hitTolerance;
-
-      if (distance < 650 && Math.abs(angleDifference) < emergencyTolerance && distance < wallDistance + 24) {
-        result.hit = true;
-        result.distance = distance;
-        result.toMonster = toMonster;
-        // Clip the trace length exactly to the monster position on impact
-        result.traceLength = distance;
-      }
-    }
-
     return result;
   }
 }
@@ -792,7 +1005,10 @@ class Monster {
 
     // Separation from hunters — sideways-only so narrow corridors stay passable
     if (others) {
-      for (const other of others) {
+      const candidates = typeof others.nearby === 'function'
+        ? others.nearby(this.x, this.y, this.radius + Math.max(Config.monster.radius, Config.hunter.radius) + 2)
+        : others;
+      for (const other of candidates) {
         if (other === this || !other.active) continue;
         const sdx = this.x - other.x;
         const sdy = this.y - other.y;
@@ -810,22 +1026,25 @@ class Monster {
       }
     }
 
-    // Contact / Damage trigger
+    // Contact / Damage trigger; do not consume the hit or blink away during a roll.
     if (distance < Config.monster.attackDistance) {
-      result.playerHit = true;
       this.alerted = true;
       this.lostTime = 0;
 
-      // Respawn far away
-      const spawn = this.getFarSpawnPoint(player.x, player.y, mapManager);
-      this.x = spawn.x;
-      this.y = spawn.y;
-      this.waypoints = [];
-      this.waypointTimer = 0;
-      this.patrolTarget = null;
-      this._stuckTimer = 0;
-      this._lastX = null;
-      this._lastY = null;
+      if (!player.invulnerable) {
+        result.playerHit = true;
+
+        // Respawn far away after a real contact hit.
+        const spawn = this.getFarSpawnPoint(player.x, player.y, mapManager);
+        this.x = spawn.x;
+        this.y = spawn.y;
+        this.waypoints = [];
+        this.waypointTimer = 0;
+        this.patrolTarget = null;
+        this._stuckTimer = 0;
+        this._lastX = null;
+        this._lastY = null;
+      }
     }
 
     return result;
@@ -1169,7 +1388,10 @@ class Hunter {
 
     // Separation: only push sideways relative to travel direction so corridor queues flow through
     if (others) {
-      for (const other of others) {
+      const candidates = typeof others.nearby === 'function'
+        ? others.nearby(this.x, this.y, this.radius + Math.max(Config.monster.radius, Config.hunter.radius) + 2)
+        : others;
+      for (const other of candidates) {
         if (other === this || !other.active) continue;
         if (other instanceof Hunter && (this.trait === 'slim' || other.trait === 'slim')) continue;
         const sdx = this.x - other.x;
@@ -1190,5 +1412,63 @@ class Hunter {
     }
 
     return result;
+  }
+}
+
+class EntitySpatialGrid {
+  constructor(cellSize = 64) {
+    this.cellSize = cellSize;
+    this.buckets = new Map();
+    this.entries = new Map();
+  }
+
+  _key(x, y) {
+    return `${Math.floor(x / this.cellSize)},${Math.floor(y / this.cellSize)}`;
+  }
+
+  _remove(entity) {
+    const entry = this.entries.get(entity);
+    if (!entry) return null;
+    const bucket = this.buckets.get(entry.key);
+    const index = bucket.indexOf(entry);
+    if (index !== -1) bucket.splice(index, 1);
+    if (!bucket.length) this.buckets.delete(entry.key);
+    this.entries.delete(entity);
+    return entry.order;
+  }
+
+  _insert(entity, order) {
+    const key = this._key(entity.x, entity.y);
+    const entry = { entity, order, key };
+    if (!this.buckets.has(key)) this.buckets.set(key, []);
+    this.buckets.get(key).push(entry);
+    this.entries.set(entity, entry);
+  }
+
+  rebuild(entities) {
+    this.buckets.clear();
+    this.entries.clear();
+    entities.forEach((entity, order) => this._insert(entity, order));
+  }
+
+  reindex(entity) {
+    const order = this._remove(entity);
+    if (order != null) this._insert(entity, order);
+  }
+
+  nearby(x, y, range) {
+    const minX = Math.floor((x - range) / this.cellSize);
+    const maxX = Math.floor((x + range) / this.cellSize);
+    const minY = Math.floor((y - range) / this.cellSize);
+    const maxY = Math.floor((y + range) / this.cellSize);
+    const matches = [];
+    for (let cellY = minY; cellY <= maxY; cellY++) {
+      for (let cellX = minX; cellX <= maxX; cellX++) {
+        const bucket = this.buckets.get(`${cellX},${cellY}`);
+        if (bucket) matches.push(...bucket);
+      }
+    }
+    matches.sort((a, b) => a.order - b.order);
+    return matches.map(entry => entry.entity);
   }
 }

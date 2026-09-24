@@ -24,8 +24,11 @@ class UIManager {
     this.fullMapFogToggleBtn = document.querySelector('#fullMapFogToggleBtn');
     this.fullMapScaleTag = document.querySelector('#fullMapScaleTag');
     this.fullMapExploreTag = document.querySelector('#fullMapExploreTag');
-    this.fullMapTerminalsTag = document.querySelector('#fullMapTerminalsTag');
+    this.fullMapTerminals = document.querySelector('#fullMapTerminals');
     this.fullMapEvacTag = document.querySelector('#fullMapEvacTag');
+    this.fullMapZoomOutBtn = document.querySelector('#fullMapZoomOutBtn');
+    this.fullMapZoomInBtn = document.querySelector('#fullMapZoomInBtn');
+    this.fullMapFitBtn = document.querySelector('#fullMapFitBtn');
 
     // Containers and frames
     this.frame = document.querySelector('#gameFrame');
@@ -41,17 +44,20 @@ class UIManager {
     this.toast = document.querySelector('#gameToast');
     this.damageFlash = document.querySelector('#damageFlash');
     this.hudOverlay = document.querySelector('#hudOverlay');
-    this.hudOxygen = document.querySelector('#hudOxygen');
-    this.hudHealth = document.querySelector('#hudHealth');
     this.hudAmmo = document.querySelector('#hudAmmo');
     this.hudNoise = document.querySelector('#hudNoise');
+    this.hudWeaponStatus = document.querySelector('#hudWeaponStatus');
+    this.hudExtractStatus = document.querySelector('#hudExtractStatus');
 
     // Telemetry Gauges
-    this.oxygenBar = document.querySelector('#oxygenBar');
+    this.oxygenBar = document.querySelector('#hudOxygenBar');
+    this.oxygenMeter = document.querySelector('#hudOxygenMeter');
     this.oxygenText = document.querySelector('#oxygenText');
-    this.healthBar = document.querySelector('#healthBar');
+    this.healthBar = document.querySelector('#hudHealthBar');
+    this.healthMeter = document.querySelector('#hudHealthMeter');
     this.healthText = document.querySelector('#healthText');
-    this.staminaBar = document.querySelector('#staminaBar');
+    this.staminaBar = document.querySelector('#hudStaminaBar');
+    this.staminaMeter = document.querySelector('#hudStaminaMeter');
     this.staminaText = document.querySelector('#staminaText');
     this.noiseBar = document.querySelector('#noiseBar');
     this.noiseText = document.querySelector('#noiseText');
@@ -82,23 +88,46 @@ class UIManager {
     };
     this.currentScaleText = document.querySelector('#currentScaleText');
     this.quotaDisplay = document.querySelector('#quotaValue');
-    this.hunterSettingInputs = {
-      hunters: document.querySelector('#hunterInitialCount'),
-      hunterSpawnInterval: document.querySelector('#hunterRespawnInterval'),
-      hunterRespawnCount: document.querySelector('#hunterRespawnCount'),
-      hunterMaxHp: document.querySelector('#hunterMaxHp')
+    this.settingsModal = document.querySelector('#hunterSettingsModal');
+    this.settingsOpenButton = document.querySelector('#hunterSettingsOpen');
+    this.settingsCloseButton = document.querySelector('#hunterSettingsClose');
+    this.settingsSectionButtons = Array.from(document.querySelectorAll('[data-settings-section]'));
+    this.fpsCapSelect = document.querySelector('#fpsCapSelect');
+    this.hunterSettingInputs = Array.from(document.querySelectorAll('[data-hunter-setting]'));
+    this.finalTerminalSettingInputs = {
+      finalTerminalSpawnCount: document.querySelector('#finalTerminalSpawnCount'),
+      finalTerminalSpawnInterval: document.querySelector('#finalTerminalSpawnInterval')
     };
     this.resetHunterSettingsButton = document.querySelector('#resetHunterSettings');
     this.difficultyButtons = {
-      easy: document.querySelector('#difficultyEasy'),
-      medium: document.querySelector('#difficultyMedium'),
-      hard: document.querySelector('#difficultyHard')
+      easy: document.querySelector('[data-difficulty="easy"]'),
+      medium: document.querySelector('[data-difficulty="medium"]'),
+      hard: document.querySelector('[data-difficulty="hard"]')
     };
     this.currentDifficultyText = document.querySelector('#currentDifficultyText');
-    this.loadoutButtons = {
-      pistol: document.querySelector('#loadoutPistol'),
-      smg: document.querySelector('#loadoutSmg')
-    };
+    this.difficultyModified = document.querySelector('#difficultyModified');
+    this.difficultyAmmoLossWarning = document.querySelector('#difficultyAmmoLossWarning');
+    this.launchAmmoLossWarning = document.querySelector('#launchAmmoLossWarning');
+    this.loadoutCards = Object.fromEntries(
+      Object.keys(Config.weapons).map(weaponId => [weaponId, document.querySelector(`#loadout${weaponId[0].toUpperCase()}${weaponId.slice(1)}`)])
+    );
+    this.loadoutPurchaseButtons = Object.fromEntries(
+      Object.keys(Config.weapons).map(weaponId => [weaponId, document.querySelector(`#purchase${weaponId[0].toUpperCase()}${weaponId.slice(1)}`)])
+    );
+    this.loadoutEquipButtons = Object.fromEntries(
+      Object.keys(Config.weapons).map(weaponId => [weaponId, document.querySelector(`#equip${weaponId[0].toUpperCase()}${weaponId.slice(1)}`)])
+    );
+    this.standardAmmoBalance = document.querySelector('#standardAmmoBalance');
+    this.ammoPurchaseAmount = document.querySelector('#ammoPurchaseAmount');
+    this.ammoPurchaseButton = document.querySelector('#ammoPurchaseButton');
+    this.ammoPurchaseCost = document.querySelector('#ammoPurchaseCost');
+    this.ammoTransferSources = document.querySelector('#ammoTransferSources');
+    this.ammoTransferTargets = document.querySelector('#ammoTransferTargets');
+    this.ammoTransferAmountLabel = document.querySelector('#ammoTransferAmountLabel');
+    this.ammoTransferAmount = document.querySelector('#ammoTransferAmount');
+    this.ammoTransferButton = document.querySelector('#ammoTransferButton');
+    this.ammoTransferPreview = document.querySelector('#ammoTransferPreview');
+    this.ammoStockGrid = document.querySelector('#ammoStockGrid');
     this.coopStatus = document.querySelector('#coopStatus');
     this.coopRoomCode = document.querySelector('#coopRoomCode');
     this.coopJoinCode = document.querySelector('#coopJoinCode');
@@ -110,8 +139,41 @@ class UIManager {
     this.coopLeaveButton = document.querySelector('#coopLeaveButton');
     this.coopHostButton = document.querySelector('#coopHostButton');
     this.coopJoinButton = document.querySelector('#coopJoinButton');
+    this.tutorialOverlay = document.querySelector('#tutorialOverlay');
+    this.tutorialCard = document.querySelector('#tutorialCard');
+    this.tutorialPractice = document.querySelector('#tutorialPractice');
+    this.tutorialStepLabel = document.querySelector('#tutorialStepLabel');
+    this.tutorialTitle = document.querySelector('#tutorialTitle');
+    this.tutorialBody = document.querySelector('#tutorialBody');
+    this.tutorialPracticeTitle = document.querySelector('#tutorialPracticeTitle');
+    this.tutorialObjective = document.querySelector('#tutorialObjective');
 
     this.toastTimeout = null;
+  }
+
+  showTutorialCard(step, index, total) {
+    if (!this.tutorialOverlay) return;
+    this.tutorialOverlay.classList.remove('practice-mode');
+    this.tutorialOverlay.hidden = false;
+    this.tutorialCard.hidden = false;
+    this.tutorialPractice.hidden = true;
+    this.tutorialStepLabel.textContent = `GUIDED DESCENT // ${String(index + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}`;
+    this.tutorialTitle.textContent = step.title;
+    this.tutorialBody.textContent = step.body;
+  }
+
+  showTutorialPractice(step) {
+    if (!this.tutorialOverlay) return;
+    this.tutorialOverlay.classList.add('practice-mode');
+    this.tutorialOverlay.hidden = false;
+    this.tutorialCard.hidden = true;
+    this.tutorialPractice.hidden = false;
+    this.tutorialPracticeTitle.textContent = step.title;
+    this.tutorialObjective.textContent = step.objective;
+  }
+
+  hideTutorial() {
+    if (this.tutorialOverlay) this.tutorialOverlay.hidden = true;
   }
 
   /**
@@ -135,18 +197,29 @@ class UIManager {
     }
   }
 
-  updateHunterSettings(settings, disabled = false) {
-    Object.entries(this.hunterSettingInputs).forEach(([key, input]) => {
+  updateHunterSettings(profile, disabled = false, modified = false) {
+    this.hunterSettingInputs.forEach(input => {
+      const setting = input.dataset.hunterSetting;
+      const scale = input.dataset.scale;
+      input.value = profile.maps[scale][setting];
+      input.disabled = disabled;
+    });
+    Object.entries(this.finalTerminalSettingInputs).forEach(([key, input]) => {
       if (!input) return;
-      input.value = settings[key];
+      input.value = profile[key];
       input.disabled = disabled;
     });
     if (this.resetHunterSettingsButton) {
       this.resetHunterSettingsButton.disabled = disabled;
     }
+    if (this.difficultyModified) this.difficultyModified.hidden = !modified;
+    if (this.currentDifficultyText) {
+      const preset = Config.difficultyPresets[this.currentDifficultyText.dataset.difficulty || 'medium'];
+      this.currentDifficultyText.textContent = `${preset ? preset.label : '中等'}${modified ? ' · 已修改' : ''}`;
+    }
   }
 
-  updateDifficultyPreset(selectedDifficulty, disabled = false) {
+  updateDifficultyPreset(selectedDifficulty, disabled = false, ammoLossWarning = '') {
     Object.entries(this.difficultyButtons).forEach(([difficultyId, button]) => {
       if (!button) return;
       button.classList.toggle('active', difficultyId === selectedDifficulty);
@@ -154,28 +227,174 @@ class UIManager {
     });
     if (this.currentDifficultyText) {
       const preset = Config.difficultyPresets[selectedDifficulty];
-      this.currentDifficultyText.textContent = preset ? preset.label : '自定义';
+      this.currentDifficultyText.dataset.difficulty = selectedDifficulty;
+      this.currentDifficultyText.textContent = preset ? preset.label : '中等';
     }
+    if (this.difficultyAmmoLossWarning) this.difficultyAmmoLossWarning.textContent = ammoLossWarning;
+    if (this.launchAmmoLossWarning) this.launchAmmoLossWarning.textContent = ammoLossWarning;
   }
 
-  updateLoadout(selectedWeapon, disabled = false) {
-    Object.entries(this.loadoutButtons).forEach(([weaponId, button]) => {
-      if (!button) return;
-      button.classList.toggle('active', weaponId === selectedWeapon);
-      button.disabled = disabled;
+  showSettingsSection(sectionId) {
+    this.settingsSectionButtons.forEach(button => {
+      const active = button.dataset.settingsSection === sectionId;
+      button.classList.toggle('active', active);
+      document.getElementById(button.dataset.settingsSection).hidden = !active;
     });
   }
 
+  updateFpsCap(fpsCap) {
+    if (this.fpsCapSelect) this.fpsCapSelect.value = fpsCap;
+  }
+
+  updateLoadout(armory, disabled = false) {
+    if (!armory) return;
+    Object.entries(this.loadoutCards).forEach(([weaponId, card]) => {
+      if (!card) return;
+      const weapon = Config.weapons[weaponId];
+      const owned = !!armory.ownedWeapons[weaponId];
+      const equipped = weapon.slot === 'primary'
+        ? armory.loadout.primary === weaponId
+        : armory.loadout.sidearm === weaponId;
+      card.classList.toggle('active', equipped);
+      card.classList.toggle('locked', !owned);
+      const purchase = this.loadoutPurchaseButtons[weaponId];
+      const equip = this.loadoutEquipButtons[weaponId];
+      if (purchase) {
+        purchase.hidden = owned;
+        purchase.disabled = disabled;
+      }
+      if (equip) {
+        equip.hidden = !owned;
+        equip.disabled = disabled || equipped;
+        equip.textContent = equipped ? '已装备' : '装备';
+      }
+    });
+  }
+
+  updateAmmoDepot(armory, disabled = false, selection = { source: 'standard', target: 'pistol' }, preview = null) {
+    if (!armory) return;
+    if (this.standardAmmoBalance) this.standardAmmoBalance.textContent = armory.standardAmmoUnits.toLocaleString('en-US');
+    if (this.ammoPurchaseAmount) this.ammoPurchaseAmount.disabled = disabled;
+    if (this.ammoPurchaseButton) this.ammoPurchaseButton.disabled = disabled;
+    if (this.ammoTransferAmount) this.ammoTransferAmount.disabled = disabled;
+    if (this.ammoTransferButton) this.ammoTransferButton.disabled = disabled || !preview?.valid;
+
+    const amount = Math.max(Config.ammo.unitsPerPurchase, Math.floor(Number(this.ammoPurchaseAmount?.value) || Config.ammo.unitsPerPurchase));
+    const pricePerUnit = Config.ammo.pricePerPurchase / Config.ammo.unitsPerPurchase;
+    if (this.ammoPurchaseCost) this.ammoPurchaseCost.textContent = `¥ ${Math.ceil(amount * pricePerUnit).toLocaleString('en-US')}`;
+
+    const options = [{ id: 'standard', label: '标准弹药库', stock: armory.standardAmmoUnits }];
+    Object.entries(Config.weapons).forEach(([weaponId, weapon]) => {
+      if (armory.ownedWeapons[weaponId]) options.push({
+        id: weaponId,
+        label: weapon.label,
+        stock: armory.weaponAmmo[weaponId].reserve
+      });
+    });
+    const drawChoices = (container, kind, selectedId) => {
+      if (!container) return;
+      container.replaceChildren(...options.map(option => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'ammo-choice-card';
+        button.setAttribute('aria-pressed', String(option.id === selectedId));
+        button.disabled = disabled;
+        button.onclick = () => window.game?.selectAmmoTransfer(kind, option.id);
+        if (option.id === 'standard') {
+          const symbol = document.createElement('span');
+          symbol.className = 'ammo-standard-icon';
+          symbol.setAttribute('aria-hidden', 'true');
+          symbol.textContent = '◈';
+          button.appendChild(symbol);
+        } else {
+          const icon = this.loadoutCards[option.id]?.querySelector('.weapon-icon')?.cloneNode(true);
+          if (icon) button.appendChild(icon);
+        }
+        const label = document.createElement('span');
+        const name = document.createElement('span');
+        const stock = document.createElement('strong');
+        name.textContent = option.label;
+        stock.textContent = this.formatAmmoStock(option);
+        label.append(name, stock);
+        button.appendChild(label);
+        return button;
+      }));
+    };
+    drawChoices(this.ammoTransferSources, 'source', selection.source);
+    drawChoices(this.ammoTransferTargets, 'target', selection.target);
+    if (this.ammoTransferAmountLabel) {
+      this.ammoTransferAmountLabel.textContent = selection.source === 'standard'
+        ? '转换数量（标准弹药单位）'
+        : '转换数量（来源备弹发数）';
+    }
+    if (this.ammoTransferPreview) {
+      const target = options.find(option => option.id === selection.target);
+      const source = options.find(option => option.id === selection.source);
+      let message = '';
+      let invalid = !preview?.valid;
+      if (!preview) {
+        message = '选择来源、目标和数量后查看转换结果。';
+      } else if (Number(this.ammoTransferAmount?.value) > preview.sourceAvailable) {
+        message = `来源库存不足；当前可用 ${preview.sourceAvailable}。`;
+      } else if (!preview.valid && preview.rounds === 0 && target?.id !== 'standard') {
+        message = '数量不足以组成一发目标弹药，库存不会扣除。';
+      } else if (preview.valid && target?.id === 'standard') {
+        message = `转换后增加 ${preview.rounds} 标准弹药单位。`;
+      } else if (preview.valid) {
+        message = `从 ${source?.label} 扣除所选数量后，${target?.label}备弹增加 ${preview.rounds} 发；${preview.remainder} 标准单位留在弹药库。`;
+      } else {
+        message = '请选择不同的来源与目标，并输入有效数量。';
+      }
+      this.ammoTransferPreview.textContent = message;
+      this.ammoTransferPreview.classList.toggle('invalid', invalid);
+    }
+
+    if (this.ammoStockGrid) {
+      this.ammoStockGrid.replaceChildren(...Object.entries(Config.weapons).map(([weaponId, weapon]) => {
+        const stock = armory.weaponAmmo[weaponId];
+        const tile = document.createElement('div');
+        tile.className = `ammo-stock-tile${armory.ownedWeapons[weaponId] ? '' : ' locked'}`;
+        const icon = this.loadoutCards[weaponId]?.querySelector('.weapon-icon')?.cloneNode(true);
+        if (icon) tile.appendChild(icon);
+        const label = document.createElement('span');
+        const quantity = document.createElement('strong');
+        label.textContent = weapon.label;
+        quantity.textContent = armory.ownedWeapons[weaponId] ? `${stock.magazine} / ${stock.reserve}` : '尚未购买';
+        tile.append(label, quantity);
+        return tile;
+      }));
+    }
+  }
+
+  formatAmmoStock(option) {
+    return option.id === 'standard'
+      ? `${option.stock} 单位`
+      : `${option.stock} 发 · ${Config.ammo.standardUnitsPerRound[option.id]} 单位/发`;
+  }
+
   updateWeaponReadout(player) {
+    if (!player || !player.weapon) return;
     const reloading = player.reloading > 0;
-    this.ammoStatusText.textContent = reloading ? '换弹中' : `${player.ammo} / ${player.reserveAmmo}`;
-    this.hudAmmo.textContent = `AMMO: ${reloading ? 'RELOADING' : `${player.ammo} / ${player.reserveAmmo}`}`;
-    this.weaponStatusText.textContent = reloading
-      ? `${player.weapon.label} / 换弹中`
+    const slotLabel = player.activeSlot === 'primary' ? '主武器 [1]' : '副武器 [2]';
+    const reloadText = player.weapon.reloadMode === 'shell'
+      ? `逐发装填 ${player.ammo}/${player.weapon.maxAmmo}`
+      : '换弹中';
+    const weaponStatus = reloading
+      ? `${slotLabel} / ${player.weapon.label} · ${reloadText}`
       : player.shootCooldown > 0
-        ? `${player.weapon.label} / 冷却 ${player.shootCooldown.toFixed(1)}s`
-        : `${player.weapon.label} / 就绪`;
-    this.weaponStatusText.className = player.shootCooldown > 0 || reloading ? 'warning' : 'ok';
+        ? `${slotLabel} / ${player.weapon.label} · 冷却 ${player.shootCooldown.toFixed(1)}s`
+        : `${slotLabel} / ${player.weapon.label} · 就绪`;
+    const ammoText = `${player.ammo} / ${player.reserveAmmo}`;
+    if (this.ammoStatusText) this.ammoStatusText.textContent = reloading ? reloadText : ammoText;
+    if (this.hudAmmo) this.hudAmmo.textContent = reloading ? reloadText : ammoText;
+    if (this.weaponStatusText) {
+      this.weaponStatusText.textContent = weaponStatus;
+      this.weaponStatusText.className = player.shootCooldown > 0 || reloading ? 'warning' : 'ok';
+    }
+    if (this.hudWeaponStatus) {
+      this.hudWeaponStatus.textContent = weaponStatus;
+      this.hudWeaponStatus.className = player.shootCooldown > 0 || reloading ? 'warning' : '';
+    }
   }
 
   updateCoopLobby(coop) {
@@ -274,13 +493,6 @@ class UIManager {
     if (this.fullMapExploreTag) {
       this.fullMapExploreTag.textContent = `探索度: ${discovered}/${totalRooms} (${percent}%)`;
     }
-    if (this.fullMapTerminalsTag) {
-      const solved = gameState.solvedTerminals || 0;
-      const total = mapManager.terminals ? mapManager.terminals.length : 3;
-      this.fullMapTerminalsTag.textContent = `安全终端: ${solved}/${total}`;
-      this.fullMapTerminalsTag.style.color = (solved >= total) ? '#d7f36b' : '#f5a623';
-      this.fullMapTerminalsTag.style.borderColor = (solved >= total) ? '#d7f36b' : '#f5a623';
-    }
     if (this.fullMapEvacTag) {
       const isReady = (gameState.solvedTerminals || 0) >= (mapManager.terminals ? mapManager.terminals.length : 3);
       this.fullMapEvacTag.textContent = isReady ? '撤离舱: 舱门就绪 (可撤离)' : '撤离舱: 锁定中 (需破译全部终端)';
@@ -376,10 +588,10 @@ class UIManager {
     this.resultTitle.textContent = '今晚的账单还没写完';
     this.extractStatusText.textContent = '等待呼叫';
     this.extractStatusText.className = '';
+    if (this.hudExtractStatus) this.hudExtractStatus.textContent = this.extractStatusText.textContent;
     this.threatStatusText.textContent = '未知';
     this.threatStatusText.className = 'warning';
     this.oxygenText.style.color = '';
-    this.updateTerminalsStatus(0, 3);
     this.hideQTE();
     if (this.scaleButtons) {
       Object.values(this.scaleButtons).forEach(btn => { if (btn) btn.disabled = false; });
@@ -389,16 +601,28 @@ class UIManager {
   /**
    * Updates terminal override completion counters
    */
-  updateTerminalsStatus(solved, total = 3) {
-    const text = `${solved} / ${total}`;
-    if (this.terminalsStatusText) {
-      this.terminalsStatusText.textContent = text;
-      this.terminalsStatusText.style.color = solved >= total ? 'var(--acid)' : '#f5a623';
-    }
-    if (this.hudTerminals) {
-      this.hudTerminals.textContent = `CONSOLES: ${solved} / ${total}`;
-      this.hudTerminals.style.color = solved >= total ? 'var(--acid)' : '#f5a623';
-    }
+  renderTerminalIcons(container, terminals, allLit = false) {
+    if (!container) return;
+    const terminalList = Array.isArray(terminals) ? terminals : [];
+    const signature = `${allLit ? 'all' : 'mission'}:${terminalList.map(terminal => terminal.solved ? '1' : '0').join('')}`;
+    if (container.dataset.terminalState === signature) return;
+    container.dataset.terminalState = signature;
+    const svg = '<svg viewBox="0 0 16 16" aria-hidden="true" shape-rendering="crispEdges"><path d="M3 1h10v2h2v11h-2v1H3v-1H1V3h2z"/><path class="terminal-pixel-screen" d="M4 4h8v5H4z"/><path class="terminal-pixel-keys" d="M4 11h2v1H4zm3 0h2v1H7zm3 0h2v1h-2z"/></svg>';
+    container.replaceChildren(...terminalList.map((terminal, index) => {
+      const lit = allLit || !!terminal.solved;
+      const icon = document.createElement('span');
+      icon.className = `terminal-pixel-icon${lit ? ' lit' : ''}`;
+      icon.setAttribute('role', 'img');
+      icon.setAttribute('aria-label', `终端 ${index + 1}${lit ? '已激活' : '未激活'}`);
+      icon.innerHTML = svg;
+      return icon;
+    }));
+  }
+
+  updateTerminalsStatus(terminals = [], allLit = false) {
+    this.renderTerminalIcons(this.terminalsStatusText, terminals, true);
+    this.renderTerminalIcons(this.hudTerminals, terminals, allLit);
+    this.renderTerminalIcons(this.fullMapTerminals, terminals, allLit || !document.body.classList.contains('in-dive'));
   }
 
   /**
@@ -408,7 +632,7 @@ class UIManager {
     if (!this.qteOverlay) return;
     this.qteOverlay.style.display = 'flex';
     if (this.qteTitle) {
-      this.qteTitle.textContent = `安全控制台 #${terminal.id} // 紧急重写协议`;
+      this.qteTitle.textContent = `终端 #${terminal.id} // 紧急激活协议`;
     }
     if (this.qteSequence) {
       this.qteSequence.innerHTML = '';
@@ -483,6 +707,10 @@ class UIManager {
   updateExtractionCalledState() {
     this.extractStatusText.textContent = '已呼叫 / 30秒';
     this.extractStatusText.className = 'warning';
+    if (this.hudExtractStatus) {
+      this.hudExtractStatus.textContent = this.extractStatusText.textContent;
+      this.hudExtractStatus.className = 'warning';
+    }
     this.contractState.textContent = '撤离信标已激活';
     this.missionTitle.textContent = '撤离舱已呼叫';
     this.log('撤离舱收到信号。回到入口。');
@@ -515,28 +743,25 @@ class UIManager {
    * Redraws gauge statistics based on updated game states
    */
   update(gameState, player, monster) {
-    this.oxygenBar.style.width = `${Math.max(0, gameState.oxygen)}%`;
+    const meterValue = value => Math.max(0, Math.min(100, Number.isFinite(Number(value)) ? Number(value) : 0));
+    const setMeter = (fill, meter, value) => {
+      const amount = meterValue(value);
+      if (fill) fill.style.width = `${amount}%`;
+      if (meter) meter.setAttribute('aria-valuenow', String(Math.round(amount)));
+    };
+
+    setMeter(this.oxygenBar, this.oxygenMeter, gameState.oxygen);
     this.oxygenText.textContent = `${Math.max(0, Math.ceil(gameState.oxygen))}%`;
-    this.hudOxygen.textContent = `O2: ${Math.ceil(gameState.oxygen)}%`;
-
-    if (gameState.oxygen < 25) {
-      this.oxygenText.style.color = 'var(--rust)';
-      this.hudOxygen.style.color = 'var(--rust)';
-    } else {
-      this.oxygenText.style.color = '';
-      this.hudOxygen.style.color = '';
-    }
-
-    this.healthBar.style.width = `${Math.max(0, gameState.health)}%`;
+    setMeter(this.healthBar, this.healthMeter, gameState.health);
     this.healthText.textContent = `${Math.max(0, Math.ceil(gameState.health))}%`;
-    this.hudHealth.textContent = `HP: ${Math.ceil(gameState.health)}%`;
-
-    this.staminaBar.style.width = `${Math.max(0, gameState.stamina)}%`;
+    setMeter(this.staminaBar, this.staminaMeter, gameState.stamina);
     this.staminaText.textContent = `${Math.max(0, Math.ceil(gameState.stamina))}%`;
 
-    this.noiseBar.style.width = `${Math.max(5, gameState.noise)}%`;
-    this.noiseText.textContent = gameState.noise > 70 ? '危险' : gameState.noise > 30 ? '注意' : '安静';
-    this.hudNoise.textContent = `NOISE: ${gameState.noise > 70 ? '高' : gameState.noise > 30 ? '注意' : '静'}`;
+    const noise = meterValue(gameState.noise);
+    this.noiseBar.style.width = `${Math.max(5, noise)}%`;
+    this.noiseText.textContent = noise > 70 ? '危险' : noise > 30 ? '注意' : '安静';
+    this.hudNoise.style.setProperty('--noise-color', `hsl(${180 - noise * 1.8} 82% 55%)`);
+    this.hudNoise.setAttribute('aria-label', `噪音：${noise > 70 ? '高' : noise > 30 ? '中' : '低'}`);
 
     this.lootValueText.textContent = `¥ ${gameState.lootValue}`;
     this.lootCountText.textContent = `${gameState.loot} / 6`;
@@ -549,6 +774,10 @@ class UIManager {
 
     this.threatStatusText.textContent = monster.alerted ? '已锁定' : monster.active ? '脱战' : '未知';
     this.threatStatusText.className = monster.alerted ? 'warning' : 'ok';
+    if (this.hudExtractStatus) {
+      this.hudExtractStatus.textContent = this.extractStatusText.textContent;
+      this.hudExtractStatus.className = this.extractStatusText.className;
+    }
 
     this.updateWeaponReadout(player);
   }
