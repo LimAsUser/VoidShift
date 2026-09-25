@@ -503,8 +503,8 @@ class Game {
       hostPaused: false, friendlyFire: true, playerId: 'host', localSlot: 1,
       members: [], hostReady: false, inputSeq: 0
     });
-    this.remotePlayers.clear();
-    this.remoteQtes.clear();
+    this.remotePlayers?.clear?.();
+    this.remoteQtes?.clear?.();
     this.pendingCoopFinishes.clear();
     this._syncLegacyRemoteAliases();
     this.ui.setCoopPaused?.(false);
@@ -2221,8 +2221,8 @@ class Game {
         waypoints: []
       });
     });
-    this.remotePlayers.clear();
-    this.remoteQtes.clear();
+    this.remotePlayers?.clear?.();
+    this.remoteQtes?.clear?.();
     this._syncLegacyRemoteAliases();
     if (this.audio.stopMissionAudio) this.audio.stopMissionAudio();
 
@@ -2648,7 +2648,7 @@ class Game {
   }
 
   _applyGuestInventoryLayout(layout, memberId = null) {
-    const entry = this.remotePlayers.get(memberId) || [...this.remotePlayers.values()][0];
+    const entry = this.remotePlayers?.get(memberId) || [...(this.remotePlayers?.values?.() || [])][0];
     const backpack = entry?.backpack || this.remoteBackpack;
     if (!Array.isArray(layout) || layout.length !== backpack.items.length) return false;
     const existing = new Map(backpack.items.map(item => [String(item.id), item]));
@@ -2665,12 +2665,13 @@ class Game {
     backpack.items = candidate.items;
     backpack.nextId = candidate.nextId;
     if (entry) entry.inventory = candidate.items;
-    this._syncLegacyRemoteAliases();
+    else this.state.remoteInventory = candidate.items;
+    if (entry) this._syncLegacyRemoteAliases();
     return true;
   }
 
   _discardGuestInventoryItem(message, memberId = null) {
-    const entry = this.remotePlayers.get(memberId) || [...this.remotePlayers.values()][0];
+    const entry = this.remotePlayers?.get(memberId) || [...(this.remotePlayers?.values?.() || [])][0];
     const backpack = entry?.backpack || this.remoteBackpack;
     const item = backpack.getItem(message.id);
     if (!item) return false;
@@ -2678,8 +2679,9 @@ class Game {
     const floorItem = this.map.scrap.find(scrap => scrap.id === item.id);
     if (floorItem) {
       floorItem.found = false;
-      floorItem.x = Number.isFinite(entry?.player.x) ? entry.player.x : floorItem.x;
-      floorItem.y = Number.isFinite(entry?.player.y) ? entry.player.y : floorItem.y;
+      const player = entry?.player || this.remotePlayer;
+      floorItem.x = Number.isFinite(player?.x) ? player.x : floorItem.x;
+      floorItem.y = Number.isFinite(player?.y) ? player.y : floorItem.y;
     }
     this.state.loot = Math.max(0, this.state.loot - 1);
     this.state.lootValue = Math.max(0, this.state.lootValue - (Number(item.value) || 0));
@@ -2688,10 +2690,11 @@ class Game {
   }
 
   _sellGuestInventoryItems(ids, memberId = null) {
-    const entry = this.remotePlayers.get(memberId) || [...this.remotePlayers.values()][0];
+    const entry = this.remotePlayers?.get(memberId) || [...(this.remotePlayers?.values?.() || [])][0];
     const backpack = entry?.backpack || this.remoteBackpack;
     const sendResult = (accepted, amount = 0) => {
-      this.coopSession.sendEvent('inventory-sale-result', { accepted, amount }, memberId);
+      if (memberId == null) this.coopSession.sendEvent('inventory-sale-result', { accepted, amount });
+      else this.coopSession.sendEvent('inventory-sale-result', { accepted, amount }, memberId);
       return accepted ? amount : false;
     };
     if (!Array.isArray(ids) || !ids.length) return sendResult(false);

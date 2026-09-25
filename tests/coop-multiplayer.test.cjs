@@ -132,6 +132,15 @@ test('guest applies authoritative snapshots for the local player and every remot
     JSON.stringify([['host', 10], ['guest-1', 20], ['guest-3', 40]]));
 });
 
+test('local prediction blends small snapshot drift and snaps back after a large correction', () => {
+  const game = Object.create(Game.prototype);
+  const player = { x: 0, y: 0 };
+  game._applyPlayerSnapshot(player, { x: 10, y: 0 }, 0.35);
+  assert.equal(player.x, 3.5);
+  game._applyPlayerSnapshot(player, { x: 100, y: 0 }, 0.35);
+  assert.equal(player.x, 100);
+});
+
 test('host can start with three ready guests and sends all four player identities', () => {
   const sent = [];
   const game = Object.create(Game.prototype);
