@@ -80,7 +80,7 @@ class Renderer {
   /**
    * Draws base game world (walls, player, items, monster, hunter)
    */
-  draw(player, monster, mapManager, gameState, hunters, remotePlayer = null) {
+  draw(player, monster, mapManager, gameState, hunters, remotePlayers = []) {
     const ctx = this.ui.ctx;
     const w = this.ui.canvas.clientWidth;
     const h = this.ui.canvas.clientHeight;
@@ -381,20 +381,25 @@ class Renderer {
     // Scrap collectibles
     mapManager.scrap.forEach(s => {
       if (s.found) return;
-      ctx.save();
-      ctx.translate(s.x, s.y);
-      ctx.rotate(Math.PI / 4);
-      
-      // Color code by rarity
-      const glowColor = s.rarity === 'rare' ? '#f5a623' : s.rarity === 'uncommon' ? '#50e3c2' : '#d7f36b';
-      ctx.fillStyle = glowColor;
-      ctx.shadowColor = glowColor;
-      ctx.shadowBlur = 12;
-      ctx.fillRect(-8, -8, 16, 16);
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = '#1c2420';
-      ctx.fillRect(-4, -4, 8, 8);
-      ctx.restore();
+        ctx.save();
+        ctx.translate(s.x, s.y);
+        ctx.rotate(Math.PI / 4);
+        const legendary = s.rarity === 'legendary';
+        const glowColor = legendary ? '#fff0a6' : s.rarity === 'rare' ? '#f5a623' : s.rarity === 'uncommon' ? '#50e3c2' : '#d7f36b';
+        ctx.fillStyle = glowColor;
+        ctx.shadowColor = glowColor;
+        ctx.shadowBlur = legendary ? 24 : 12;
+        const size = legendary ? 20 : 16;
+        ctx.fillRect(-size / 2, -size / 2, size, size);
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = legendary ? '#fff8dc' : '#1c2420';
+        ctx.fillRect(-4, -4, 8, 8);
+        if (legendary) {
+          ctx.strokeStyle = '#fff8dc';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(-12, -12, 24, 24);
+        }
+        ctx.restore();
     });
 
     // Monster entity
@@ -471,13 +476,19 @@ class Renderer {
       });
     }
 
-    // Remote co-op player
-    if (remotePlayer) {
+    // Remote co-op players
+    const remoteEntries = Array.isArray(remotePlayers)
+      ? remotePlayers
+      : remotePlayers ? [{ player: remotePlayers, slot: 2, online: true }] : [];
+    const playerColors = ['#75ddd0', '#e875d8', '#f5a623', '#a78bfa'];
+    remoteEntries.forEach(entry => {
+      const remotePlayer = entry.player || entry;
+      const color = playerColors[(Math.max(1, entry.slot || 2) - 1) % playerColors.length];
       ctx.save();
-      ctx.globalAlpha = remotePlayer.downed ? 0.42 : 1;
+      ctx.globalAlpha = (remotePlayer.downed ? 0.42 : 1) * (entry.online === false ? 0.3 : 1);
       ctx.translate(remotePlayer.x, remotePlayer.y);
       ctx.rotate(remotePlayer.angle);
-      ctx.fillStyle = '#e875d8';
+      ctx.fillStyle = color;
       ctx.beginPath();
       ctx.moveTo(14, 0);
       ctx.lineTo(-9, -9);
@@ -499,14 +510,25 @@ class Renderer {
         ctx.stroke();
         ctx.restore();
       }
-    }
+      if (entry.online === false) {
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        ctx.strokeStyle = color;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.arc(remotePlayer.x, remotePlayer.y, 20, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    });
 
     // Player entity
+    const localColor = playerColors[(Math.max(1, gameState.coop?.localSlot || 1) - 1) % playerColors.length];
     ctx.save();
     if (player.downed) ctx.globalAlpha = 0.42;
     ctx.translate(player.x, player.y);
     ctx.rotate(player.angle);
-    ctx.fillStyle = '#75ddd0';
+    ctx.fillStyle = localColor;
     ctx.beginPath();
     ctx.moveTo(14, 0);
     ctx.lineTo(-9, -9);
@@ -713,16 +735,18 @@ class Renderer {
       ctx.save();
       const p1 = door.p1;
       const p2 = door.p2;
+      const progress = Math.max(0, Math.min(1, Number.isFinite(door.animationProgress)
+        ? door.animationProgress
+        : (door.open ? 1 : 0)));
+      const eased = progress * progress * (3 - 2 * progress);
 
       if (!p1 || !p2) {
-        // Fallback for AABB doors
-        if (!door.open) {
-          ctx.fillStyle = '#172b3a';
-          ctx.fillRect(door.x, door.y, door.w, door.h);
-          ctx.strokeStyle = '#e9a950';
-          ctx.lineWidth = 1.5;
-          ctx.strokeRect(door.x + 0.5, door.y + 0.5, door.w - 1, door.h - 1);
-        }
+        ctx.globalAlpha = 1 - eased;
+        ctx.fillStyle = '#172b3a';
+        ctx.fillRect(door.x, door.y, door.w, door.h);
+        ctx.strokeStyle = '#e9a950';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(door.x + 0.5, door.y + 0.5, door.w - 1, door.h - 1);
         ctx.restore();
         return;
       }
@@ -732,73 +756,59 @@ class Renderer {
       const dx = p2.x - p1.x;
       const dy = p2.y - p1.y;
       const len = Math.hypot(dx, dy);
+      const norm = door.normal || { x: 0, y: 1 };
+      const dir = door.openDir || 1;
+      const startAngle = Math.atan2(dy, dx);
+      const endAngle = Math.atan2(norm.y * dir, norm.x * dir);
+      const angleDelta = Math.atan2(Math.sin(endAngle - startAngle), Math.cos(endAngle - startAngle));
+      const angle = startAngle + angleDelta * eased;
+      const slabLen = len * (1 - 0.1 * eased);
+      const slabEndX = p1.x + Math.cos(angle) * slabLen;
+      const slabEndY = p1.y + Math.sin(angle) * slabLen;
+      const amberCyan = [233, 169, 80].map((value, index) =>
+        Math.round(value + ([117, 221, 208][index] - value) * eased));
+      const panelRgb = [30, 38, 33].map((value, index) =>
+        Math.round(value + ([40, 68, 84][index] - value) * eased));
+      const trimColor = `rgb(${amberCyan.join(',')})`;
+      const panelColor = `rgb(${panelRgb.join(',')})`;
 
-      if (!door.open) {
-        // CLOSED: Reinforced blast panel sealed between p1 and p2
-        ctx.lineWidth = 14;
-        ctx.lineCap = 'butt';
-        ctx.strokeStyle = '#1e2621';
-        ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
-        ctx.stroke();
+      ctx.fillStyle = '#284454';
+      ctx.beginPath();
+      ctx.arc(p1.x, p1.y, 5, 0, Math.PI * 2);
+      ctx.arc(p2.x, p2.y, 5, 0, Math.PI * 2);
+      ctx.fill();
 
-        // Warning amber hazard stripe
-        ctx.lineWidth = 3.5;
-        ctx.strokeStyle = '#e9a950';
-        ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
-        ctx.stroke();
+      ctx.lineCap = eased < 0.5 ? 'butt' : 'round';
+      ctx.lineWidth = 14 - 8 * eased;
+      ctx.strokeStyle = panelColor;
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(slabEndX, slabEndY);
+      ctx.stroke();
 
-        // Center lock LED (Red glow)
-        ctx.shadowColor = '#e9a950';
-        ctx.shadowBlur = 6;
-        ctx.fillStyle = '#e9a950';
-        ctx.beginPath();
-        ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-      } else {
-        // OPEN: Swung 90° against the wall
-        // Doorway jamb stops
-        ctx.fillStyle = '#284454';
-        ctx.beginPath();
-        ctx.arc(p1.x, p1.y, 5, 0, Math.PI * 2);
-        ctx.arc(p2.x, p2.y, 5, 0, Math.PI * 2);
-        ctx.fill();
+      ctx.lineWidth = 3.5 - 1.5 * eased;
+      ctx.strokeStyle = trimColor;
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(slabEndX, slabEndY);
+      ctx.stroke();
 
-        // Swung door slab
-        const norm = door.normal || { x: 0, y: 1 };
-        const slabLen = len * 0.9;
-        const dir = door.openDir || 1;
-        const slabEndX = p1.x + norm.x * dir * slabLen;
-        const slabEndY = p1.y + norm.y * dir * slabLen;
+      ctx.globalAlpha = 1 - eased;
+      ctx.shadowColor = '#e9a950';
+      ctx.shadowBlur = 6;
+      ctx.fillStyle = '#e9a950';
+      ctx.beginPath();
+      ctx.arc(cx + (slabEndX - cx) * eased, cy + (slabEndY - cy) * eased, 3.5, 0, Math.PI * 2);
+      ctx.fill();
 
-        ctx.lineWidth = 6;
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = '#284454';
-        ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(slabEndX, slabEndY);
-        ctx.stroke();
-
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = '#75ddd0';
-        ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(slabEndX, slabEndY);
-        ctx.stroke();
-
-        // Green status LED on tip of open slab
-        ctx.shadowColor = '#75ddd0';
-        ctx.shadowBlur = 5;
-        ctx.fillStyle = '#75ddd0';
-        ctx.beginPath();
-        ctx.arc(slabEndX, slabEndY, 2.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-      }
+      ctx.globalAlpha = eased;
+      ctx.shadowColor = '#75ddd0';
+      ctx.shadowBlur = 5;
+      ctx.fillStyle = '#75ddd0';
+      ctx.beginPath();
+      ctx.arc(slabEndX, slabEndY, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
       ctx.restore();
     });
   }

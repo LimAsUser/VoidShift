@@ -1,0 +1,2 @@
+DROP INDEX `room_members_room_slot_unique`;--> statement-breakpoint
+CREATE UNIQUE INDEX `room_members_room_slot_unique` ON `room_members` (`room_code`,`slot`) WHERE "room_members"."status" <> 'removed';

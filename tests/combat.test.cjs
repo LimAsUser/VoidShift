@@ -265,8 +265,8 @@ test('firing during shell reload preserves loaded rounds and interrupts the inco
   assert.equal(player.reloading, 0);
 });
 
-test('first weapon purchase charges 2000, grants its reserve package once, and does not equip it implicitly', () => {
-  const game = makeGame(Player.createDefaultArmory(), 2500);
+test('first SMG purchase charges 4250, grants its reserve package once, and does not equip it implicitly', () => {
+  const game = makeGame(Player.createDefaultArmory(), 4750);
 
   assert.equal(game.purchaseWeapon('smg'), true);
   assert.equal(game.state.money, 500);
@@ -278,6 +278,14 @@ test('first weapon purchase charges 2000, grants its reserve package once, and d
   assert.equal(game.player.armory.loadout.primary, null);
   assert.equal(game.purchaseWeapon('smg'), false);
   assert.equal(game.state.money, 500);
+});
+
+test('weapon purchases deduct the listed price for every paid weapon', () => {
+  for (const [weaponId, price] of [['smg', 4250], ['shotgun', 15250], ['revolver', 5500]]) {
+    const game = makeGame(Player.createDefaultArmory(), price + 300);
+    assert.equal(game.purchaseWeapon(weaponId), true, weaponId);
+    assert.equal(game.state.money, 300, weaponId);
+  }
 });
 
 test('ammo depot converts reserves by weapon ratio and keeps unconvertible standard units', () => {
@@ -362,6 +370,58 @@ test('weapon rays stop at walls even when their target lies within weapon range'
 
   assert.equal(hits.length, 0);
   assert.equal(result[0].endX, 150);
+});
+
+test('co-op players block each other during normal movement and rolls', () => {
+  const player = new Player();
+  player.reset(clearMap, testArmory);
+  player.x = 100;
+  player.y = 100;
+  const teammate = { x: 125, y: 100, radius: player.radius };
+
+  player.move(0.1, { d: true }, false, clearMap, quietAudio, [teammate]);
+  assert.equal(player.x, 100);
+
+  player.startRoll(1, 0);
+  player.update(0.05, {}, false, clearMap, quietAudio, [teammate]);
+  assert.equal(player.x, 100);
+});
+
+test('friendly-fire setting controls whether teammates are targets in weapon rays', () => {
+  const game = Object.create(Game.prototype);
+  const shooter = { x: 0, y: 0, radius: 12 };
+  const teammate = { x: 100, y: 0, radius: 12, downed: false };
+  game.state = { coop: { running: true, friendlyFire: true } };
+  game.player = shooter;
+  game.remotePlayer = teammate;
+  game.monster = { active: false };
+  game.hunters = [];
+  game.map = { rayWallDistance: () => 650 };
+
+  const enabledHits = game._resolveWeaponAttack(shooter, Config.weapons.pistol, [0])[0].hitTargets;
+  assert.equal(enabledHits.length, 1);
+  assert.equal(enabledHits[0], teammate);
+
+  game.state.coop.friendlyFire = false;
+  assert.equal(game._resolveWeaponAttack(shooter, Config.weapons.pistol, [0])[0].hitTargets.length, 0);
+});
+
+test('friendly-fire projectile damage uses weapon damage and respects roll invulnerability', () => {
+  const game = Object.create(Game.prototype);
+  const shooter = new Player();
+  const teammate = new Player();
+  shooter.reset(clearMap, testArmory);
+  teammate.reset(clearMap, testArmory);
+  game.player = shooter;
+  game.remotePlayer = teammate;
+  game.state = { coop: { running: true, friendlyFire: true } };
+  game.ui = {};
+
+  game._applyProjectileHit(teammate, shooter, 0);
+  assert.equal(teammate.health, 99);
+  teammate.startRoll(1, 0);
+  game._applyProjectileHit(teammate, shooter, 0);
+  assert.equal(teammate.health, 99);
 });
 
 test('roll immunity blocks attack HP, oxygen and stun damage but not ordinary oxygen drain', () => {

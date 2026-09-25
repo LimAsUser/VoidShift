@@ -91,6 +91,20 @@ class UIManager {
     this.settingsModal = document.querySelector('#hunterSettingsModal');
     this.settingsOpenButton = document.querySelector('#hunterSettingsOpen');
     this.settingsCloseButton = document.querySelector('#hunterSettingsClose');
+    this.descentTransition = document.querySelector('#descentTransition');
+    this.descentSkipButton = document.querySelector('#descentSkipButton');
+    this.settlementDialog = document.querySelector('#settlementDialog');
+    this.settlementEyebrow = document.querySelector('#settlementEyebrow');
+    this.settlementTitle = document.querySelector('#settlementTitle');
+    this.settlementSubtitle = document.querySelector('#settlementSubtitle');
+    this.settlementDifficulty = document.querySelector('#settlementDifficulty');
+    this.settlementLootLabel = document.querySelector('#settlementLootLabel');
+    this.settlementLootCount = document.querySelector('#settlementLootCount');
+    this.settlementValueLabel = document.querySelector('#settlementValueLabel');
+    this.settlementLootValue = document.querySelector('#settlementLootValue');
+    this.settlementDuration = document.querySelector('#settlementDuration');
+    this.settlementAmmoOutcome = document.querySelector('#settlementAmmoOutcome');
+    this.settlementReturnButton = document.querySelector('#settlementReturnButton');
     this.settingsSectionButtons = Array.from(document.querySelectorAll('[data-settings-section]'));
     this.fpsCapSelect = document.querySelector('#fpsCapSelect');
     this.hunterSettingInputs = Array.from(document.querySelectorAll('[data-hunter-setting]'));
@@ -98,6 +112,8 @@ class UIManager {
       finalTerminalSpawnCount: document.querySelector('#finalTerminalSpawnCount'),
       finalTerminalSpawnInterval: document.querySelector('#finalTerminalSpawnInterval')
     };
+    this.hunterAdjustPopover = document.querySelector('#hunterAdjustPopover');
+    this.hunterAdjustTarget = null;
     this.resetHunterSettingsButton = document.querySelector('#resetHunterSettings');
     this.difficultyButtons = {
       easy: document.querySelector('[data-difficulty="easy"]'),
@@ -134,11 +150,18 @@ class UIManager {
     this.coopLobby = document.querySelector('#coopLobby');
     this.coopHostReady = document.querySelector('#coopHostReady');
     this.coopGuestReady = document.querySelector('#coopGuestReady');
+    this.coopMembersList = document.querySelector('#coopMembersList');
     this.coopReadyButton = document.querySelector('#coopReadyButton');
     this.coopStartButton = document.querySelector('#coopStartButton');
     this.coopLeaveButton = document.querySelector('#coopLeaveButton');
     this.coopHostButton = document.querySelector('#coopHostButton');
     this.coopJoinButton = document.querySelector('#coopJoinButton');
+    this.coopFriendlyFireControl = document.querySelector('#coopFriendlyFireControl');
+    this.coopFriendlyFireToggle = document.querySelector('#coopFriendlyFireToggle');
+    this.coopFriendlyFireStatus = document.querySelector('#coopFriendlyFireStatus');
+    this.coopPauseOverlay = document.querySelector('#coopPauseOverlay');
+    this.coopPauseTitle = document.querySelector('#coopPauseTitle');
+    this.coopPauseHint = document.querySelector('#coopPauseHint');
     this.tutorialOverlay = document.querySelector('#tutorialOverlay');
     this.tutorialCard = document.querySelector('#tutorialCard');
     this.tutorialPractice = document.querySelector('#tutorialPractice');
@@ -179,13 +202,34 @@ class UIManager {
   /**
    * Updates facility scale selector button active states and display text
    */
+  setCurrencyValue(element, value, { grouped = false } = {}) {
+    if (!element) return;
+    const amount = Number.isFinite(Number(value)) ? Number(value) : 0;
+    const label = grouped ? amount.toLocaleString('en-US') : String(amount);
+    const icon = document.createElement('img');
+    icon.setAttribute('class', 'credit-token-image');
+    icon.setAttribute('src', 'resources/images/voidshift-credit-coin.png');
+    icon.setAttribute('alt', '');
+    icon.setAttribute('aria-hidden', 'true');
+    const amountNode = document.createElement('span');
+    amountNode.textContent = label;
+    element.replaceChildren(icon, amountNode);
+    element.setAttribute('aria-label', `${label} 信用点`);
+    if (element.classList) element.classList.add('credit-value');
+  }
+
+  formatCreditText(value, { grouped = false } = {}) {
+    const amount = Number.isFinite(Number(value)) ? Number(value) : 0;
+    return `${grouped ? amount.toLocaleString('en-US') : amount} 信用点`;
+  }
+
   updateScaleButtons(scaleKey) {
     const scaleConfig = (Config.mapScales && Config.mapScales[scaleKey]) || { label: '小型 (12 舱)', quota: 420 };
     if (this.currentScaleText) {
       this.currentScaleText.textContent = scaleConfig.label;
     }
     if (this.quotaDisplay) {
-      this.quotaDisplay.textContent = `¥ ${scaleConfig.quota}`;
+      this.setCurrencyValue(this.quotaDisplay, scaleConfig.quota);
     }
     if (this.scaleButtons) {
       Object.keys(this.scaleButtons).forEach(key => {
@@ -246,6 +290,54 @@ class UIManager {
     if (this.fpsCapSelect) this.fpsCapSelect.value = fpsCap;
   }
 
+  showHunterAdjustment(input) {
+    if (!this.hunterAdjustPopover || !input || input.disabled) return false;
+    this.closeHunterAdjustment();
+    this.hunterAdjustTarget = input;
+    input.setAttribute('aria-expanded', 'true');
+    this.hunterAdjustPopover.hidden = false;
+    const rect = input.getBoundingClientRect();
+    const menu = this.hunterAdjustPopover.getBoundingClientRect();
+    const margin = 8;
+    const left = Math.max(margin, Math.min(rect.left, window.innerWidth - menu.width - margin));
+    const below = rect.bottom + 6;
+    const top = below + menu.height <= window.innerHeight - margin
+      ? below
+      : Math.max(margin, rect.top - menu.height - 6);
+    this.hunterAdjustPopover.style.left = `${left}px`;
+    this.hunterAdjustPopover.style.top = `${top}px`;
+    return true;
+  }
+
+  closeHunterAdjustment() {
+    if (this.hunterAdjustTarget) this.hunterAdjustTarget.setAttribute('aria-expanded', 'false');
+    this.hunterAdjustTarget = null;
+    if (this.hunterAdjustPopover) this.hunterAdjustPopover.hidden = true;
+  }
+
+  isHunterAdjustmentOpen() {
+    return !!this.hunterAdjustPopover && !this.hunterAdjustPopover.hidden;
+  }
+
+  applyHunterAdjustment(delta) {
+    const input = this.hunterAdjustTarget;
+    if (!input || input.disabled || ![-10, -5, -1, 1, 5, 10].includes(delta)) return false;
+    const min = input.min === '' ? -Infinity : Number(input.min);
+    const max = input.max === '' ? Infinity : Number(input.max);
+    const step = Number(input.step) > 0 ? Number(input.step) : 1;
+    const current = input.value === ''
+      ? (Number.isFinite(min) ? min : 0)
+      : Number(input.value);
+    let value = Math.max(min, Math.min(max, current + delta));
+    value = Number.isFinite(min)
+      ? min + Math.round((value - min) / step) * step
+      : Math.round(value / step) * step;
+    input.value = String(Math.max(min, Math.min(max, value)));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    this.closeHunterAdjustment();
+    return true;
+  }
+
   updateLoadout(armory, disabled = false) {
     if (!armory) return;
     Object.entries(this.loadoutCards).forEach(([weaponId, card]) => {
@@ -281,7 +373,7 @@ class UIManager {
 
     const amount = Math.max(Config.ammo.unitsPerPurchase, Math.floor(Number(this.ammoPurchaseAmount?.value) || Config.ammo.unitsPerPurchase));
     const pricePerUnit = Config.ammo.pricePerPurchase / Config.ammo.unitsPerPurchase;
-    if (this.ammoPurchaseCost) this.ammoPurchaseCost.textContent = `¥ ${Math.ceil(amount * pricePerUnit).toLocaleString('en-US')}`;
+    if (this.ammoPurchaseCost) this.setCurrencyValue(this.ammoPurchaseCost, Math.ceil(amount * pricePerUnit), { grouped: true });
 
     const options = [{ id: 'standard', label: '标准弹药库', stock: armory.standardAmmoUnits }];
     Object.entries(Config.weapons).forEach(([weaponId, weapon]) => {
@@ -399,25 +491,57 @@ class UIManager {
 
   updateCoopLobby(coop) {
     if (!this.coopStatus) return;
+    const members = Array.isArray(coop.members) ? coop.members.filter(member => member.status !== 'removed') : [];
+    const connectedCount = members.filter(member => member.connected || member.status === 'connected').length;
+    const guestsReady = members.length > 0 && members.every(member =>
+      (member.connected || member.status === 'connected') && member.ready);
     this.coopStatus.textContent = coop.status || 'OFFLINE';
     this.coopRoomCode.textContent = coop.code || '------';
     this.coopLobby.hidden = !coop.role;
     this.coopHostReady.textContent = coop.role === 'host'
       ? (coop.localReady ? '已准备' : '未准备')
-      : (coop.remoteReady ? '已准备' : '未准备');
-    this.coopGuestReady.textContent = coop.connected
-      ? (coop.role === 'guest'
-        ? (coop.localReady ? '已准备' : '未准备')
-        : (coop.remoteReady ? '已准备' : '未准备'))
-      : '未连接';
+      : (coop.hostReady ? '已准备' : '房主等待');
+    this.coopGuestReady.textContent = `${connectedCount} / 3 位队友已连接`;
+    if (this.coopMembersList) {
+      const slots = Array.from({ length: 3 }, (_, index) => members.find(member => member.slot === index + 2));
+      this.coopMembersList.replaceChildren(...slots.map((member, index) => {
+        const row = document.createElement('div');
+        row.className = `coop-member${member?.status === 'offline' ? ' offline' : ''}`;
+        const label = document.createElement('span');
+        const status = document.createElement('strong');
+        label.textContent = `队员 ${index + 2}`;
+        status.textContent = !member ? '空席' : member.status === 'offline'
+          ? '离线 / 5分钟内可重连'
+          : member.ready ? '已准备' : member.connected ? '未准备' : '连接中';
+        row.append(label, status);
+        return row;
+      }));
+    }
     this.coopReadyButton.textContent = coop.localReady ? '取消准备' : '准备';
     this.coopReadyButton.disabled = !coop.connected || coop.running;
     this.coopStartButton.hidden = coop.role !== 'host';
-    this.coopStartButton.disabled = !coop.connected || !coop.localReady || !coop.remoteReady || coop.running;
+    this.coopStartButton.disabled = !coop.connected || !coop.localReady || !guestsReady || coop.running;
     this.coopLeaveButton.disabled = coop.running;
     this.coopHostButton.disabled = !!coop.role;
     this.coopJoinButton.disabled = !!coop.role;
     this.coopJoinCode.disabled = !!coop.role;
+    if (this.coopFriendlyFireControl) this.coopFriendlyFireControl.hidden = coop.role !== 'host';
+    if (this.coopFriendlyFireToggle) {
+      this.coopFriendlyFireToggle.checked = coop.friendlyFire !== false;
+      this.coopFriendlyFireToggle.disabled = coop.role !== 'host' || coop.running;
+    }
+    if (this.coopFriendlyFireStatus) {
+      this.coopFriendlyFireStatus.hidden = coop.role !== 'guest';
+      this.coopFriendlyFireStatus.textContent = `友伤：${coop.friendlyFire === false ? '关闭' : '开启'}`;
+    }
+  }
+
+  setCoopPaused(paused, reason = 'host') {
+    if (this.coopPauseOverlay) this.coopPauseOverlay.hidden = !paused;
+    if (this.coopPauseTitle) this.coopPauseTitle.textContent = reason === 'reconnect' ? '联机连接中断' : '房主已切出游戏画面';
+    if (this.coopPauseHint) this.coopPauseHint.textContent = reason === 'reconnect'
+      ? '正在尝试重连；请在5分钟内恢复连接'
+      : '任务已暂停；房主返回后自动继续';
   }
 
   /**
@@ -579,6 +703,8 @@ class UIManager {
    * Resets all UI states and buttons to wait for diving
    */
   updateResetState() {
+    this.hideDescentTransition();
+    if (this.settlementDialog?.open) this.settlementDialog.close();
     this.startButton.disabled = false;
     this.startButton.innerHTML = '开始下潜 <b>↘</b>';
     this.prompt.style.display = 'grid';
@@ -701,6 +827,40 @@ class UIManager {
     this.log('舱门关闭。祝你带够氧气。');
   }
 
+  showDescentTransition() {
+    if (!this.descentTransition) return;
+    this.descentTransition.hidden = false;
+    document.body.classList.add('descent-active');
+  }
+
+  hideDescentTransition() {
+    if (this.descentTransition) this.descentTransition.hidden = true;
+    document.body.classList.remove('descent-active');
+  }
+
+  showSettlement(summary) {
+    if (!this.settlementDialog || !summary) return;
+    const success = !!summary.success;
+    const difficulty = Config.difficultyPresets[summary.difficulty]?.label || '中等';
+    const seconds = Math.max(0, Math.floor(Number(summary.elapsedSeconds) || 0));
+    const minutes = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const remainder = (seconds % 60).toString().padStart(2, '0');
+    this.settlementDialog.classList.toggle('failure', !success);
+    this.settlementEyebrow.textContent = success ? 'EXTRACTION COMPLETE' : 'SIGNAL LOST';
+    this.settlementTitle.textContent = success ? '任务完成' : '任务失败';
+    this.settlementSubtitle.textContent = summary.coop
+      ? success ? '小队已返回安全区。' : '小队通讯中断，本次下潜已结束。'
+      : success ? '人员已返回安全区。' : '未能撤出，本次下潜已结束。';
+    this.settlementDifficulty.textContent = `${difficulty}难度`;
+    this.settlementLootLabel.textContent = success ? '已带回物资' : '未能带回物资';
+    this.settlementLootCount.textContent = `${Math.max(0, Math.floor(Number(summary.lootCount) || 0))} 件`;
+    this.settlementValueLabel.textContent = success ? '回收估值' : '物资估值';
+    this.setCurrencyValue(this.settlementLootValue, Math.max(0, Math.floor(Number(summary.lootValue) || 0)), { grouped: true });
+    this.settlementDuration.textContent = `${minutes}:${remainder}`;
+    this.settlementAmmoOutcome.textContent = summary.ammoOutcome;
+    if (!this.settlementDialog.open) this.settlementDialog.showModal();
+  }
+
   /**
    * Configures UI states when calling the extraction beacon
    */
@@ -720,7 +880,7 @@ class UIManager {
   /**
    * Configures UI states on mission complete/fail
    */
-  updateFinishState(success) {
+  updateFinishState(success, summary) {
     this.startButton.disabled = false;
     this.startButton.innerHTML = '重新下潜 <b>↘</b>';
     this.hudOverlay.style.display = 'none';
@@ -732,9 +892,8 @@ class UIManager {
     this.contractState.textContent = success ? '回收完成' : '通讯丢失';
     this.resultTitle.textContent = success ? '带着战利品回家' : '这趟没有人来接你';
 
-    this.prompt.style.display = 'grid';
-    this.prompt.querySelector('strong').textContent = success ? '任务完成' : '任务失败';
-    this.prompt.querySelector('small').textContent = success ? '点击左侧按钮开始下一轮' : '重新下潜，再试一次';
+    this.prompt.style.display = 'none';
+    this.showSettlement(summary);
 
     this.log(success ? '舱门已锁定。结算数据上传中。' : '生命体征丢失。');
   }
@@ -763,9 +922,9 @@ class UIManager {
     this.hudNoise.style.setProperty('--noise-color', `hsl(${180 - noise * 1.8} 82% 55%)`);
     this.hudNoise.setAttribute('aria-label', `噪音：${noise > 70 ? '高' : noise > 30 ? '中' : '低'}`);
 
-    this.lootValueText.textContent = `¥ ${gameState.lootValue}`;
+    this.setCurrencyValue(this.lootValueText, gameState.lootValue);
     this.lootCountText.textContent = `${gameState.loot} / 6`;
-    this.predictedValue.textContent = `¥ ${gameState.lootValue}`;
+    this.setCurrencyValue(this.predictedValue, gameState.lootValue);
 
     const totalSeconds = Math.max(0, Math.floor(gameState.elapsed || 0));
     const mins = String(Math.floor(totalSeconds / 60)).padStart(2, '0');

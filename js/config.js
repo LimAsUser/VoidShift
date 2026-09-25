@@ -23,6 +23,40 @@ const Config = {
   },
   currentScale: 'small',
 
+  activeBackpack: 'field',
+  backpackTypes: {
+    field: { id: 'field', label: '物资背包', cols: 8, rows: 5, cellSize: 34, gap: 4 },
+    light: { id: 'light', label: '轻型携行包', cols: 6, rows: 4, cellSize: 34, gap: 4 },
+    heavy: { id: 'heavy', label: '重型货运包', cols: 9, rows: 6, cellSize: 30, gap: 3 }
+  },
+  get backpack() {
+    return this.backpackTypes[this.activeBackpack] || this.backpackTypes.field;
+  },
+  itemShapes: {
+    '1x1': [[1]],
+    '2x1': [[1, 1]],
+    '1x2': [[1], [1]],
+    '3x1': [[1, 1, 1]],
+    '1x3': [[1], [1], [1]],
+    '2x2': [[1, 1], [1, 1]],
+    S2: [[0, 1, 1], [1, 1, 0]],
+    Z2: [[1, 1, 0], [0, 1, 1]],
+    T3: [[1, 1, 1], [0, 1, 0]],
+    L2: [[1, 0], [1, 1]],
+    J2: [[0, 1], [1, 1]],
+    L3: [[1, 0, 0], [1, 0, 0], [1, 1, 1]],
+    J3: [[0, 0, 1], [0, 0, 1], [1, 1, 1]],
+    '3x2': [[1, 1, 1], [1, 1, 1]],
+    '2x3': [[1, 1], [1, 1], [1, 1]],
+    '3x3': [[1, 1, 1], [1, 1, 1], [1, 1, 1]]
+  },
+  shapePools: {
+    1: ['1x1', '2x1', '1x2'],
+    2: ['2x2', '3x1', '1x3', 'L2', 'J2', 'S2'],
+    3: ['3x3', '3x2', '2x3', 'L3', 'J3', 'T3']
+  },
+  lootRarityWeights: { common: 80, uncommon: 15, rare: 4.8, legendary: 0.2 },
+
   difficultyPresets: {
     easy: {
       id: 'easy', label: '简单', finalTerminalSpawnCount: 3, finalTerminalSpawnInterval: 30,
@@ -121,7 +155,7 @@ const Config = {
       slot: 'primary',
       maxAmmo: 24,
       initialReserve: 240,
-      purchasePrice: 2000,
+      purchasePrice: 4250,
       shootCooldownDuration: 0.1,
       reloadDuration: 1.8,
       reloadMode: 'magazine',
@@ -140,7 +174,7 @@ const Config = {
       slot: 'primary',
       maxAmmo: 8,
       initialReserve: 80,
-      purchasePrice: 2000,
+      purchasePrice: 15250,
       shootCooldownDuration: 0.8,
       reloadDuration: 0.5,
       reloadMode: 'shell',
@@ -160,7 +194,7 @@ const Config = {
       slot: 'sidearm',
       maxAmmo: 4,
       initialReserve: 24,
-      purchasePrice: 2000,
+      purchasePrice: 5500,
       shootCooldownDuration: 1.2,
       reloadDuration: 1,
       reloadMode: 'shell',
@@ -239,8 +273,10 @@ const Config = {
       title: '起始气闸舱',
       accent: '#3b82f6',
       lootPool: [
-        { name: '应急氧气罐', size: 1, baseValue: 60, rarity: 'common' },
-        { name: 'EVA安全缆', size: 1, baseValue: 80, rarity: 'common' }
+        { name: '应急氧气罐', size: 1, baseValue: 30, rarity: 'common' },
+        { name: 'EVA安全缆', size: 1, baseValue: 35, rarity: 'common' },
+        { name: '气闸门联锁密钥', size: 1, baseValue: 380, rarity: 'uncommon', shape: '1x1' },
+        { name: '紧急航向校准器', size: 2, baseValue: 4200, rarity: 'rare', shape: 'L2' }
       ]
     },
     reactor: {
@@ -249,9 +285,10 @@ const Config = {
       title: '反应堆核心舱',
       accent: '#f5a623',
       lootPool: [
-        { name: '聚变电容电池', size: 2, baseValue: 240, rarity: 'uncommon' },
-        { name: '辐射冷却管', size: 1, baseValue: 180, rarity: 'uncommon' },
-        { name: '浓缩核心碎块', size: 3, baseValue: 480, rarity: 'rare' }
+        { name: '聚变电容电池', size: 2, baseValue: 350, rarity: 'uncommon' },
+        { name: '辐射冷却管', size: 1, baseValue: 230, rarity: 'uncommon' },
+        { name: '浓缩核心碎块', size: 3, baseValue: 9000, rarity: 'rare' },
+        { name: '隔热检修夹具', size: 1, baseValue: 120, rarity: 'common', shape: '2x1' }
       ]
     },
     biolab: {
@@ -260,9 +297,9 @@ const Config = {
       title: '生化研究实验室',
       accent: '#50e3c2',
       lootPool: [
-        { name: '变异组织切片', size: 1, baseValue: 140, rarity: 'common' },
-        { name: '生物样本冷冻罐', size: 2, baseValue: 260, rarity: 'uncommon' },
-        { name: '未定型拟态血清', size: 3, baseValue: 520, rarity: 'rare' }
+        { name: '变异组织切片', size: 1, baseValue: 50, rarity: 'common' },
+        { name: '生物样本冷冻罐', size: 2, baseValue: 1300, rarity: 'uncommon' },
+        { name: '未定型拟态血清', size: 3, baseValue: 8200, rarity: 'rare' }
       ]
     },
     server: {
@@ -271,9 +308,9 @@ const Config = {
       title: '中央数据机房',
       accent: '#4a90e2',
       lootPool: [
-        { name: '光纤数据阵列', size: 1, baseValue: 130, rarity: 'common' },
-        { name: '加密固态驱动器', size: 2, baseValue: 280, rarity: 'uncommon' },
-        { name: 'AI黑盒存储核', size: 3, baseValue: 550, rarity: 'rare' }
+        { name: '光纤数据阵列', size: 1, baseValue: 120, rarity: 'common' },
+        { name: '加密固态驱动器', size: 2, baseValue: 1050, rarity: 'uncommon' },
+        { name: 'AI黑盒存储核', size: 3, baseValue: 10000, rarity: 'rare' }
       ]
     },
     greenhouse: {
@@ -282,9 +319,9 @@ const Config = {
       title: '水培温室生态舱',
       accent: '#7ed321',
       lootPool: [
-        { name: '水培滤芯', size: 1, baseValue: 90, rarity: 'common' },
-        { name: '基因编辑种子荚', size: 1, baseValue: 160, rarity: 'uncommon' },
-        { name: '发光真菌标本', size: 2, baseValue: 310, rarity: 'rare' }
+        { name: '水培滤芯', size: 1, baseValue: 50, rarity: 'common' },
+        { name: '基因编辑种子荚', size: 1, baseValue: 500, rarity: 'uncommon' },
+        { name: '发光真菌标本', size: 2, baseValue: 6500, rarity: 'rare' }
       ]
     },
     medbay: {
@@ -293,9 +330,9 @@ const Config = {
       title: '医疗冷冻站',
       accent: '#e8754e',
       lootPool: [
-        { name: '复合止血贴', size: 1, baseValue: 95, rarity: 'common' },
-        { name: '便携神经除颤器', size: 2, baseValue: 220, rarity: 'uncommon' },
-        { name: '军用休眠调节剂', size: 2, baseValue: 380, rarity: 'rare' }
+        { name: '复合止血贴', size: 1, baseValue: 110, rarity: 'common' },
+        { name: '便携神经除颤器', size: 2, baseValue: 800, rarity: 'uncommon' },
+        { name: '军用休眠调节剂', size: 2, baseValue: 6300, rarity: 'rare' }
       ]
     },
     cargo: {
@@ -304,9 +341,9 @@ const Config = {
       title: '重型仓储货运区',
       accent: '#d7a15c',
       lootPool: [
-        { name: '高强度合金板', size: 2, baseValue: 120, rarity: 'common' },
-        { name: '工业液压动力臂', size: 3, baseValue: 320, rarity: 'uncommon' },
-        { name: '精炼钛金铸锭', size: 3, baseValue: 460, rarity: 'rare' }
+        { name: '高强度合金板', size: 2, baseValue: 160, rarity: 'common' },
+        { name: '工业液压动力臂', size: 3, baseValue: 2100, rarity: 'uncommon' },
+        { name: '精炼钛金铸锭', size: 3, baseValue: 15200, rarity: 'rare' }
       ]
     },
     armory: {
@@ -315,9 +352,9 @@ const Config = {
       title: '军械安保岗哨',
       accent: '#d0021b',
       lootPool: [
-        { name: '高密度弹药盒', size: 1, baseValue: 110, rarity: 'common' },
-        { name: '红外战术瞄具', size: 2, baseValue: 290, rarity: 'uncommon' },
-        { name: '防爆陶瓷插板', size: 2, baseValue: 410, rarity: 'rare' }
+        { name: '高密度弹药盒', size: 1, baseValue: 20, rarity: 'common' },
+        { name: '红外战术瞄具', size: 2, baseValue: 620, rarity: 'uncommon' },
+        { name: '防爆陶瓷插板', size: 2, baseValue: 7500, rarity: 'rare' }
       ]
     },
     workshop: {
@@ -326,9 +363,9 @@ const Config = {
       title: '设备维修车间',
       accent: '#bd10e0',
       lootPool: [
-        { name: '气动扳手组', size: 1, baseValue: 100, rarity: 'common' },
-        { name: '等离子割炬喷嘴', size: 2, baseValue: 230, rarity: 'uncommon' },
-        { name: '伺服电机控制器', size: 2, baseValue: 390, rarity: 'rare' }
+        { name: '气动扳手组', size: 1, baseValue: 130, rarity: 'common' },
+        { name: '等离子割炬喷嘴', size: 2, baseValue: 530, rarity: 'uncommon' },
+        { name: '伺服电机控制器', size: 2, baseValue: 6200, rarity: 'rare' }
       ]
     },
     quarters: {
@@ -337,9 +374,9 @@ const Config = {
       title: '船员生活区',
       accent: '#9013fe',
       lootPool: [
-        { name: '旧时代合成口粮', size: 1, baseValue: 70, rarity: 'common' },
-        { name: '私人录音挂坠', size: 1, baseValue: 175, rarity: 'uncommon' },
-        { name: '走私合成雪茄盒', size: 2, baseValue: 340, rarity: 'rare' }
+        { name: '旧时代合成口粮', size: 1, baseValue: 30, rarity: 'common' },
+        { name: '私人录音挂坠', size: 1, baseValue: 220, rarity: 'uncommon' },
+        { name: '走私合成雪茄盒', size: 2, baseValue: 6400, rarity: 'rare' }
       ]
     },
     waste: {
@@ -348,9 +385,9 @@ const Config = {
       title: '洗消废弃物处理',
       accent: '#9b9b9b',
       lootPool: [
-        { name: '耐酸过滤栅板', size: 1, baseValue: 85, rarity: 'common' },
-        { name: '重金属浓缩矿渣', size: 2, baseValue: 210, rarity: 'uncommon' },
-        { name: '密封放射性废料罐', size: 3, baseValue: 450, rarity: 'rare' }
+        { name: '耐酸过滤栅板', size: 1, baseValue: 90, rarity: 'common' },
+        { name: '重金属浓缩矿渣', size: 2, baseValue: 540, rarity: 'uncommon' },
+        { name: '密封放射性废料罐', size: 3, baseValue: 8000, rarity: 'rare' }
       ]
     },
     reactor_aux: {
@@ -359,9 +396,10 @@ const Config = {
       title: '辅助动力枢纽',
       accent: '#e67e22',
       lootPool: [
-        { name: '超导磁流体管', size: 1, baseValue: 190, rarity: 'uncommon' },
-        { name: '等离子分流线圈', size: 2, baseValue: 270, rarity: 'uncommon' },
-        { name: '重核裂解催化剂', size: 2, baseValue: 460, rarity: 'rare' }
+        { name: '超导磁流体管', size: 1, baseValue: 130, rarity: 'uncommon' },
+        { name: '等离子分流线圈', size: 2, baseValue: 800, rarity: 'uncommon' },
+        { name: '重核裂解催化剂', size: 2, baseValue: 4500, rarity: 'rare' },
+        { name: '辅助电容保险芯', size: 1, baseValue: 100, rarity: 'common', shape: '2x1' }
       ]
     },
     specimen_vault: {
@@ -370,9 +408,9 @@ const Config = {
       title: '异星标本保全库',
       accent: '#1abc9c',
       lootPool: [
-        { name: '冷凝神经突触液', size: 1, baseValue: 160, rarity: 'common' },
-        { name: '基因嵌合胚胎胶囊', size: 2, baseValue: 310, rarity: 'uncommon' },
-        { name: '深渊外壳晶体标本', size: 3, baseValue: 580, rarity: 'rare' }
+        { name: '冷凝神经突触液', size: 1, baseValue: 110, rarity: 'common' },
+        { name: '基因嵌合胚胎胶囊', size: 2, baseValue: 1200, rarity: 'uncommon' },
+        { name: '深渊外壳晶体标本', size: 3, baseValue: 13200, rarity: 'rare' }
       ]
     },
     quantum_core: {
@@ -381,9 +419,9 @@ const Config = {
       title: '量子超算中心',
       accent: '#3498db',
       lootPool: [
-        { name: '光子量子芯片', size: 1, baseValue: 150, rarity: 'common' },
-        { name: '相干态纠缠介质', size: 2, baseValue: 320, rarity: 'uncommon' },
-        { name: '自意识架构硬盘', size: 3, baseValue: 620, rarity: 'rare' }
+        { name: '光子量子芯片', size: 1, baseValue: 10, rarity: 'common' },
+        { name: '相干态纠缠介质', size: 2, baseValue: 730, rarity: 'uncommon' },
+        { name: '自意识架构硬盘', size: 3, baseValue: 24000, rarity: 'rare' }
       ]
     },
     hydro_arboretum: {
@@ -392,9 +430,9 @@ const Config = {
       title: '深空植物园林',
       accent: '#2ecc71',
       lootPool: [
-        { name: '荧光植物提取液', size: 1, baseValue: 110, rarity: 'common' },
-        { name: '合成土壤母质', size: 2, baseValue: 200, rarity: 'uncommon' },
-        { name: '稀有药用孢子花粉', size: 1, baseValue: 360, rarity: 'rare' }
+        { name: '荧光植物提取液', size: 1, baseValue: 180, rarity: 'common' },
+        { name: '合成土壤母质', size: 2, baseValue: 1400, rarity: 'uncommon' },
+        { name: '稀有药用孢子花粉', size: 1, baseValue: 4500, rarity: 'rare' }
       ]
     },
     cryo_stasis: {
@@ -403,9 +441,9 @@ const Config = {
       title: '休眠舱矩阵',
       accent: '#00cec9',
       lootPool: [
-        { name: '生命体征记录仪', size: 1, baseValue: 125, rarity: 'common' },
-        { name: '液氮加压循环泵', size: 2, baseValue: 250, rarity: 'uncommon' },
-        { name: '特级冬眠保全血清', size: 2, baseValue: 430, rarity: 'rare' }
+        { name: '生命体征记录仪', size: 1, baseValue: 35, rarity: 'common' },
+        { name: '液氮加压循环泵', size: 2, baseValue: 850, rarity: 'uncommon' },
+        { name: '特级冬眠保全血清', size: 2, baseValue: 9400, rarity: 'rare' }
       ]
     },
     hangar_bay: {
@@ -415,8 +453,8 @@ const Config = {
       accent: '#f39c12',
       lootPool: [
         { name: '矢量推力喷管', size: 2, baseValue: 180, rarity: 'common' },
-        { name: '飞船航空导航仪', size: 2, baseValue: 330, rarity: 'uncommon' },
-        { name: '反重力着陆缓冲板', size: 3, baseValue: 510, rarity: 'rare' }
+        { name: '飞船航空导航仪', size: 2, baseValue: 800, rarity: 'uncommon' },
+        { name: '反重力着陆缓冲板', size: 3, baseValue: 23000, rarity: 'rare' }
       ]
     },
     security_command: {
@@ -425,9 +463,9 @@ const Config = {
       title: '战术安保指挥所',
       accent: '#c0392b',
       lootPool: [
-        { name: '加密保全密钥卡', size: 1, baseValue: 135, rarity: 'common' },
-        { name: '高频战术防暴盾', size: 2, baseValue: 300, rarity: 'uncommon' },
-        { name: '轨道炮瞄准主板', size: 2, baseValue: 490, rarity: 'rare' }
+        { name: '加密保全密钥卡', size: 1, baseValue: 25, rarity: 'common' },
+        { name: '高频战术防暴盾', size: 2, baseValue: 1600, rarity: 'uncommon' },
+        { name: '轨道炮瞄准主板', size: 2, baseValue: 8500, rarity: 'rare' }
       ]
     },
     foundry: {
@@ -437,8 +475,8 @@ const Config = {
       accent: '#9b59b6',
       lootPool: [
         { name: '耐热陶瓷坩埚', size: 1, baseValue: 115, rarity: 'common' },
-        { name: '液态金属打印喷头', size: 2, baseValue: 260, rarity: 'uncommon' },
-        { name: '重氢熔炼结晶体', size: 3, baseValue: 540, rarity: 'rare' }
+        { name: '液态金属打印喷头', size: 2, baseValue: 800, rarity: 'uncommon' },
+        { name: '重氢熔炼结晶体', size: 3, baseValue: 13200, rarity: 'rare' }
       ]
     },
     officer_lounge: {
@@ -447,9 +485,9 @@ const Config = {
       title: '军官全景生活舱',
       accent: '#8e44ad',
       lootPool: [
-        { name: '复古黑胶唱片机', size: 2, baseValue: 150, rarity: 'common' },
-        { name: '定制贵宾滤水壶', size: 1, baseValue: 220, rarity: 'uncommon' },
-        { name: '纯金星际航行勋章', size: 1, baseValue: 470, rarity: 'rare' }
+        { name: '复古黑胶唱片机', size: 2, baseValue: 300, rarity: 'common' },
+        { name: '定制贵宾滤水壶', size: 1, baseValue: 860, rarity: 'uncommon' },
+        { name: '纯金星际航行勋章', size: 1, baseValue: 6500, rarity: 'rare' }
       ]
     },
     centrifuge: {
@@ -458,9 +496,9 @@ const Config = {
       title: '人工重力离心环',
       accent: '#16a085',
       lootPool: [
-        { name: '动平衡陀螺仪', size: 1, baseValue: 140, rarity: 'common' },
-        { name: '高阻尼离合轴承', size: 2, baseValue: 280, rarity: 'uncommon' },
-        { name: '离心超导滑环', size: 2, baseValue: 450, rarity: 'rare' }
+        { name: '动平衡陀螺仪', size: 1, baseValue: 80, rarity: 'common' },
+        { name: '高阻尼离合轴承', size: 2, baseValue: 1200, rarity: 'uncommon' },
+        { name: '离心超导滑环', size: 2, baseValue: 9700, rarity: 'rare' }
       ]
     },
     comm_array: {
@@ -469,9 +507,9 @@ const Config = {
       title: '深空通讯天线阵列',
       accent: '#2980b9',
       lootPool: [
-        { name: '微波信号放大器', size: 1, baseValue: 130, rarity: 'common' },
-        { name: '相控阵高频馈源', size: 2, baseValue: 290, rarity: 'uncommon' },
-        { name: '量子跳跃信标机', size: 3, baseValue: 570, rarity: 'rare' }
+        { name: '微波信号放大器', size: 1, baseValue: 50, rarity: 'common' },
+        { name: '相控阵高频馈源', size: 2, baseValue: 1100, rarity: 'uncommon' },
+        { name: '量子跳跃信标机', size: 3, baseValue: 14500, rarity: 'rare' }
       ]
     },
     observatory: {
@@ -480,9 +518,9 @@ const Config = {
       title: '观星穹顶实验室',
       accent: '#f1c40f',
       lootPool: [
-        { name: '消色差复眼透镜', size: 1, baseValue: 145, rarity: 'common' },
-        { name: '光谱测绘分光棱镜', size: 2, baseValue: 310, rarity: 'uncommon' },
-        { name: '暗物质探测晶核', size: 2, baseValue: 600, rarity: 'rare' }
+        { name: '消色差复眼透镜', size: 1, baseValue: 70, rarity: 'common' },
+        { name: '光谱测绘分光棱镜', size: 2, baseValue: 1110, rarity: 'uncommon' },
+        { name: '暗物质探测晶核', size: 2, baseValue: 11000, rarity: 'rare' }
       ]
     },
     evacpod: {
@@ -491,8 +529,10 @@ const Config = {
       title: '紧急逃生舱甲板',
       accent: '#ef4444',
       lootPool: [
-        { name: '备用飞船黑匣子', size: 2, baseValue: 350, rarity: 'uncommon' },
-        { name: '量子逃生坐标芯片', size: 1, baseValue: 500, rarity: 'rare' }
+        { name: '备用飞船黑匣子', size: 2, baseValue: 900, rarity: 'uncommon' },
+        { name: '量子逃生坐标芯片', size: 1, baseValue: 7000, rarity: 'rare' },
+        { name: '应急维生补给包', size: 1, baseValue: 250, rarity: 'common', shape: '1x2' },
+        { name: '钻石', size: 1, baseValue: 55000, rarity: 'legendary', shape: '1x1' }
       ]
     }
   },

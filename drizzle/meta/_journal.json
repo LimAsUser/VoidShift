@@ -15,6 +15,20 @@
       "when": 1790043439894,
       "tag": "0001_rainy_kylun",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790336190838,
+      "tag": "0002_four_player_coop",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1790336420479,
+      "tag": "0003_reusable_guest_slots",
+      "breakpoints": true
     }
   ]
 }

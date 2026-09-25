@@ -1,8 +1,10 @@
-import { createHostToken, createRoomCode, getRoomDb, roomExpiry, validateSdp } from "@/db/rooms";
+import { COOP_PROTOCOL_VERSION, createHostToken, createRoomCode, getRoomDb, roomExpiry, validateSdp } from "@/db/rooms";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
-  if (!body || !validateSdp(body.offer)) {
+  const protocolVersion = body?.protocolVersion === COOP_PROTOCOL_VERSION ? COOP_PROTOCOL_VERSION : 1;
+  if (!body || (body.protocolVersion != null && protocolVersion !== COOP_PROTOCOL_VERSION) ||
+      (protocolVersion === 1 && !validateSdp(body.offer))) {
     return Response.json({ error: "invalid_offer" }, { status: 400 });
   }
 
@@ -14,9 +16,9 @@ export async function POST(request: Request) {
     const code = createRoomCode();
     const hostToken = createHostToken();
     const result = await db.prepare(
-      "INSERT OR IGNORE INTO rooms (code, host_token, offer_sdp, answer_sdp, claimed, created_at, expires_at) VALUES (?, ?, ?, NULL, 0, ?, ?)"
-    ).bind(code, hostToken, body.offer, now, roomExpiry(now)).run();
-    if (result.meta.changes === 1) return Response.json({ code, hostToken, expiresAt: roomExpiry(now) }, { status: 201 });
+      "INSERT OR IGNORE INTO rooms (code, host_token, offer_sdp, answer_sdp, claimed, protocol_version, status, created_at, expires_at) VALUES (?, ?, ?, NULL, 0, ?, 'lobby', ?, ?)"
+    ).bind(code, hostToken, protocolVersion === COOP_PROTOCOL_VERSION ? "MULTI_PEER_V2" : body.offer, protocolVersion, now, roomExpiry(now)).run();
+    if (result.meta.changes === 1) return Response.json({ code, hostToken, protocolVersion, expiresAt: roomExpiry(now) }, { status: 201 });
   }
 
   return Response.json({ error: "room_code_unavailable" }, { status: 503 });

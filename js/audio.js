@@ -20,6 +20,10 @@ class AudioManager {
 
     // Ambient loop nodes
     this.ambientSource = null;
+    this.activeSources = new Set();
+    this.scheduledAudioTimers = new Set();
+    this.audioGeneration = 0;
+    this.missionAudioMuted = false;
   }
 
   /**
@@ -61,20 +65,20 @@ class AudioManager {
     this.proximityOscillator.connect(this.proximityGain);
     this.proximityOscillator.start();
 
-    // Start background white noise loop
-    this.playAmbientNoiseLoop();
   }
 
   /**
    * Loads and plays the casual horror background noise in an infinite loop
    */
   async playAmbientNoiseLoop() {
-    if (!this.context) return;
+    if (!this.context || this.missionAudioMuted || this.ambientSource) return;
+    const generation = this.audioGeneration;
     try {
       const response = await fetch('resources/casual horror background white noise-253834.mp3');
       const arrayBuffer = await response.arrayBuffer();
       const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
-      
+      if (this.missionAudioMuted || generation !== this.audioGeneration) return;
+
       this.ambientSource = this.context.createBufferSource();
       this.ambientSource.buffer = audioBuffer;
       this.ambientSource.loop = true;
@@ -84,6 +88,7 @@ class AudioManager {
 
       this.ambientSource.connect(ambientGain);
       ambientGain.connect(this.master);
+      this._trackSource(this.ambientSource);
       this.ambientSource.start(0);
     } catch (e) {
       console.warn('Failed to load background white noise:', e);
@@ -94,9 +99,66 @@ class AudioManager {
    * Cleans audio nodes on teardown
    */
   destroy() {
+    this.stopMissionAudio();
     if (this.context && this.context.state !== 'closed') {
       this.context.close();
     }
+  }
+
+  _trackSource(source) {
+    if (!source) return source;
+    this.activeSources.add(source);
+    source.onended = () => this.activeSources.delete(source);
+    return source;
+  }
+
+  _scheduleAudio(callback, delay) {
+    if (this.missionAudioMuted) return null;
+    const generation = this.audioGeneration;
+    let timer = null;
+    timer = setTimeout(() => {
+      this.scheduledAudioTimers.delete(timer);
+      if (!this.missionAudioMuted && generation === this.audioGeneration) callback();
+    }, delay);
+    this.scheduledAudioTimers.add(timer);
+    return timer;
+  }
+
+  playToneAfterDelay(frequency, delay, duration, volume, type = 'sine') {
+    return this._scheduleAudio(() => this.playTone(frequency, duration, volume, type), delay);
+  }
+
+  stopMissionAudio() {
+    this.missionAudioMuted = true;
+    this.audioGeneration++;
+    this.scheduledAudioTimers.forEach(timer => clearTimeout(timer));
+    this.scheduledAudioTimers.clear();
+    this.activeSources.forEach(source => {
+      try { source.stop(); } catch (_) { /* already ended */ }
+    });
+    this.activeSources.clear();
+    this.ambientSource = null;
+    const now = this.context ? this.context.currentTime : 0;
+    [this.master?.gain, this.proximityGain?.gain].forEach(param => {
+      if (!param) return;
+      try {
+        param.cancelScheduledValues(now);
+        param.setValueAtTime(0, now);
+      } catch (_) {
+        param.value = 0;
+      }
+    });
+  }
+
+  beginMissionAudio() {
+    this.ensureAudio();
+    if (!this.context) return;
+    this.audioGeneration++;
+    this.missionAudioMuted = false;
+    const now = this.context.currentTime;
+    if (this.master) this.master.gain.setValueAtTime(1.2, now);
+    if (this.proximityGain) this.proximityGain.gain.setValueAtTime(0, now);
+    this.playAmbientNoiseLoop();
   }
 
   /**
@@ -112,11 +174,11 @@ class AudioManager {
    * Sound effect when a QTE terminal is successfully fully overridden
    */
   playQTESuccess() {
-    if (!this.context) return;
+    if (!this.context || this.missionAudioMuted) return;
     this.playTone(659, 0.12, 0.14, 'triangle');
-    setTimeout(() => {
+    this._scheduleAudio(() => {
       this.playTone(880, 0.15, 0.15, 'triangle');
-      setTimeout(() => {
+      this._scheduleAudio(() => {
         this.playTone(1174, 0.22, 0.16, 'triangle');
       }, 120);
     }, 100);
@@ -126,7 +188,7 @@ class AudioManager {
    * LOUD alarm siren emitted when player fails a QTE sequence
    */
   playLoudAlarmSound() {
-    if (!this.context) return;
+    if (!this.context || this.missionAudioMuted) return;
     try {
       const now = this.context.currentTime;
       const osc1 = this.context.createOscillator();
@@ -152,6 +214,8 @@ class AudioManager {
 
       osc1.connect(alarmGain);
       osc2.connect(alarmGain);
+      this._trackSource(osc1);
+      this._trackSource(osc2);
       alarmGain.connect(this.master);
 
       osc1.start(now);
@@ -167,7 +231,7 @@ class AudioManager {
    * High-voltage electrical shock / zap sound effect when QTE fails or times out
    */
   playElectricShock() {
-    if (!this.context) return;
+    if (!this.context || this.missionAudioMuted) return;
     try {
       const now = this.context.currentTime;
       const osc = this.context.createOscillator();
@@ -195,6 +259,9 @@ class AudioManager {
       osc.connect(shockGain);
       crackle.connect(shockGain);
       shockGain.connect(this.master);
+
+      this._trackSource(osc);
+      this._trackSource(crackle);
 
       osc.start(now);
       crackle.start(now);
@@ -250,11 +317,13 @@ class AudioManager {
    * Plays a pre-recorded sound effect
    */
   async playSound(url, volume = 1.0) {
-    if (!this.context) return;
+    if (!this.context || this.missionAudioMuted) return;
+    const generation = this.audioGeneration;
     try {
       const response = await fetch(url);
       const arrayBuffer = await response.arrayBuffer();
       const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
+      if (this.missionAudioMuted || generation !== this.audioGeneration) return;
       const source = this.context.createBufferSource();
       const gain = this.context.createGain();
 
@@ -263,6 +332,7 @@ class AudioManager {
 
       source.connect(gain);
       gain.connect(this.master);
+      this._trackSource(source);
       source.start(0);
     } catch (e) {
       console.error('Failed to play sound:', e);
@@ -273,7 +343,7 @@ class AudioManager {
    * Plays a single synthetic sound effect (center mono)
    */
   playTone(frequency, duration, volume, type = 'sine') {
-    if (!this.context) return;
+    if (!this.context || this.missionAudioMuted) return;
     try {
       const oscillator = this.context.createOscillator();
       const gain = this.context.createGain();
@@ -288,6 +358,7 @@ class AudioManager {
       oscillator.connect(gain);
       gain.connect(this.master);
 
+      this._trackSource(oscillator);
       oscillator.start();
       oscillator.stop(ct + duration);
     } catch (e) {
@@ -299,7 +370,7 @@ class AudioManager {
    * Plays a synthetic sound effect with 3D stereo panning and distance attenuation
    */
   playSpatialTone(frequency, duration, volume, type = 'sine', pan = 0, distanceGain = 1, isBehind = false) {
-    if (!this.context) return;
+    if (!this.context || this.missionAudioMuted) return;
     try {
       const effectiveVolume = volume * distanceGain;
       if (effectiveVolume <= 0.001) return;
@@ -335,6 +406,7 @@ class AudioManager {
         lastNode.connect(this.master);
       }
 
+      this._trackSource(oscillator);
       oscillator.start(ct);
       oscillator.stop(ct + duration);
     } catch (e) {
@@ -346,6 +418,7 @@ class AudioManager {
    * Updates proximity rumble, heartbeat audio cues, and directional panning
    */
   update(player, monster, mapManager, hunters) {
+    if (this.missionAudioMuted) return;
     // Pick the nearest active threat (ghost or any hunter) to drive proximity audio
     const activeHunters = (hunters && Array.isArray(hunters))
       ? hunters.filter(h => h.active && !h.dead)

@@ -222,7 +222,7 @@ class Player {
   /**
    * Updates player cooldowns, reloading state and movement
    */
-  update(dt, keys, stabilized, mapManager, audioManager) {
+  update(dt, keys, stabilized, mapManager, audioManager, collisionPlayers = []) {
     if (this.stamina <= 0) this.staminaLocked = true;
     else if (this.stamina >= 100) this.staminaLocked = false;
     this.staminaRegenDelay = Math.max(0, this.staminaRegenDelay - dt);
@@ -257,8 +257,8 @@ class Player {
       const distance = Config.player.dodgeDistance * rollDt / Config.player.dodgeDuration;
       const nextX = this.x + this.dodgeDirectionX * distance;
       const nextY = this.y + this.dodgeDirectionY * distance;
-      if (!mapManager.blocked(nextX, this.y, this.radius)) this.x = nextX;
-      if (!mapManager.blocked(this.x, nextY, this.radius)) this.y = nextY;
+      if (this._canOccupy(nextX, this.y, mapManager, collisionPlayers)) this.x = nextX;
+      if (this._canOccupy(this.x, nextY, mapManager, collisionPlayers)) this.y = nextY;
       this.moveSpeed = Config.player.dodgeDistance / Config.player.dodgeDuration;
       this.dodgeTimer = Math.max(0, this.dodgeTimer - dt);
       if (this.dodgeTimer === 0) {
@@ -269,7 +269,7 @@ class Player {
     }
 
     this._updateReload(dt, updateResult);
-    this.move(dt, keys, stabilized, mapManager, audioManager);
+    this.move(dt, keys, stabilized, mapManager, audioManager, collisionPlayers);
 
     return updateResult;
   }
@@ -307,7 +307,7 @@ class Player {
   /**
    * Handles user-driven translation movement and physics collisions
    */
-  move(dt, keys, stabilized, mapManager, audioManager) {
+  move(dt, keys, stabilized, mapManager, audioManager, collisionPlayers = []) {
     let dx = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
     let dy = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
     const moving = Boolean(dx || dy);
@@ -325,8 +325,8 @@ class Player {
       const ny = this.y + dy * speed * dt;
 
       // Axis-aligned independent sliding collision response
-      if (!mapManager.blocked(nx, this.y, this.radius)) this.x = nx;
-      if (!mapManager.blocked(this.x, ny, this.radius)) this.y = ny;
+      if (this._canOccupy(nx, this.y, mapManager, collisionPlayers)) this.x = nx;
+      if (this._canOccupy(this.x, ny, mapManager, collisionPlayers)) this.y = ny;
 
       const targetMaxNoise = running
         ? Config.player.sprintNoiseCap
@@ -360,6 +360,12 @@ class Player {
         if (this.staminaLocked && this.stamina >= 100) this.staminaLocked = false;
       }
     }
+  }
+
+  _canOccupy(x, y, mapManager, collisionPlayers = []) {
+    if (mapManager.blocked(x, y, this.radius)) return false;
+    return !collisionPlayers.some(other => other && other !== this &&
+      Math.hypot(x - other.x, y - other.y) < this.radius + (other.radius || Config.player.radius));
   }
 
   /**
@@ -657,7 +663,8 @@ function getPursuitTarget(entity, dt, mapManager, targetX, targetY, refreshInter
   }
 
   const first = entity.waypoints[0];
-  if (first && (first.isDoorEntry || first.isDoor || first.isDoorExit) && first.door && !first.door.open) {
+  if (first && (first.isDoorEntry || first.isDoor || first.isDoorExit) && first.door &&
+      !first.door.open && !(first.door.targetOpen ?? false)) {
     if (Math.hypot(first.x - entity.x, first.y - entity.y) < 60) {
       mapManager.toggleDoor(first.door, entity.x, entity.y);
     }

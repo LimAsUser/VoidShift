@@ -481,6 +481,8 @@ class MapManager {
               roomA: parentSock.room,
               roomB: newRoom,
               open: false,
+              targetOpen: false,
+              animationProgress: 0,
               openDir: 1
             };
 
@@ -573,6 +575,8 @@ class MapManager {
         roomA: candidate.roomA,
         roomB: candidate.roomB,
         open: false,
+        targetOpen: false,
+        animationProgress: 0,
         openDir: 1,
         isLoop: true
       };
@@ -1063,7 +1067,8 @@ class MapManager {
     const scrapCount = room.type === 'airlock' ? 2 : 3;
 
     for (let i = 0; i < scrapCount; i++) {
-      const lootTemplate = pool[Math.floor(this.random() * pool.length)];
+      const lootTemplate = this._chooseLootTemplateByRarity(pool);
+      if (!lootTemplate) continue;
       let valid = false;
       let sx = 0, sy = 0;
       let attempts = 0;
@@ -1087,12 +1092,14 @@ class MapManager {
 
       if (valid) {
         this.scrap.push({
+          id: this.scrap.length,
           x: sx,
           y: sy,
           found: false,
           name: lootTemplate.name,
           value: lootTemplate.baseValue,
           size: lootTemplate.size,
+          shape: lootTemplate.shape,
           rarity: lootTemplate.rarity,
           roomType: room.type
         });
@@ -1100,8 +1107,33 @@ class MapManager {
     }
   }
 
+  _chooseLootTemplateByRarity(pool) {
+    if (!Array.isArray(pool) || !pool.length) return null;
+    const weights = Config.lootRarityWeights || {};
+    const availableRarities = [...new Set(pool.map(item => item.rarity))]
+      .filter(rarity => Number(weights[rarity]) > 0);
+    const totalWeight = availableRarities.reduce((total, rarity) => total + Number(weights[rarity]), 0);
+    if (!totalWeight) return null;
+
+    const roll = this.random() * totalWeight;
+    let cumulativeWeight = 0;
+    let selectedRarity = availableRarities[availableRarities.length - 1];
+    for (const rarity of availableRarities) {
+      cumulativeWeight += Number(weights[rarity]);
+      if (roll < cumulativeWeight) {
+        selectedRarity = rarity;
+        break;
+      }
+    }
+
+    const candidates = pool.filter(item => item.rarity === selectedRarity);
+    if (candidates.length === 1) return candidates[0];
+    return candidates[Math.floor(this.random() * candidates.length)] || null;
+  }
+
   toggleDoor(door, playerX, playerY) {
-    if (!door.open) {
+    const targetOpen = !(door.targetOpen ?? door.open);
+    if (targetOpen) {
       const cx = (door.p1 && door.p2) ? (door.p1.x + door.p2.x) / 2 : (door.x + door.w / 2);
       const cy = (door.p1 && door.p2) ? (door.p1.y + door.p2.y) / 2 : (door.y + door.h / 2);
       if (door.axis === 'h') {
@@ -1109,12 +1141,51 @@ class MapManager {
       } else {
         door.openDir = (playerX < cx) ? 1 : -1;
       }
-      door.open = true;
-      return { open: true, dir: door.openDir };
-    } else {
-      door.open = false;
-      return { open: false, dir: 0 };
+      door.openDir = door.openDir || 1;
     }
+    door.targetOpen = targetOpen;
+    if (!Number.isFinite(door.animationProgress)) door.animationProgress = door.open ? 1 : 0;
+    return { open: targetOpen, dir: targetOpen ? door.openDir : 0 };
+  }
+
+  advanceDoorAnimations(dt, players = [], blockingActors = [], authoritative = true) {
+    const events = [];
+    const step = Math.max(0, Number.isFinite(dt) ? dt : 0) / 0.35;
+
+    this.doors.forEach(door => {
+      if (!Number.isFinite(door.animationProgress)) door.animationProgress = door.open ? 1 : 0;
+      if (typeof door.targetOpen !== 'boolean') door.targetOpen = !!door.open;
+
+      const target = door.targetOpen ? 1 : 0;
+      door.animationProgress += Math.sign(target - door.animationProgress) * Math.min(step, Math.abs(target - door.animationProgress));
+      if (!authoritative) return;
+
+      if (door.targetOpen && door.animationProgress >= 1) {
+        door.animationProgress = 1;
+        door.open = true;
+      } else if (!door.targetOpen && door.animationProgress <= 0 && door.open) {
+        const activePlayers = players.filter(player => player && Number.isFinite(player.x) && Number.isFinite(player.y));
+        const clearancePlan = this.planDoorwayClearance(door, activePlayers);
+        const otherOccupant = blockingActors.some(actor => actor && Number.isFinite(actor.x) && Number.isFinite(actor.y) &&
+          this._doorBlocksPoint(door, actor.x, actor.y, Number.isFinite(actor.radius) ? actor.radius : 0));
+
+        if (clearancePlan === null || otherOccupant) {
+          door.targetOpen = true;
+          door.animationProgress = 0;
+          events.push({ door, blocked: true });
+          return;
+        }
+
+        clearancePlan.forEach(move => {
+          move.player.x = move.x;
+          move.player.y = move.y;
+        });
+        door.animationProgress = 0;
+        door.open = false;
+      }
+    });
+
+    return events;
   }
 
   _doorBlocksPoint(door, x, y, padding) {
