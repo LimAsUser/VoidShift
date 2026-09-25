@@ -45,7 +45,8 @@ class Game {
       loot: 0,
       lootValue: 0,
       storageItems: [],
-      storageCapacity: 50,
+      storageOverflowItems: [],
+      storageCapacity: Config.storage.capacityCells,
       difficultyProfiles,
       selectedDifficulty: 'medium',
       hunterSettings: this._cloneDifficultyProfile(difficultyProfiles.medium).maps,
@@ -69,6 +70,7 @@ class Game {
       nextFrameAt: 0,
       keys: {},
       muzzleFlashTimer: 0,
+      muzzleFlashes: [],
       bulletTraces: [],
       impactParticles: [],
       recoilX: 0,
@@ -81,6 +83,12 @@ class Game {
         code: null,
         connected: false,
         localReady: false,
+        readyPending: false,
+        readyPendingValue: false,
+        readyRequestSeq: 0,
+        readyPendingRequestId: null,
+        readyTimeout: null,
+        rosterRevision: 0,
         remoteReady: false,
         running: false,
         playerId: 'host',
@@ -98,6 +106,9 @@ class Game {
 
     this.backpack = BackpackManager.fromType(Config.activeBackpack);
     this.remoteBackpack = BackpackManager.fromType(Config.activeBackpack);
+    this.selectedStorageIds = new Set();
+    this.storageNextId = 1;
+    this._initializeStorage();
     this.selectedItemId = null;
     this._itemDrag = null;
     this._boundItemDragMove = event => this._handleItemDragMove(event);
@@ -120,6 +131,9 @@ class Game {
     this._guestInventoryLayoutPendingAt = 0;
     this.coopStartPayload = null;
     this._coopRosterSignature = '';
+    this.seenWeaponEffects = new Set();
+    this.shotSequence = 0;
+    this.weaponEffectSequence = 0;
     this._attachCoopSession();
 
     this.init();
@@ -167,6 +181,13 @@ class Game {
       this.state.coop.code = event.detail.code;
       this.state.coop.playerId = event.detail.memberId || 'host';
       this.state.coop.localSlot = event.detail.slot || 1;
+      this.state.coop.localReady = false;
+      this.state.coop.hostReady = false;
+      this.state.coop.members = [];
+      this.state.coop.rosterRevision = 0;
+      this.state.coop.readyRequestSeq = 0;
+      this.state.coop.startBlocker = '';
+      this._clearReadyPending();
       this.state.coop.status = event.detail.role === 'host'
         ? `ROOM ${event.detail.code} // 等待队友`
         : `ROOM ${event.detail.code} // 正在连接`;
@@ -183,17 +204,19 @@ class Game {
           slot: this.state.coop.localSlot,
           armory: this.player.exportArmory()
         });
+        this.coopSession.sendEvent('request-roster', { slot: this.state.coop.localSlot });
       }
       this.ui.setCoopPaused?.(false);
       this.updateCoopUI();
     });
     this.coopSession.addEventListener('members', (event) => this._applyCoopMemberList(event.detail.members || []));
     this.coopSession.addEventListener('member-connected', (event) =>
-      this._setCoopMemberStatus(event.detail.memberId, 'connected', !!event.detail.reconnected));
-    this.coopSession.addEventListener('member-disconnect', (event) => this._setCoopMemberStatus(event.detail.memberId, 'offline'));
+      this._setCoopMemberStatus(event.detail.memberId, 'connected', !!event.detail.reconnected, event.detail.slot));
+    this.coopSession.addEventListener('member-disconnect', (event) => this._setCoopMemberStatus(event.detail.memberId, 'offline', false, event.detail.slot));
     this.coopSession.addEventListener('member-removed', (event) => this._removeCoopMember(event.detail.memberId));
     this.coopSession.addEventListener('status', (event) => {
       if (event.detail.state === 'expired') {
+        this._clearReadyPending();
         Object.assign(this.state.coop, {
           status: 'ROOM EXPIRED // 房间已过期', role: null, code: null,
           connected: false, localReady: false, remoteReady: false, members: [], hostReady: false,
@@ -205,6 +228,7 @@ class Game {
       }
     });
     this.coopSession.addEventListener('disconnect', () => {
+      this._clearReadyPending();
       if (!this.state.coop.disconnectAt) this.state.coop.disconnectAt = Date.now();
       this.state.coop.connected = false;
       this.state.keys = {};
@@ -220,14 +244,40 @@ class Game {
 
   _applyCoopMemberList(members) {
     const current = new Map((this.state.coop.members || []).map(member => [member.id, member]));
-    this.state.coop.members = members.map(member => ({
-      ...current.get(member.id),
-      ...member,
-      connected: member.status === 'connected',
-      offlineAt: Number(member.offline_at ?? current.get(member.id)?.offlineAt) || 0,
-      ready: current.get(member.id)?.ready || false,
-      armory: current.get(member.id)?.armory || null
-    }));
+    const incoming = new Set((members || []).map(member => member.id));
+    this.state.coop.members = (members || []).filter(member => member.status !== 'removed').map(member => {
+      const previous = current.get(member.id);
+      const peer = this.coopSession?.peers?.get(member.id);
+      const peerState = peer?.peer?.connectionState;
+      const peerOffline = !!peer && !peer.connected && (
+        peer.disconnectedNotified || peer.closed || ['disconnected', 'failed', 'closed'].includes(peerState)
+      );
+      const status = peer?.connected ? 'connected' : peerOffline ? 'offline' : member.status;
+      return {
+        ...previous,
+        ...member,
+        slot: member.slot ?? previous?.slot ?? peer?.slot,
+        status,
+        connected: peer ? !!peer.connected : member.status === 'connected',
+        offlineAt: Number(member.offline_at ?? previous?.offlineAt) || 0,
+        ready: previous?.ready || false,
+        readyRequestId: previous?.readyRequestId ?? null,
+        armory: previous?.armory || null
+      };
+    });
+    for (const [id, peer] of this.coopSession?.peers || []) {
+      if (!peer.connected || incoming.has(id)) continue;
+      const previous = current.get(id);
+      this.state.coop.members.push({
+        ...previous,
+        id,
+        slot: peer.slot ?? previous?.slot,
+        status: 'connected',
+        connected: true,
+        ready: previous?.ready || false,
+        readyRequestId: previous?.readyRequestId ?? null
+      });
+    }
     this.state.coop.members.forEach(member => {
       const remote = this.remotePlayers.get(member.id);
       if (!remote) return;
@@ -247,12 +297,16 @@ class Game {
       member = { id: memberData.id, slot: memberData.slot, status: 'waiting', connected: false, ready: false, armory: null };
       this.state.coop.members = [...(this.state.coop.members || []), member];
     }
-    Object.assign(member, memberData);
+    const updates = { ...memberData };
+    if (updates.slot == null) delete updates.slot;
+    Object.assign(member, updates);
     return member;
   }
 
-  _setCoopMemberStatus(memberId, status, forceRejoin = false) {
-    const member = this._upsertCoopMember({ id: memberId });
+  _setCoopMemberStatus(memberId, status, forceRejoin = false, slot = null) {
+    const peer = this.coopSession?.peers?.get(memberId);
+    const assignedSlot = peer?.slot ?? slot;
+    const member = this._upsertCoopMember({ id: memberId, ...(assignedSlot != null ? { slot: assignedSlot } : {}) });
     if (!member) return;
     const wasOffline = member.status === 'offline';
     member.status = status;
@@ -282,12 +336,13 @@ class Game {
         snapshot: this._createCoopSnapshot()
       }, memberId);
     }
-    this._broadcastCoopRoster();
+    this._broadcastCoopRoster(null, status === 'connected');
     this.updateCoopUI();
   }
 
   _removeCoopMember(memberId) {
     if (this.state.coop.role === 'guest' && memberId === this.state.coop.playerId) {
+      this._clearReadyPending();
       this.state.coop.status = 'RECONNECT EXPIRED // 已离开本局';
       this.state.coop.running = false;
       this.state.coop.connected = false;
@@ -327,16 +382,44 @@ class Game {
     return items.length;
   }
 
-  _broadcastCoopRoster() {
-    if (this.state.coop.role !== 'host' || !this.state.coop.connected) return;
+  _broadcastCoopRoster(targetId = null, force = false) {
+    const targetConnected = targetId && this.coopSession?.peers?.get(targetId)?.connected;
+    if (this.state.coop.role !== 'host' || (!this.state.coop.connected && !targetConnected)) return false;
     const roster = {
       hostReady: !!this.state.coop.localReady,
-      members: (this.state.coop.members || []).map(({ id, slot, status, ready }) => ({ id, slot, status, ready: !!ready }))
+      members: (this.state.coop.members || []).filter(member => member.status !== 'removed').map(({ id, slot, status, connected, ready, readyRequestId }) => ({
+        id, slot, status, connected: !!connected, ready: !!ready, readyRequestId: readyRequestId ?? null
+      }))
     };
     const signature = JSON.stringify(roster);
-    if (signature === this._coopRosterSignature) return;
-    this._coopRosterSignature = signature;
-    this.coopSession.sendEvent('room-roster', roster);
+    if (!targetId && !force && signature === this._coopRosterSignature) return false;
+    roster.revision = (this.state.coop.rosterRevision || 0) + 1;
+    const sent = this.coopSession.sendEvent('room-roster', roster, targetId);
+    if (sent) {
+      this.state.coop.rosterRevision = roster.revision;
+      if (!targetId) this._coopRosterSignature = signature;
+    }
+    return sent;
+  }
+
+  getCoopStartBlocker() {
+    const coop = this.state.coop;
+    if (coop.role !== 'host') return '只有房主可以开始任务。';
+    if (coop.running) return '任务已经开始。';
+    if (!coop.localReady) return '房主需要先准备。';
+    const members = (coop.members || []).filter(member => member.status !== 'removed');
+    if (!members.length) return '至少需要一位队友加入。';
+    if (members.some(member => !Number.isInteger(Number(member.slot)) || Number(member.slot) < 2 || Number(member.slot) > 4)) {
+      return '队员座位仍在同步，请稍候。';
+    }
+    if (members.some(member => !(member.connected || member.status === 'connected'))) return '等待所有队友连接完成。';
+    const peers = this.coopSession?.peers;
+    if (typeof peers?.get === 'function' && members.some(member => {
+      const peer = peers.get(member.id);
+      return !peer?.connected || peer.eventChannel?.readyState !== 'open';
+    })) return '队友连接已失效，等待重新连接。';
+    if (members.some(member => !member.ready)) return '等待所有已连接队友准备。';
+    return '';
   }
 
   _syncLegacyRemoteAliases() {
@@ -369,6 +452,7 @@ class Game {
   }
 
   updateCoopUI() {
+    this.state.coop.startBlocker = this.state.coop.role === 'host' ? this.getCoopStartBlocker() : '';
     this.ui.updateCoopLobby(this.state.coop);
     const lockMission = this.state.running || this.state.coop.role === 'guest';
     Object.values(this.ui.scaleButtons || {}).forEach((button) => {
@@ -495,9 +579,12 @@ class Game {
 
   leaveCoopRoom() {
     if (this.state.coop.running) return;
+    this._clearReadyPending();
     this.coopSession.close();
     Object.assign(this.state.coop, {
       role: null, code: null, connected: false, localReady: false,
+      readyPending: false, readyPendingValue: false, readyRequestSeq: 0, readyPendingRequestId: null,
+      readyTimeout: null, rosterRevision: 0, startBlocker: '',
       remoteReady: false, running: false, status: 'OFFLINE // 选择创建或加入房间',
       mapSeed: null, disconnectAt: 0, remoteArmory: null,
       hostPaused: false, friendlyFire: true, playerId: 'host', localSlot: 1,
@@ -554,21 +641,67 @@ class Game {
   }
 
   toggleCoopReady() {
-    if (!this.state.coop.connected || this.state.coop.running) return;
-    this.state.coop.localReady = !this.state.coop.localReady;
-    this.coopSession.sendEvent('ready', {
-      ready: this.state.coop.localReady,
-      armory: this.player.exportArmory()
-    });
-    if (this.state.coop.role === 'host') this._broadcastCoopRoster();
+    const coop = this.state.coop;
+    if (!coop.connected || coop.running || coop.readyPending) return false;
+    const ready = !coop.localReady;
+    if (coop.role === 'guest') {
+      const requestId = (coop.readyRequestSeq || 0) + 1;
+      coop.readyRequestSeq = requestId;
+      coop.readyPendingRequestId = requestId;
+      coop.readyPendingValue = ready;
+      coop.readyPending = true;
+      const sent = this.coopSession.sendEvent('ready', {
+        ready, requestId, slot: coop.localSlot, armory: this.player.exportArmory()
+      });
+      if (!sent) {
+        this._clearReadyPending();
+        this.ui.showToast('准备请求未发送，请检查联机后重试');
+        this.updateCoopUI();
+        return false;
+      }
+      const pendingId = requestId;
+      coop.readyTimeout = setTimeout(() => {
+        if (!coop.readyPending || coop.readyPendingRequestId !== pendingId) return;
+        this._clearReadyPending();
+        this.ui.showToast('房主尚未确认准备状态，请重试');
+        this.updateCoopUI();
+      }, 4000);
+    } else {
+      coop.localReady = ready;
+      this._broadcastCoopRoster();
+    }
     this.updateCoopUI();
+    return true;
+  }
+
+  _clearReadyPending() {
+    const coop = this.state.coop;
+    if (coop.readyTimeout) clearTimeout(coop.readyTimeout);
+    coop.readyTimeout = null;
+    coop.readyPending = false;
+    coop.readyPendingRequestId = null;
+    coop.readyPendingValue = false;
+  }
+
+  _applyReadyAcknowledgment(message) {
+    const coop = this.state.coop;
+    if (coop.role !== 'guest' || !coop.readyPending || message.requestId !== coop.readyPendingRequestId) return false;
+    if (message.accepted) coop.localReady = !!message.ready;
+    this._clearReadyPending();
+    if (!message.accepted) this.ui.showToast(message.reason || '房主未确认准备状态，请重试');
+    this.updateCoopUI();
+    return !!message.accepted;
   }
 
   startCoopMission() {
     const coop = this.state.coop;
     const members = (coop.members || []).filter(member => member.status !== 'removed');
-    if (coop.role !== 'host' || !coop.localReady || coop.running || members.length < 1 ||
-        members.some(member => !member.connected || !member.ready)) return;
+    const blocker = this.getCoopStartBlocker();
+    if (blocker) {
+      this.ui.showToast(blocker);
+      this.updateCoopUI();
+      return false;
+    }
     const mapSeed = crypto.getRandomValues(new Uint32Array(1))[0];
     const payload = {
       mapSeed,
@@ -588,6 +721,7 @@ class Game {
     };
     this._beginCoopMission(payload);
     this.coopSession.sendEvent('start', payload);
+    return true;
   }
 
   _beginCoopMission(payload) {
@@ -692,17 +826,47 @@ class Game {
       this.updateCoopUI();
     } else if (message.type === 'coop-pause' && this.state.coop.role === 'guest') {
       this._setCoopPauseState(!!message.paused);
+    } else if (message.type === 'request-roster' && this.state.coop.role === 'host') {
+      this._broadcastCoopRoster(peerId, true);
     } else if (message.type === 'room-roster' && this.state.coop.role === 'guest') {
-      this.state.coop.hostReady = !!message.hostReady;
-      this.state.coop.members = Array.isArray(message.members) ? message.members : [];
+      const coop = this.state.coop;
+      const revision = Number(message.revision) || 0;
+      if (revision && revision < (coop.rosterRevision || 0)) return;
+      coop.rosterRevision = revision;
+      coop.hostReady = !!message.hostReady;
+      coop.members = Array.isArray(message.members) ? message.members.map(member => ({
+        ...member,
+        connected: member.connected === true || member.status === 'connected'
+      })) : [];
+      const localMember = coop.members.find(member => member.id === coop.playerId);
+      if (localMember) {
+        coop.localReady = !!localMember.ready;
+        if (coop.readyPending && localMember.readyRequestId === coop.readyPendingRequestId) this._clearReadyPending();
+      }
       this.updateCoopUI();
+    } else if (message.type === 'ready-ack' && this.state.coop.role === 'guest') {
+      this._applyReadyAcknowledgment(message);
+    } else if (message.type === 'weapon-fired' && this.state.coop.role === 'guest') {
+      this._receiveWeaponFired(message);
     } else if (message.type === 'ready') {
       if (this.state.coop.role === 'host') {
-        const member = this._upsertCoopMember({ id: peerId, status: 'connected', connected: true });
+        const peer = this.coopSession.peers.get(peerId);
+        const member = peer?.connected && Number.isInteger(peer.slot) && peer.slot >= 2 && peer.slot <= 4
+          ? this._upsertCoopMember({ id: peerId, slot: peer.slot, status: 'connected', connected: true })
+          : null;
         if (member) {
           member.ready = !!message.ready;
+          member.readyRequestId = Number(message.requestId) || null;
           member.armory = Player.normalizeArmory(message.armory);
         }
+        if (peerId) this.coopSession.sendEvent('ready-ack', {
+          requestId: message.requestId,
+          accepted: !!member,
+          ready: !!member && member.ready,
+          memberId: peerId,
+          slot: member?.slot,
+          reason: member ? '' : '房主尚未同步你的队员席位，请稍候再试'
+        }, peerId);
         this._broadcastCoopRoster();
       } else {
         this.state.coop.hostReady = !!message.ready;
@@ -1076,6 +1240,17 @@ class Game {
     const keys = this.player.downed || this.state.activeQte || this.state.fullMapOpen || this.state.inventoryOpen ? {} : this.state.keys;
     const otherPlayers = this._onlineCoopPlayers(this.state.coop.playerId);
     this.player.update(dt, keys, this.state.stabilized, this.map, this.audio, otherPlayers);
+    if (this.state.fireHeld && this.player.weapon?.automatic && !this.state.activeQte && !this.state.fullMapOpen &&
+        !this.state.inventoryOpen && this.player.stunned <= 0 && this.player.dodgeTimer <= 0 && this.player.ammo > 0 &&
+        this.player.reloading <= 0) {
+      const prediction = this.player.shoot(this.state.stabilized, this.map, this.audio, this.monster);
+      if (prediction.fired) {
+        this._addMuzzleFlash(this.player, this._createWeaponShotId(this.player));
+        if (this.player.ammo === 0 && this.player.reserveAmmo > 0 && this.player.reload(this.audio)) {
+          this.coopSession.sendEvent('action', { action: 'reload' });
+        }
+      }
+    }
     this._lockFinalTerminalNoise();
     if (this.state.activeQte?.remoteOwned) {
       this.state.activeQte.timeLeft = Math.max(0, this.state.activeQte.timeLeft - dt);
@@ -1131,7 +1306,7 @@ class Game {
     if (!entry || !entry.online || this.state.coop.role !== 'host' || this.state.coop.hostPaused) return;
     const player = entry.player;
     if (Number.isFinite(message.aim)) player.angle = message.aim;
-    if (message.action === 'shoot') this.shoot(player);
+    if (message.action === 'shoot') this.shoot(player, message.shotId);
     if (message.action === 'reload') player.reload(this.audio);
     if (message.action === 'switch-slot') player.switchWeaponSlot(message.slot);
     if (message.action === 'roll') this.roll(player, message.dx, message.dy);
@@ -1719,6 +1894,126 @@ class Game {
     this._applyDifficultyProfile(difficultyId);
   }
 
+  _createStorageBackpack() {
+    const cols = Config.storage.cols;
+    const capacity = Math.max(Config.storage.capacityCells, Math.round(Number(this.state.storageCapacity) || Config.storage.capacityCells));
+    return new BackpackManager({ ...Config.storage, rows: Math.ceil(capacity / cols) });
+  }
+
+  _initializeStorage() {
+    const stored = Array.isArray(this.state.storageItems) ? this.state.storageItems : [];
+    const overflow = Array.isArray(this.state.storageOverflowItems) ? this.state.storageOverflowItems : [];
+    this.state.storageCapacity = Math.ceil(Math.max(
+      Config.storage.capacityCells,
+      Number(this.state.storageCapacity) || Config.storage.capacityCells
+    ) / Config.storage.cols) * Config.storage.cols;
+    this.state.storageItems = [];
+    this.state.storageOverflowItems = [];
+    this.storageBackpack = this._createStorageBackpack();
+    this.storageNextId = 1;
+    for (const source of [...stored, ...overflow]) {
+      const item = {
+        ...source,
+        id: this.storageNextId++,
+        rot: BackpackManager.normalizeRotation(source.rot)
+      };
+      item.shape = this.storageBackpack.shapeIdFor(item);
+      if (!this.storageBackpack.place(item, { gx: source.gx, gy: source.gy, rot: item.rot })) {
+        this.state.storageOverflowItems.push(item);
+      }
+    }
+    this.state.storageItems = this.storageBackpack.items;
+  }
+
+  _storeRecoveredItems(items) {
+    for (const source of items || []) {
+      const item = {
+        ...source,
+        id: this.storageNextId++,
+        rot: BackpackManager.normalizeRotation(source.rot)
+      };
+      item.shape = this.storageBackpack.shapeIdFor(item);
+      if (!this.storageBackpack.place(item, { rot: item.rot })) this.state.storageOverflowItems.push(item);
+    }
+    this._fillStorageOverflow();
+  }
+
+  _fillStorageOverflow() {
+    const pending = this.state.storageOverflowItems || [];
+    for (let index = 0; index < pending.length;) {
+      if (this.storageBackpack.place(pending[index], { rot: pending[index].rot })) pending.splice(index, 1);
+      else index++;
+    }
+    this.state.storageItems = this.storageBackpack.items;
+    return pending.length;
+  }
+
+  toggleStorageItemSelection(itemId) {
+    const key = String(itemId);
+    if (this.selectedStorageIds.has(key)) this.selectedStorageIds.delete(key);
+    else this.selectedStorageIds.add(key);
+    this.updateStorageUI();
+    return this.selectedStorageIds.has(key);
+  }
+
+  moveStorageItem(itemId, gx, gy, rotation = null) {
+    const item = this.storageBackpack.items.find(entry => String(entry.id) === String(itemId));
+    if (!item || !this.storageBackpack.moveItem(item, gx, gy, rotation)) return false;
+    this._fillStorageOverflow();
+    this.updateStorageUI();
+    this._save();
+    return true;
+  }
+
+  rotateStorageItem(itemId) {
+    const item = this.storageBackpack.items.find(entry => String(entry.id) === String(itemId));
+    if (!item || !this.storageBackpack.rotateItem(item)) return false;
+    this._fillStorageOverflow();
+    this.updateStorageUI();
+    this._save();
+    return true;
+  }
+
+  _rotateSelectedStorageItem() {
+    if (this.selectedStorageIds.size !== 1) return false;
+    const [itemId] = this.selectedStorageIds;
+    if (!this.storageBackpack.items.some(item => String(item.id) === String(itemId))) {
+      this.ui.showToast('待入库物资收进主仓后才能旋转');
+      return false;
+    }
+    if (!this.rotateStorageItem(itemId)) {
+      this.ui.showToast('当前位置没有足够空间旋转物资');
+      return false;
+    }
+    return true;
+  }
+
+  sellSelectedStorage() {
+    const selected = this.selectedStorageIds;
+    if (!selected?.size) return 0;
+    const ids = new Set([...selected].map(String));
+    let total = 0;
+    for (const item of [...this.storageBackpack.items]) {
+      if (!ids.has(String(item.id))) continue;
+      total += Number(item.value) || 50;
+      this.storageBackpack.removeItem(item);
+    }
+    this.state.storageOverflowItems = this.state.storageOverflowItems.filter(item => {
+      if (!ids.has(String(item.id))) return true;
+      total += Number(item.value) || 50;
+      return false;
+    });
+    selected.clear();
+    if (!total) return 0;
+    this.state.money += total;
+    this._fillStorageOverflow();
+    this.ui.showToast(`已出售选中物资，获得 ${this.ui.formatCreditText(total)}`);
+    this.updateStorageUI();
+    this.updateMoneyUI();
+    this._save();
+    return total;
+  }
+
   _loadSave() {
     try {
       const raw = localStorage.getItem('voidshift_save');
@@ -1726,6 +2021,9 @@ class Game {
       const data = JSON.parse(raw);
       if (data.money != null) this.state.money = data.money;
       if (Array.isArray(data.storageItems)) this.state.storageItems = data.storageItems;
+      if (Array.isArray(data.storageOverflowItems)) this.state.storageOverflowItems = data.storageOverflowItems;
+      this.state.storageCapacity = Math.max(Config.storage.capacityCells, Number(data.storageCapacityCells) || Config.storage.capacityCells);
+      this._initializeStorage();
       this.state.difficultyProfiles = this._sanitizeDifficultyProfiles(data.difficultyProfiles);
       this.state.selectedDifficulty = Config.difficultyPresets[data.difficultyPreset]
         ? data.difficultyPreset
@@ -1749,6 +2047,8 @@ class Game {
         armory: this.player.exportArmory(),
         money: this.state.money,
         storageItems: this.state.storageItems,
+        storageOverflowItems: this.state.storageOverflowItems,
+        storageCapacityCells: this.state.storageCapacity,
         difficultyProfiles: this.state.difficultyProfiles,
         difficultyPreset: this.state.selectedDifficulty,
         fpsCap: this.state.fpsCap
@@ -1799,6 +2099,10 @@ class Game {
       lastJumpscareTime: 0,
       fireHeld: false
     });
+    this.state.muzzleFlashTimer = 0;
+    this.state.muzzleFlashes = [];
+    this.seenWeaponEffects?.clear?.();
+    this.shotSequence = 0;
     this.state.keys = {};
     this.ui.hideDescentTransition();
     this.ui.hideTutorial();
@@ -1970,6 +2274,7 @@ class Game {
     this.state.keys = {};
     this.state.fireHeld = false;
     this.audio.ensureAudio();
+    this.audio.preloadSound?.('resources/gun-shot-359196.mp3');
     this.ui.showDescentTransition();
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
       this.skipDescentTransition();
@@ -2209,6 +2514,7 @@ class Game {
     this.state.bulletTraces.length = 0;
     this.state.impactParticles.length = 0;
     this.state.muzzleFlashTimer = 0;
+    this.state.muzzleFlashes.length = 0;
     this.monster.active = false;
     this.monster.alerted = false;
     this.hunters.forEach(hunter => {
@@ -2228,13 +2534,7 @@ class Game {
 
     if (success) {
       // Add inventory to storage
-      this.state.storageItems.push(...this.state.inventory.map(item => ({
-        name: item.name,
-        value: item.value,
-        size: item.size,
-        rarity: item.rarity,
-        desc: item.desc
-      })));
+      this._storeRecoveredItems(this.state.inventory);
       this.state.inventory = [];
     }
     this.state.remoteInventory = [];
@@ -2741,20 +3041,30 @@ class Game {
   }
 
   sellStorage() {
-    if (this.state.storageItems.length === 0) {
+    const items = [...this.state.storageItems, ...this.state.storageOverflowItems];
+    if (items.length === 0) {
       this.ui.showToast('仓库空空如也，没有可出售的物资！');
       return;
     }
-    let totalValue = 0;
-    this.state.storageItems.forEach(item => {
-      totalValue += item.value || 50;
-    });
-    this.state.storageItems = [];
+    const totalValue = items.reduce((total, item) => total + (Number(item.value) || 50), 0);
+    this.storageBackpack.clear();
+    this.state.storageItems = this.storageBackpack.items;
+    this.state.storageOverflowItems = [];
+    this.selectedStorageIds.clear();
     this.state.money += totalValue;
     this.ui.showToast(`成功出售仓库所有物资，获得 ${this.ui.formatCreditText(totalValue)}`);
     this.updateStorageUI();
     this.updateMoneyUI();
     this._save();
+    return totalValue;
+  }
+
+  packStorage() {
+    const result = this.storageBackpack.autoPack('insert');
+    this._fillStorageOverflow();
+    this.updateStorageUI();
+    this._save();
+    return result;
   }
 
   updateMoneyUI() {
@@ -2811,22 +3121,21 @@ class Game {
     this._updateBackpackReadout();
   }
 
-  _spanPx(count) {
-    return `${count * this.backpack.cellSize + Math.max(0, count - 1) * this.backpack.gap}px`;
+  _spanPx(count, manager = this.backpack) {
+    return `${count * manager.cellSize + Math.max(0, count - 1) * manager.gap}px`;
   }
 
-  _placeItemElement(tile, gx, gy, matrix) {
-    const backpack = this.backpack;
-    const width = Math.min(matrix[0].length, backpack.cols);
-    const height = Math.min(matrix.length, backpack.rows);
-    const x = Math.max(0, Math.min(backpack.cols - width, Math.trunc(Number(gx) || 0)));
-    const y = Math.max(0, Math.min(backpack.rows - height, Math.trunc(Number(gy) || 0)));
+  _placeItemElement(tile, gx, gy, matrix, manager = this.backpack) {
+    const width = Math.min(matrix[0].length, manager.cols);
+    const height = Math.min(matrix.length, manager.rows);
+    const x = Math.max(0, Math.min(manager.cols - width, Math.trunc(Number(gx) || 0)));
+    const y = Math.max(0, Math.min(manager.rows - height, Math.trunc(Number(gy) || 0)));
     tile.style.position = 'relative';
     tile.style.display = 'block';
     tile.style.gridColumn = `${x + 1} / span ${width}`;
     tile.style.gridRow = `${y + 1} / span ${height}`;
-    tile.style.width = this._spanPx(width);
-    tile.style.height = this._spanPx(height);
+    tile.style.width = this._spanPx(width, manager);
+    tile.style.height = this._spanPx(height, manager);
     tile.style.minWidth = '0';
     tile.style.minHeight = '0';
     tile.style.margin = '0';
@@ -2836,9 +3145,9 @@ class Game {
     tile.style.pointerEvents = 'none';
   }
 
-  _renderTileBlocks(tile, item, matrix) {
+  _renderTileBlocks(tile, item, matrix, manager = this.backpack, gridId = 'inventoryGrid') {
     tile.innerHTML = '';
-    const { cellSize, pitch } = this.backpack;
+    const { cellSize, pitch } = manager;
     let labelled = false;
     matrix.forEach((row, gy) => row.forEach((occupied, gx) => {
       if (!occupied) return;
@@ -2850,10 +3159,13 @@ class Game {
       block.style.width = `${cellSize}px`;
       block.style.height = `${cellSize}px`;
       block.style.pointerEvents = 'auto';
-      block.addEventListener('pointerdown', event => this._beginItemDrag(event, item));
+      block.addEventListener('pointerdown', event => gridId === 'storageGrid'
+        ? this._beginStorageItemDrag(event, item, tile)
+        : this._beginItemDrag(event, item));
       block.addEventListener('contextmenu', event => {
         event.preventDefault();
-        this.rotateItem(item.id);
+        if (gridId === 'storageGrid') this.rotateStorageItem(item.id);
+        else this.rotateItem(item.id);
       });
       if (!labelled) {
         labelled = true;
@@ -2963,12 +3275,12 @@ class Game {
     this.ui.showToast('背包物资已按回收价值降序重排');
   }
 
-  _gridMetrics(grid) {
+  _gridMetrics(grid, manager = this.backpack) {
     const cells = grid.querySelectorAll('.bp-cell');
     if (!cells.length) return null;
     const first = cells[0].getBoundingClientRect();
     const nextX = cells[1] && cells[1].getBoundingClientRect();
-    const nextY = cells[this.backpack.cols] && cells[this.backpack.cols].getBoundingClientRect();
+    const nextY = cells[manager.cols] && cells[manager.cols].getBoundingClientRect();
     return {
       left: first.left,
       top: first.top,
@@ -2977,8 +3289,8 @@ class Game {
     };
   }
 
-  _itemTileFor(itemId) {
-    return document.querySelector(`#inventoryGrid .bp-item[data-item-id="${itemId}"]`);
+  _itemTileFor(itemId, gridId = 'inventoryGrid') {
+    return document.querySelector(`#${gridId} .bp-item[data-item-id="${itemId}"]`);
   }
 
   _beginItemDrag(event, item) {
@@ -2992,13 +3304,35 @@ class Game {
     const tile = this._itemTileFor(item.id);
     const rect = tile.getBoundingClientRect();
     this._itemDrag = {
-      item, tile, metrics, rot: this.backpack.rotationFor(item),
+      item, tile, metrics, manager: this.backpack, gridId: 'inventoryGrid', kind: 'inventory', rot: this.backpack.rotationFor(item),
       grabX: Math.max(0, Math.floor((event.clientX - rect.left) / stepX)),
       grabY: Math.max(0, Math.floor((event.clientY - rect.top) / stepY)),
       gx: item.gx, gy: item.gy, pointerX: event.clientX, pointerY: event.clientY,
       startX: event.clientX, startY: event.clientY, moved: false, valid: true
     };
     this.selectInventoryItem(item.id);
+    window.addEventListener('pointermove', this._boundItemDragMove);
+    window.addEventListener('pointerup', this._boundItemDragEnd);
+    window.addEventListener('pointercancel', this._boundItemDragEnd);
+  }
+
+  _beginStorageItemDrag(event, item, tile) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const grid = document.getElementById('storageGrid');
+    const manager = this.storageBackpack;
+    const metrics = grid && this._gridMetrics(grid, manager);
+    if (!metrics) return;
+    const stepX = metrics.stepX || manager.pitch;
+    const stepY = metrics.stepY || manager.pitch;
+    const rect = tile.getBoundingClientRect();
+    this._itemDrag = {
+      item, tile, metrics, manager, gridId: 'storageGrid', kind: 'storage', rot: manager.rotationFor(item),
+      grabX: Math.max(0, Math.floor((event.clientX - rect.left) / stepX)),
+      grabY: Math.max(0, Math.floor((event.clientY - rect.top) / stepY)),
+      gx: item.gx, gy: item.gy, pointerX: event.clientX, pointerY: event.clientY,
+      startX: event.clientX, startY: event.clientY, moved: false, valid: true
+    };
     window.addEventListener('pointermove', this._boundItemDragMove);
     window.addEventListener('pointerup', this._boundItemDragEnd);
     window.addEventListener('pointercancel', this._boundItemDragEnd);
@@ -3017,9 +3351,9 @@ class Game {
       if (this._itemDrag !== drag) return;
       drag.gx = Math.floor((drag.pointerX - drag.metrics.left) / drag.metrics.stepX) - drag.grabX;
       drag.gy = Math.floor((drag.pointerY - drag.metrics.top) / drag.metrics.stepY) - drag.grabY;
-      drag.valid = this.backpack.canPlace(this.backpack.matrixFor(drag.item, drag.rot), drag.gx, drag.gy, drag.item.id);
-      const matrix = this.backpack.matrixFor(drag.item, drag.rot);
-      this._placeItemElement(drag.tile, drag.gx, drag.gy, matrix);
+      drag.valid = drag.manager.canPlace(drag.manager.matrixFor(drag.item, drag.rot), drag.gx, drag.gy, drag.item.id);
+      const matrix = drag.manager.matrixFor(drag.item, drag.rot);
+      this._placeItemElement(drag.tile, drag.gx, drag.gy, matrix, drag.manager);
       drag.tile.classList.toggle('invalid', !drag.valid);
     };
     if (typeof requestAnimationFrame === 'function' && drag.moved) requestAnimationFrame(update);
@@ -3030,10 +3364,10 @@ class Game {
     if (!this._itemDrag) return false;
     this._itemDrag.rot = BackpackManager.normalizeRotation(this._itemDrag.rot + 1);
     const drag = this._itemDrag;
-    const matrix = this.backpack.matrixFor(drag.item, drag.rot);
-    drag.valid = this.backpack.canPlace(matrix, drag.gx, drag.gy, drag.item.id);
-    this._renderTileBlocks(drag.tile, drag.item, matrix);
-    this._placeItemElement(drag.tile, drag.gx, drag.gy, matrix);
+    const matrix = drag.manager.matrixFor(drag.item, drag.rot);
+    drag.valid = drag.manager.canPlace(matrix, drag.gx, drag.gy, drag.item.id);
+    this._renderTileBlocks(drag.tile, drag.item, matrix, drag.manager, drag.gridId);
+    this._placeItemElement(drag.tile, drag.gx, drag.gy, matrix, drag.manager);
     drag.tile.classList.toggle('invalid', !drag.valid);
     return true;
   }
@@ -3043,21 +3377,28 @@ class Game {
     if (drag && drag.moved) {
       drag.gx = Math.floor((drag.pointerX - drag.metrics.left) / drag.metrics.stepX) - drag.grabX;
       drag.gy = Math.floor((drag.pointerY - drag.metrics.top) / drag.metrics.stepY) - drag.grabY;
-      drag.valid = this.backpack.canPlace(this.backpack.matrixFor(drag.item, drag.rot), drag.gx, drag.gy, drag.item.id);
+      drag.valid = drag.manager.canPlace(drag.manager.matrixFor(drag.item, drag.rot), drag.gx, drag.gy, drag.item.id);
     }
     this._itemDrag = null;
     window.removeEventListener('pointermove', this._boundItemDragMove);
     window.removeEventListener('pointerup', this._boundItemDragEnd);
     window.removeEventListener('pointercancel', this._boundItemDragEnd);
     if (!drag || !drag.moved) {
-      if (drag) this.updateInventoryUI();
+      if (drag?.kind === 'storage') this.toggleStorageItemSelection(drag.item.id);
+      else if (drag) this.updateInventoryUI();
       return;
     }
-    if (!drag.valid || !this.backpack.moveItem(drag.item, drag.gx, drag.gy, drag.rot)) {
+    if (!drag.valid || !drag.manager.moveItem(drag.item, drag.gx, drag.gy, drag.rot)) {
       this.ui.showToast('无法放置：越界或与其他物资重叠');
     }
-    this.updateInventoryUI();
-    this._syncGuestInventoryLayout();
+    if (drag.kind === 'storage') {
+      this._fillStorageOverflow();
+      this.updateStorageUI();
+      this._save();
+    } else {
+      this.updateInventoryUI();
+      this._syncGuestInventoryLayout();
+    }
   }
 
   _cancelItemDrag() {
@@ -3193,24 +3534,115 @@ class Game {
     return hit;
   }
 
+  _createWeaponShotId(shooter = this.player) {
+    this.shotSequence = (this.shotSequence || 0) + 1;
+    const entry = this._remoteEntryForActor(shooter);
+    const shooterId = shooter === this.player ? (this.state.coop.playerId || 'host') : (entry?.id || 'host');
+    return `${shooterId}:${this.shotSequence}`;
+  }
+
+  _addMuzzleFlash(shooter, shotId) {
+    const room = this.map.getRoomAt(shooter.x, shooter.y);
+    this.state.muzzleFlashes ||= [];
+    this.state.muzzleFlashes.push({
+      id: String(shotId), x: shooter.x, y: shooter.y, angle: shooter.angle,
+      roomIndex: room ? this.map.worldRooms?.indexOf(room) ?? -1 : -1,
+      timer: 0.18, duration: 0.18, range: 550
+    });
+    if (this.state.muzzleFlashes.length > 12) this.state.muzzleFlashes.shift();
+  }
+
+  _advanceMuzzleFlashes(dt) {
+    for (let index = (this.state.muzzleFlashes?.length || 0) - 1; index >= 0; index--) {
+      this.state.muzzleFlashes[index].timer -= dt;
+      if (this.state.muzzleFlashes[index].timer <= 0) this.state.muzzleFlashes.splice(index, 1);
+    }
+  }
+
+  _broadcastWeaponFired(shooter, shotId) {
+    if (this.state.coop.role !== 'host' || !this.state.coop.running) return false;
+    const shooterEntry = this._remoteEntryForActor(shooter);
+    const shooterId = shooter === this.player ? 'host' : shooterEntry?.id;
+    if (!shooterId) return false;
+    this.weaponEffectSequence = (this.weaponEffectSequence || 0) + 1;
+    const effectId = `host:${this.state.coop.mapSeed || 'mission'}:${this.weaponEffectSequence}`;
+    const room = this.map.getRoomAt(shooter.x, shooter.y);
+    const payload = {
+      shotId: effectId, requestShotId: String(shotId), shooterId, x: shooter.x, y: shooter.y,
+      angle: shooter.angle, weaponId: shooter.weaponId,
+      roomIndex: room ? this.map.worldRooms?.indexOf(room) ?? -1 : -1
+    };
+    let sent = false;
+    for (const entry of this.remotePlayers.values()) {
+      if (entry.online === false || entry.id === shooterId) continue;
+      sent = this.coopSession.sendEvent('weapon-fired', payload, entry.id) || sent;
+    }
+    return effectId;
+  }
+
+  _receiveWeaponFired(message) {
+    if (this.state.coop.role !== 'guest' || !this.state.coop.running || !message?.shotId ||
+        !Number.isFinite(message.x) || !Number.isFinite(message.y)) return false;
+    const localId = this.state.coop.playerId || this.coopSession?.memberId;
+    if (message.shooterId === localId) return false;
+    this.seenWeaponEffects ||= new Set();
+    if (this.seenWeaponEffects.has(String(message.shotId))) return false;
+    this.seenWeaponEffects.add(String(message.shotId));
+    if (this.seenWeaponEffects.size > 128) this.seenWeaponEffects.delete(this.seenWeaponEffects.values().next().value);
+    this.state.muzzleFlashes ||= [];
+    const room = this.map.getRoomAt(message.x, message.y);
+    this.state.muzzleFlashes.push({
+      id: String(message.shotId), x: message.x, y: message.y, angle: Number(message.angle) || 0,
+      roomIndex: room ? this.map.worldRooms?.indexOf(room) ?? -1 : -1,
+      timer: 0.18, duration: 0.18, range: 550
+    });
+    if (this.state.muzzleFlashes.length > 12) this.state.muzzleFlashes.shift();
+    this.audio.playSpatialSound?.(
+      'resources/gun-shot-359196.mp3', 0.3, this.player, { x: message.x, y: message.y }, this.map
+    );
+    return true;
+  }
+
   /**
    * Weapon discharge action and target intersection resolving
    */
-  shoot(shooter = this.player) {
+  shoot(shooter = this.player, confirmedShotId = null) {
     if (!this.state.running || this.state.tutorial?.paused || this.state.coop.hostPaused || shooter.dodgeTimer > 0) return;
-    if (this.state.coop.running && this.state.coop.role === 'guest' && shooter === this.player) {
-      this.coopSession.sendEvent('action', { action: 'shoot', aim: shooter.angle });
-      return;
-    }
     if (shooter.stunned > 0 || shooter.downed) {
       this.ui.showToast('休克硬直中，无法射击！');
       return;
     }
+    if (this.state.coop.running && this.state.coop.role === 'guest' && shooter === this.player) {
+      const result = shooter.shoot(this.state.stabilized, this.map, this.audio, this.monster);
+      if (result.fired) {
+        const shotId = this._createWeaponShotId(shooter);
+        this._addMuzzleFlash(shooter, shotId);
+        this._tutorialAction('fire');
+        this.coopSession.sendEvent('action', { action: 'shoot', aim: shooter.angle, shotId });
+        if (shooter.ammo === 0 && shooter.reserveAmmo > 0 && shooter.reload(this.audio)) {
+          this.coopSession.sendEvent('action', { action: 'reload' });
+          this.ui.showToast('弹匣打空，自动换弹中');
+        }
+        this.ui.updateWeaponReadout(this.player);
+      } else if (result.reason === 'empty') {
+        this.ui.showToast('弹药耗尽 (按 R 换弹)');
+      } else if (result.reason === 'reloading') {
+        this.ui.showToast('正在换弹中...');
+      }
+      return;
+    }
 
-    const result = shooter.shoot(shooter === this.player && this.state.stabilized, this.map, this.audio, this.monster);
+    const shooterAudio = shooter === this.player ? this.audio : {
+      playSound: (url, volume) => this.audio.playSpatialSound
+        ? this.audio.playSpatialSound(url, volume, this.player, shooter, this.map)
+        : this.audio.playSound(url, volume)
+    };
+    const result = shooter.shoot(shooter === this.player && this.state.stabilized, this.map, shooterAudio, this.monster);
     if (result.fired) {
+      const shotId = confirmedShotId || this._createWeaponShotId(shooter);
       if (shooter === this.player) this._tutorialAction('fire');
-      this.state.muzzleFlashTimer = 0.45;
+      const effectId = this._broadcastWeaponFired(shooter, shotId);
+      this._addMuzzleFlash(shooter, effectId || shotId);
       if (shooter === this.player) {
         const angle = result.shotAngle;
         const recoilIntensity = this.state.stabilized ? shooter.weapon.recoilAim : shooter.weapon.recoilHip;
@@ -3372,6 +3804,7 @@ class Game {
       : [];
     if (!isGuest && doorEvents.some(event => event.blocked)) this.ui.showToast('门口有人，关门已取消');
     if (this.state.tutorial?.paused) return;
+    this._advanceMuzzleFlashes(dt);
     if (this.state.coop.running && this.state.coop.role === 'guest') {
       this._updateGuestCoop(dt);
       return;
@@ -3442,11 +3875,6 @@ class Game {
       if (entry.id !== this.state.coop.playerId && entry.online === false) continue;
       if (entry.player !== this.player && entry.player.downed) continue;
       entry.player.oxygen -= dt * (this.state.extractionCalled ? 0.8 : 0.18);
-    }
-
-    // 4. Update muzzle flash light timer
-    if (this.state.muzzleFlashTimer > 0) {
-      this.state.muzzleFlashTimer = Math.max(0, this.state.muzzleFlashTimer - dt);
     }
 
     // 4a. Decay Recoil camera displacement smoothly over time (Spring-back damper)
@@ -3693,20 +4121,60 @@ class Game {
    */
   updateStorageUI() {
     const grid = document.getElementById('storageGrid');
+    if (!grid || !this.storageBackpack) return;
     grid.innerHTML = '';
-    this.state.storageItems.forEach(item => {
-      const el = document.createElement('div');
-      el.className = 'storage-item';
-      el.textContent = item.name || '■';
-      el.title = item.name || '';
-      el.style.fontSize = '10px';
-      el.style.overflow = 'hidden';
-      el.style.textOverflow = 'ellipsis';
-      el.style.whiteSpace = 'nowrap';
-      el.style.cursor = 'default';
-      grid.appendChild(el);
+    const storage = this.storageBackpack;
+    grid.style.gap = `${storage.gap}px`;
+    grid.style.gridTemplateColumns = `repeat(${storage.cols}, ${storage.cellSize}px)`;
+    grid.style.gridTemplateRows = `repeat(${storage.rows}, ${storage.cellSize}px)`;
+    for (let gy = 0; gy < storage.rows; gy++) {
+      for (let gx = 0; gx < storage.cols; gx++) {
+        const cell = document.createElement('div');
+        cell.className = 'bp-cell';
+        cell.setAttribute('aria-hidden', 'true');
+        cell.style.gridColumn = String(gx + 1);
+        cell.style.gridRow = String(gy + 1);
+        grid.appendChild(cell);
+      }
+    }
+    storage.items.forEach(item => {
+      const matrix = storage.matrixFor(item);
+      const tile = document.createElement('div');
+      tile.className = `bp-item storage-item rarity-${item.rarity || 'common'}${this.selectedStorageIds.has(String(item.id)) ? ' selected' : ''}`;
+      tile.dataset.itemId = item.id;
+      tile.title = `${item.name || '物资'} · ${this.ui.formatCreditText(item.value || 0)} · 占地 ${matrix[0].length}×${matrix.length} 格`;
+      this._placeItemElement(tile, item.gx, item.gy, matrix, storage);
+      this._renderTileBlocks(tile, item, matrix, storage, 'storageGrid');
+      grid.appendChild(tile);
     });
-    document.getElementById('storageStats').textContent = `${this.state.storageItems.length} / ${this.state.storageCapacity}`;
+
+    const used = storage.usedCells();
+    const stats = document.getElementById('storageStats');
+    if (stats) stats.textContent = `${used} / ${storage.capacity} 格 · ${storage.items.length} 件`;
+    const selectedItems = [...storage.items, ...this.state.storageOverflowItems]
+      .filter(item => this.selectedStorageIds.has(String(item.id)));
+    const selectedValue = selectedItems.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
+    const selectionStats = document.getElementById('storageSelectionStats');
+    if (selectionStats) selectionStats.textContent = selectedItems.length
+      ? `已选 ${selectedItems.length} 件 · ${this.ui.formatCreditText(selectedValue)}`
+      : '点击物资选择出售 · 拖拽整理 · 右键 / R 旋转';
+    const sellSelected = document.getElementById('sellSelectedStorageButton');
+    if (sellSelected) sellSelected.disabled = selectedItems.length === 0;
+
+    const overflowPanel = document.getElementById('storageOverflowPanel');
+    const overflowGrid = document.getElementById('storageOverflowGrid');
+    if (overflowPanel) overflowPanel.hidden = this.state.storageOverflowItems.length === 0;
+    if (overflowGrid) {
+      overflowGrid.replaceChildren(...this.state.storageOverflowItems.map(item => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `storage-overflow-item${this.selectedStorageIds.has(String(item.id)) ? ' selected' : ''}`;
+        button.setAttribute('aria-pressed', String(this.selectedStorageIds.has(String(item.id))));
+        button.textContent = `${item.name || '物资'} · ${this.ui.formatCreditText(item.value || 0)}`;
+        button.addEventListener('click', () => this.toggleStorageItemSelection(item.id));
+        return button;
+      }));
+    }
   }
 
   /**
@@ -3792,6 +4260,12 @@ class Game {
       }
       if (this.state.running && key === 'v') {
         this.melee();
+        return;
+      }
+      if (key === 'r' && !this.state.running && this.selectedStorageIds.size === 1 &&
+          document.getElementById('storageContent')?.style.display !== 'none') {
+        e.preventDefault();
+        this._rotateSelectedStorageItem();
         return;
       }
 

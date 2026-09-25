@@ -72,7 +72,7 @@ test('host state snapshots fan out independently to all three guest connections'
 
   assert.equal(sent, 3);
   assert.deepEqual(members.map(member => member.stateChannel.sent[0].tick), [30, 30, 30]);
-  assert.ok(members.every(member => member.stateChannel.sent[0].version === 2));
+  assert.ok(members.every(member => member.stateChannel.sent[0].version === 3));
 });
 
 test('host can target one guest with an event without broadcasting to the others', () => {
@@ -88,6 +88,93 @@ test('host can target one guest with an event without broadcasting to the others
   assert.equal(session.sendEvent('finish', { success: true }, 'guest-2'), true);
   assert.deepEqual(members.map(member => member.eventChannel.sent.length), [0, 1, 0]);
   assert.equal(members[1].eventChannel.sent[0].success, true);
+});
+
+test('new ready acknowledgment messages use the bumped lobby protocol version', () => {
+  const session = new CoopSession();
+  session.role = 'guest';
+  const host = { eventChannel: channel() };
+  session.peers = new Map([['host', host]]);
+
+  session.sendEvent('request-roster', { slot: 2 });
+
+  assert.equal(host.eventChannel.sent[0].version, 3);
+});
+
+test('host relays one accepted shot effect to every connected guest except its shooter', () => {
+  const sent = [];
+  const game = Object.create(Game.prototype);
+  game.state = { coop: { role: 'host', running: true, playerId: 'host' } };
+  game.map = { getRoomAt: () => null, worldRooms: [] };
+  game.player = { x: 5, y: 6, angle: 0.2, weaponId: 'pistol' };
+  game.remotePlayers = new Map(['guest-1', 'guest-2', 'guest-3'].map((id, index) => {
+    const player = { x: index * 100, y: index * 50, angle: index, weaponId: 'smg' };
+    return [id, { id, player, online: true }];
+  }));
+  game.coopSession = { sendEvent: (type, payload, target) => sent.push({ type, payload, target }) };
+
+  game._broadcastWeaponFired(game.remotePlayers.get('guest-2').player, 'shot-22');
+  game._broadcastWeaponFired(game.remotePlayers.get('guest-2').player, 'shot-22');
+
+  assert.deepEqual(sent.map(event => event.target), ['guest-1', 'guest-3', 'guest-1', 'guest-3']);
+  assert.ok(sent.every(event => event.type === 'weapon-fired'));
+  assert.equal(new Set(sent.map(event => event.payload.shotId)).size, 2);
+  assert.ok(sent.every(event => event.payload.shotId !== 'shot-22'));
+  assert.equal(sent[0].payload.x, 100);
+  assert.equal(sent[0].payload.weaponId, 'smg');
+});
+
+test('guest plays a remote weapon effect once and ignores an echoed local shot', () => {
+  const played = [];
+  const game = Object.create(Game.prototype);
+  game.state = {
+    coop: { role: 'guest', running: true, playerId: 'guest-2' },
+    muzzleFlashes: []
+  };
+  game.player = { x: 0, y: 0, angle: 0 };
+  game.audio = { playSpatialSound: (...args) => played.push(args) };
+  const room = { id: 'room-a' };
+  game.map = { worldRooms: [room], getRoomAt: () => room };
+  game.seenWeaponEffects = new Set();
+  const remote = { shotId: 'shot-1', shooterId: 'guest-1', x: 120, y: 80, angle: 1, weaponId: 'pistol' };
+
+  assert.equal(game._receiveWeaponFired(remote), true);
+  assert.equal(game._receiveWeaponFired(remote), false);
+  assert.equal(game._receiveWeaponFired({ ...remote, shotId: 'shot-local', shooterId: 'guest-2' }), false);
+  assert.equal(played.length, 1);
+  assert.equal(game.state.muzzleFlashes.length, 1);
+  assert.equal(game.state.muzzleFlashes[0].roomIndex, 0);
+});
+
+test('guest firing plays locally, sends the authoritative shot intent and mirrors auto-reload', () => {
+  const sent = [];
+  const sounds = [];
+  const game = Object.create(Game.prototype);
+  game.state = {
+    running: true, tutorial: null, stabilized: false, muzzleFlashes: [],
+    coop: { role: 'guest', running: true, playerId: 'guest-1', hostPaused: false }
+  };
+  game.player = {
+    x: 40, y: 50, angle: 0, dodgeTimer: 0, stunned: 0, downed: false,
+    ammo: 1, reserveAmmo: 24, weaponId: 'pistol',
+    shoot(_aim, _map, audio) { this.ammo--; audio.playSound('gunshot', 0.3); return { fired: true }; },
+    reload() { return true; }
+  };
+  game.audio = { playSound: (...args) => sounds.push(args) };
+  game.map = { getRoomAt: () => null, worldRooms: [] };
+  game.monster = {};
+  game.remotePlayers = new Map();
+  game.coopSession = { sendEvent: (...args) => { sent.push(args); return true; } };
+  game.ui = { updateWeaponReadout() {}, showToast() {} };
+  game._tutorialAction = () => {};
+  game._createWeaponShotId = () => 'guest-1:1';
+
+  game.shoot(game.player);
+
+  assert.equal(sounds.length, 1);
+  assert.equal(sent[0][1].action, 'shoot');
+  assert.equal(sent[0][1].shotId, 'guest-1:1');
+  assert.equal(sent[1][1].action, 'reload');
 });
 
 test('host snapshots carry stable IDs and state for all four players', () => {

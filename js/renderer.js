@@ -821,6 +821,18 @@ class Renderer {
     this.clearFlashlightBeam(player, mapManager, gameState);
   }
 
+  visibilityPolygon(origin, mapManager, range = 1800, steps = 96) {
+    const points = [];
+    for (let index = 0; index < steps; index++) {
+      const angle = (index / steps) * Math.PI * 2;
+      const directionX = Math.cos(angle);
+      const directionY = Math.sin(angle);
+      const distance = mapManager.rayVisionDistance(origin.x, origin.y, directionX, directionY, range, 0);
+      points.push({ x: origin.x + directionX * distance, y: origin.y + directionY * distance });
+    }
+    return points;
+  }
+
   /**
    * Draws occluding fog of war with near ambient light
    */
@@ -843,30 +855,41 @@ class Renderer {
     visionCtx.fillRect(player.x - 2000, player.y - 2000, 4000, 4000);
     visionCtx.globalCompositeOperation = 'destination-out';
 
-    // Muzzle Flash Effect - Omni-directional bright explosion of light but BLOCKED by walls (raycasting)
-    if (gameState.muzzleFlashTimer > 0) {
-      // Calculate flash alpha linearly decaying over the timer duration
-      const flashAlpha = Math.min(1.0, gameState.muzzleFlashTimer / 0.45);
-      const flashRange = 550 * (0.3 + 0.7 * flashAlpha); // Light radius shrinks slightly as it decays
-      const flashSteps = 180; // Dense rays to make wall blocking look smooth and solid
-      
+    const observerVisibility = this.visibilityPolygon(
+      player, mapManager, Math.hypot(Config.VIEW_W, Config.VIEW_H) * 2, 96
+    );
+    for (const flash of gameState.muzzleFlashes || []) {
+      const room = mapManager.worldRooms[flash.roomIndex] || mapManager.getRoomAt(flash.x, flash.y);
+      if (!room) continue;
+      const alpha = Math.max(0, Math.min(1, flash.timer / (flash.duration || 0.18)));
+      const flashRange = flash.range || 420;
+      const flashSteps = 96;
+      visionCtx.save();
       visionCtx.beginPath();
       visionCtx.moveTo(player.x, player.y);
+      observerVisibility.forEach(point => visionCtx.lineTo(point.x, point.y));
+      visionCtx.closePath();
+      visionCtx.clip();
+      visionCtx.beginPath();
+      visionCtx.moveTo(flash.x, flash.y);
       for (let index = 0; index <= flashSteps; index += 1) {
         const angle = (index / flashSteps) * Math.PI * 2;
-        const distance = mapManager.rayVisionDistance(player.x, player.y, Math.cos(angle), Math.sin(angle), flashRange, 12);
-        visionCtx.lineTo(player.x + Math.cos(angle) * distance, player.y + Math.sin(angle) * distance);
+        const directionX = Math.cos(angle);
+        const directionY = Math.sin(angle);
+        const roomRange = mapManager.roomBoundaryDistance(room, flash.x, flash.y, directionX, directionY);
+        const maxDistance = Math.min(flashRange, roomRange);
+        const distance = mapManager.rayVisionDistance(flash.x, flash.y, directionX, directionY, maxDistance, 12);
+        visionCtx.lineTo(flash.x + directionX * distance, flash.y + directionY * distance);
       }
       visionCtx.closePath();
-      
-      // Flash gradient (bright white-yellow center decaying to absolute dark) with dynamic opacity
-      const flashGrad = visionCtx.createRadialGradient(player.x, player.y, 10, player.x, player.y, flashRange);
-      flashGrad.addColorStop(0, `rgba(255, 255, 230, ${flashAlpha})`);
-      flashGrad.addColorStop(0.15, `rgba(255, 220, 130, ${flashAlpha * 0.95})`);
-      flashGrad.addColorStop(0.6, `rgba(215, 243, 107, ${flashAlpha * 0.45})`);
+      const flashGrad = visionCtx.createRadialGradient(flash.x, flash.y, 8, flash.x, flash.y, flashRange);
+      flashGrad.addColorStop(0, `rgba(255, 255, 230, ${alpha})`);
+      flashGrad.addColorStop(0.15, `rgba(255, 220, 130, ${alpha * 0.9})`);
+      flashGrad.addColorStop(0.6, `rgba(215, 243, 107, ${alpha * 0.4})`);
       flashGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
       visionCtx.fillStyle = flashGrad;
       visionCtx.fill();
+      visionCtx.restore();
     }
 
     // Soft ambient light circle around player - blocked by walls and closed doors like flashlight

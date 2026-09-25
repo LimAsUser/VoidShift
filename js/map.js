@@ -955,6 +955,26 @@ class MapManager {
     return null;
   }
 
+  roomBoundaryDistance(room, x, y, directionX, directionY) {
+    if (!room) return 0;
+    const vertices = room.vertices?.length
+      ? room.vertices
+      : [
+          { x: room.x, y: room.y },
+          { x: room.x + room.w, y: room.y },
+          { x: room.x + room.w, y: room.y + room.h },
+          { x: room.x, y: room.y + room.h }
+        ];
+    let nearest = Infinity;
+    for (let index = 0; index < vertices.length; index++) {
+      const start = vertices[index];
+      const end = vertices[(index + 1) % vertices.length];
+      const distance = raySegmentIntersect(x, y, directionX, directionY, start.x, start.y, end.x, end.y);
+      if (distance > 1e-6 && distance < nearest) nearest = distance;
+    }
+    return Number.isFinite(nearest) ? nearest : 0;
+  }
+
   tryPlaceProp(room, w, h, propType, subType) {
     const attempts = 40;
     for (let i = 0; i < attempts; i++) {

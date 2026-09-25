@@ -221,9 +221,17 @@
 
           <div id="storageContent" class="safehouse-page storage-page" style="display:none;">
             <div class="page-heading"><span class="page-index">03</span><div><p class="kicker">CARGO BAY</p><h2>仓库</h2></div></div>
-            <div class="storage-stats"><span>仓库容量</span><strong id="storageStats">0 / 50</strong></div>
-            <div class="storage-grid" id="storageGrid"></div>
-            <button class="action-button" onclick="game.sellStorage()">出售仓库全部物资 <b>↘</b></button>
+            <div class="storage-stats"><span>仓库容量</span><strong id="storageStats">0 / 100 格</strong><span class="storage-selection" id="storageSelectionStats">未选择物资</span></div>
+            <div class="storage-grid" id="storageGrid" role="grid" aria-label="船舱仓库网格"></div>
+            <section class="storage-overflow" id="storageOverflowPanel" hidden>
+              <div class="storage-overflow-heading"><strong>待入库</strong><small>仓库空间不足，物资已安全保留</small></div>
+              <div class="storage-overflow-list" id="storageOverflowGrid"></div>
+            </section>
+            <div class="storage-actions">
+              <button class="weapon-action" id="storagePackButton" type="button" onclick="game.packStorage()">整理仓库</button>
+              <button class="weapon-action purchase" id="sellSelectedStorageButton" type="button" onclick="game.sellSelectedStorage()" disabled>出售选中</button>
+              <button class="weapon-action purchase" type="button" onclick="game.sellStorage()">全部出售</button>
+            </div>
           </div>
 
           <div id="loadoutContent" class="safehouse-page loadout-page" style="display:none;">
@@ -275,7 +283,7 @@
               <div class="coop-lobby" id="coopLobby" hidden>
                 <div><span>房主</span><strong id="coopHostReady">等待</strong></div><div><span>队友</span><strong id="coopGuestReady">0 / 3 位队友已连接</strong></div><div class="coop-member-list" id="coopMembersList"></div>
                 <div class="coop-friendly-fire" id="coopFriendlyFireControl"><label><input id="coopFriendlyFireToggle" type="checkbox" checked><span>友伤</span></label><small>枪械可以伤害队友</small></div><p class="coop-friendly-fire-status" id="coopFriendlyFireStatus" hidden></p>
-                <button class="coop-action" id="coopReadyButton" type="button" onclick="game.toggleCoopReady()">准备</button><button class="coop-action primary" id="coopStartButton" type="button" onclick="game.startCoopMission()" disabled>房主开始任务</button><button class="coop-action" id="coopLeaveButton" type="button" onclick="game.leaveCoopRoom()">离开房间</button>
+                <button class="coop-action" id="coopReadyButton" type="button" onclick="game.toggleCoopReady()">准备</button><small class="coop-start-hint" id="coopStartHint" aria-live="polite"></small><button class="coop-action primary" id="coopStartButton" type="button" onclick="game.startCoopMission()" disabled>房主开始任务</button><button class="coop-action" id="coopLeaveButton" type="button" onclick="game.leaveCoopRoom()">离开房间</button>
               </div>
             </div>
           </div>

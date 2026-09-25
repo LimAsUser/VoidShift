@@ -75,6 +75,7 @@ function makeGame() {
     remoteInventory: [],
     storageItems: [],
     bulletTraces: [],
+    muzzleFlashes: [],
     impactParticles: [],
     fireHeld: false
   };
@@ -314,6 +315,8 @@ test('audio shutdown stops active/ambient sources, cancels delayed cues, and can
   audio.proximityGain = { gain: param() };
   audio.activeSources = new Set([active, ambient]);
   audio.scheduledAudioTimers = new Set([901]);
+  audio.soundBuffers = new Map();
+  audio.soundLoads = new Map();
   audio.ambientSource = ambient;
   audio.audioGeneration = 2;
   audio.missionAudioMuted = false;
@@ -357,6 +360,8 @@ test('a real one-shot sound source is tracked and stopped at mission end', async
   audio.proximityGain = { gain: param() };
   audio.activeSources = new Set();
   audio.scheduledAudioTimers = new Set();
+  audio.soundBuffers = new Map();
+  audio.soundLoads = new Map();
   audio.audioGeneration = 4;
   audio.missionAudioMuted = false;
   sandbox.fetch = async () => ({ arrayBuffer: async () => new ArrayBuffer(8) });

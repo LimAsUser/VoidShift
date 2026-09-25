@@ -22,6 +22,8 @@ class AudioManager {
     this.ambientSource = null;
     this.activeSources = new Set();
     this.scheduledAudioTimers = new Set();
+    this.soundBuffers = new Map();
+    this.soundLoads = new Map();
     this.audioGeneration = 0;
     this.missionAudioMuted = false;
   }
@@ -158,6 +160,7 @@ class AudioManager {
     const now = this.context.currentTime;
     if (this.master) this.master.gain.setValueAtTime(1.2, now);
     if (this.proximityGain) this.proximityGain.gain.setValueAtTime(0, now);
+    this.preloadSound('resources/gun-shot-359196.mp3');
     this.playAmbientNoiseLoop();
   }
 
@@ -316,14 +319,32 @@ class AudioManager {
   /**
    * Plays a pre-recorded sound effect
    */
+  async preloadSound(url) {
+    if (!this.context || this.soundBuffers.has(url)) return this.soundBuffers.get(url) || null;
+    if (this.soundLoads.has(url)) return this.soundLoads.get(url);
+    const load = (async () => {
+      try {
+        const response = await fetch(url);
+        const arrayBuffer = await response.arrayBuffer();
+        const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
+        this.soundBuffers.set(url, audioBuffer);
+        return audioBuffer;
+      } catch (e) {
+        console.error('Failed to preload sound:', e);
+        return null;
+      } finally {
+        this.soundLoads.delete(url);
+      }
+    })();
+    this.soundLoads.set(url, load);
+    return load;
+  }
+
   async playSound(url, volume = 1.0) {
     if (!this.context || this.missionAudioMuted) return;
-    const generation = this.audioGeneration;
+    const audioBuffer = this.soundBuffers.get(url) || await this.preloadSound(url);
+    if (!audioBuffer || this.missionAudioMuted) return;
     try {
-      const response = await fetch(url);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
-      if (this.missionAudioMuted || generation !== this.audioGeneration) return;
       const source = this.context.createBufferSource();
       const gain = this.context.createGain();
 
@@ -337,6 +358,38 @@ class AudioManager {
     } catch (e) {
       console.error('Failed to play sound:', e);
     }
+  }
+
+  async playSpatialSound(url, volume, listener, sourcePosition, mapManager = null) {
+    if (!this.context || this.missionAudioMuted || !listener || !sourcePosition) return;
+    const audioBuffer = this.soundBuffers.get(url) || await this.preloadSound(url);
+    if (!audioBuffer || this.missionAudioMuted) return;
+    const spatial = this.calculateSpatial(listener.x, listener.y, listener.angle || 0, sourcePosition.x, sourcePosition.y);
+    let occlusionGain = 1;
+    if (mapManager?.rayVisionDistance && spatial.distance > 0) {
+      const dx = (sourcePosition.x - listener.x) / spatial.distance;
+      const dy = (sourcePosition.y - listener.y) / spatial.distance;
+      const clearDistance = mapManager.rayVisionDistance(listener.x, listener.y, dx, dy, spatial.distance, 0);
+      if (clearDistance < spatial.distance - 8) occlusionGain = 0.24;
+    }
+    const finalGain = Math.max(0, volume * spatial.distanceGain * occlusionGain);
+    this.lastSpatialGain = finalGain;
+    if (finalGain <= 0.001) return;
+    const source = this.context.createBufferSource();
+    const gain = this.context.createGain();
+    source.buffer = audioBuffer;
+    gain.gain.value = finalGain;
+    source.connect(gain);
+    if (this.hasStereoPanner) {
+      const panner = this.context.createStereoPanner();
+      panner.pan.value = spatial.pan;
+      gain.connect(panner);
+      panner.connect(this.master);
+    } else {
+      gain.connect(this.master);
+    }
+    this._trackSource(source);
+    source.start(0);
   }
 
   /**

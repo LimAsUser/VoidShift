@@ -11,6 +11,7 @@ const sandbox = {
   structuredClone
 };
 vm.runInNewContext(`${fs.readFileSync(path.join(root, 'js/config.js'), 'utf8')}\nglobalThis.ConfigUnderTest = Config;`, sandbox);
+vm.runInNewContext(`${fs.readFileSync(path.join(root, 'js/inventory.js'), 'utf8')}\nglobalThis.BackpackManagerUnderTest = BackpackManager;`, sandbox);
 vm.runInNewContext(`${fs.readFileSync(path.join(root, 'js/entities.js'), 'utf8')}\nglobalThis.PlayerUnderTest = Player; globalThis.MonsterUnderTest = Monster;`, sandbox);
 vm.runInNewContext(`${fs.readFileSync(path.join(root, 'js/game.js'), 'utf8')}\nglobalThis.GameUnderTest = Game;`, sandbox);
 vm.runInNewContext(`${fs.readFileSync(path.join(root, 'js/ui.js'), 'utf8')}\nglobalThis.UIManagerUnderTest = UIManager;`, sandbox);

@@ -29,6 +29,7 @@ const Config = {
     light: { id: 'light', label: '轻型携行包', cols: 6, rows: 4, cellSize: 34, gap: 4 },
     heavy: { id: 'heavy', label: '重型货运包', cols: 9, rows: 6, cellSize: 30, gap: 3 }
   },
+  storage: { id: 'storage', label: '船舱仓库', cols: 10, rows: 10, capacityCells: 100, cellSize: 26, gap: 2 },
   get backpack() {
     return this.backpackTypes[this.activeBackpack] || this.backpackTypes.field;
   },

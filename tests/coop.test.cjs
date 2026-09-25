@@ -7,8 +7,13 @@ const vm = require('node:vm');
 const root = path.join(__dirname, '..');
 const sandbox = {
   window: { addEventListener() {} },
-  document: { visibilityState: 'visible', hasFocus: () => true, addEventListener() {} },
+  document: {
+    visibilityState: 'visible', hasFocus: () => true, addEventListener() {},
+    createElement: () => ({ append(...children) { this.children = children; }, classList: { add() {} } })
+  },
   performance: { now: () => 1000 },
+  setTimeout: () => 1,
+  clearTimeout() {},
   structuredClone
 };
 for (const [file, exportCode] of [
@@ -157,4 +162,219 @@ test('guest lobby state follows the host friendly-fire event', () => {
   game._handleCoopMessage('events', { type: 'friendly-fire', enabled: false });
 
   assert.equal(game.state.coop.friendlyFire, false);
+});
+
+test('host preserves the assigned seat when Peer connects before the first member poll', () => {
+  const game = Object.create(Game.prototype);
+  game.state = { coop: { role: 'host', connected: false, members: [], rosterRevision: 0 } };
+  game.remotePlayers = new Map();
+  game.coopSession = { peers: new Map([['member-a', { connected: true, slot: 2 }]]), sendEvent: () => true };
+  game.pendingCoopFinishes = new Map();
+  game.updateCoopUI = () => {};
+
+  game._setCoopMemberStatus('member-a', 'connected', false, 2);
+
+  assert.equal(game.state.coop.members[0].slot, 2);
+  assert.equal(game.state.coop.members[0].connected, true);
+});
+
+test('stale server member status cannot mark a locally disconnected Peer as connected again', () => {
+  const game = Object.create(Game.prototype);
+  game.state = { coop: { role: 'host', connected: true, members: [{ id: 'member-a', slot: 2, status: 'offline', connected: false, ready: true }] } };
+  game.remotePlayers = new Map();
+  game.coopSession = {
+    peers: new Map([['member-a', { connected: false, disconnectedNotified: true, closed: false, slot: 2 }]]),
+    sendEvent: () => true
+  };
+  game.updateCoopUI = () => {};
+
+  game._applyCoopMemberList([{ id: 'member-a', slot: 2, status: 'connected' }]);
+
+  assert.equal(game.state.coop.members[0].status, 'offline');
+  assert.equal(game.state.coop.members[0].connected, false);
+  assert.equal(game.state.coop.members[0].ready, true);
+});
+
+test('guest shows ready as pending until the host confirms it', () => {
+  const sent = [];
+  const game = Object.create(Game.prototype);
+  game.state = { coop: { role: 'guest', connected: true, running: false, localReady: false, readyPending: false, readyRequestSeq: 0 } };
+  game.coopSession = { sendEvent: (...args) => { sent.push(args); return true; } };
+  game.player = { exportArmory: () => ({ owned: true }) };
+  game.updateCoopUI = () => {};
+
+  assert.equal(game.toggleCoopReady(), true);
+  assert.equal(game.state.coop.localReady, false);
+  assert.equal(game.state.coop.readyPending, true);
+  assert.equal(sent[0][0], 'ready');
+  assert.equal(sent[0][1].ready, true);
+  assert.equal(sent[0][1].requestId, 1);
+  game._handleCoopMessage('events', { type: 'ready-ack', requestId: 1, accepted: true, ready: true });
+  assert.equal(game.state.coop.localReady, true);
+  assert.equal(game.state.coop.readyPending, false);
+});
+
+test('guest treats its member row in a host roster as authoritative readiness', () => {
+  const game = Object.create(Game.prototype);
+  game.state = { coop: { role: 'guest', playerId: 'member-a', localReady: true, readyPending: false, rosterRevision: 0, members: [] } };
+  game.updateCoopUI = () => {};
+  game._handleCoopMessage('events', {
+    type: 'room-roster', revision: 1, hostReady: true,
+    members: [{ id: 'member-a', slot: 2, status: 'connected', ready: false, readyRequestId: 1 }]
+  });
+
+  assert.equal(game.state.coop.hostReady, true);
+  assert.equal(game.state.coop.localReady, false);
+  assert.equal(game.state.coop.members[0].slot, 2);
+});
+
+test('host readiness request returns an acknowledgment tied to its transport peer', () => {
+  const sent = [];
+  const game = Object.create(Game.prototype);
+  game.state = { coop: { role: 'host', connected: true, localReady: true, rosterRevision: 0, members: [
+    { id: 'member-a', slot: 2, status: 'connected', connected: true, ready: false }
+  ] } };
+  game.coopSession = {
+    peers: new Map([['member-a', { connected: true, slot: 2 }]]),
+    sendEvent: (...args) => { sent.push(args); return true; }
+  };
+  game.updateCoopUI = () => {};
+  game._coopRosterSignature = '';
+
+  game._handleCoopMessage('events', { type: 'ready', ready: true, requestId: 7 }, 'member-a');
+
+  assert.equal(game.state.coop.members[0].ready, true);
+  assert.ok(sent.some(([type, payload, target]) => type === 'ready-ack' && payload.requestId === 7 && payload.ready && target === 'member-a'));
+  assert.ok(sent.some(([type]) => type === 'room-roster'));
+});
+
+test('host answers a newly connected guest roster request even when the roster signature is unchanged', () => {
+  const sent = [];
+  const game = Object.create(Game.prototype);
+  game.state = { coop: { role: 'host', connected: true, localReady: true, rosterRevision: 4, members: [
+    { id: 'member-a', slot: 2, status: 'connected', connected: true, ready: true }
+  ] } };
+  game.coopSession = { peers: new Map([['member-a', { connected: true, slot: 2 }]]), sendEvent: (...args) => { sent.push(args); return true; } };
+  game._coopRosterSignature = JSON.stringify({ hostReady: true, members: [{ id: 'member-a', slot: 2, status: 'connected', ready: true }] });
+
+  game._handleCoopMessage('events', { type: 'request-roster' }, 'member-a');
+
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0][0], 'room-roster');
+  assert.equal(sent[0][2], 'member-a');
+});
+
+test('guest ignores an older roster revision after applying newer readiness state', () => {
+  const game = Object.create(Game.prototype);
+  game.state = { coop: { role: 'guest', playerId: 'member-a', localReady: true, readyPending: false, rosterRevision: 5, members: [] } };
+  game.updateCoopUI = () => {};
+
+  game._handleCoopMessage('events', {
+    type: 'room-roster', revision: 4, hostReady: false,
+    members: [{ id: 'member-a', slot: 2, status: 'connected', ready: false }]
+  });
+
+  assert.equal(game.state.coop.localReady, true);
+  assert.equal(game.state.coop.rosterRevision, 5);
+});
+
+test('guest ready request updates the host roster and returns the same confirmed state', () => {
+  const host = Object.create(Game.prototype);
+  const guest = Object.create(Game.prototype);
+  const memberId = 'member-a';
+  host.state = { coop: { role: 'host', connected: true, localReady: true, rosterRevision: 0, members: [
+    { id: memberId, slot: 2, status: 'connected', connected: true, ready: false }
+  ] } };
+  guest.state = { coop: {
+    role: 'guest', connected: true, playerId: memberId, localSlot: 2,
+    localReady: false, readyPending: false, readyPendingValue: false, readyRequestSeq: 0,
+    readyPendingRequestId: null, readyTimeout: null, rosterRevision: 0, members: []
+  } };
+  host.remotePlayers = new Map();
+  host.pendingCoopFinishes = new Map();
+  host.updateCoopUI = () => {};
+  guest.updateCoopUI = () => {};
+  guest.player = { exportArmory: () => ({ weapon: 'pistol' }) };
+  host.coopSession = {
+    peers: new Map([[memberId, { connected: true, slot: 2, eventChannel: { readyState: 'open' } }]]),
+    sendEvent: (type, payload, target) => {
+      if (!target || target === memberId) guest._handleCoopMessage('events', { ...payload, type }, 'host');
+      return true;
+    }
+  };
+  guest.coopSession = {
+    sendEvent: (type, payload) => {
+      host._handleCoopMessage('events', { ...payload, type }, memberId);
+      return true;
+    }
+  };
+
+  assert.equal(guest.toggleCoopReady(), true);
+
+  assert.equal(host.state.coop.members[0].ready, true);
+  assert.equal(guest.state.coop.localReady, true);
+  assert.equal(guest.state.coop.readyPending, false);
+  assert.equal(guest.state.coop.members[0].slot, 2);
+  assert.equal(host.getCoopStartBlocker(), '');
+});
+
+test('host explains why a co-op start is blocked and never silently drops the request', () => {
+  const notices = [];
+  const game = Object.create(Game.prototype);
+  game.state = { coop: { role: 'host', connected: true, running: false, localReady: true, members: [
+    { id: 'member-a', slot: 2, status: 'connected', connected: true, ready: false }
+  ] } };
+  game.ui = { showToast: message => notices.push(message) };
+  game.updateCoopUI = () => {};
+
+  assert.equal(game.startCoopMission(), false);
+  assert.match(notices[0], /队友.*准备/);
+  game.state.coop.members[0].ready = true;
+  game.coopSession = { peers: new Map([['member-a', { connected: false, eventChannel: { readyState: 'closed' } }]]) };
+  assert.match(game.getCoopStartBlocker(), /连接已失效/);
+});
+
+test('lobby shows pending readiness and a concrete host start blocker', () => {
+  const ui = {
+    coopStatus: { textContent: '' }, coopRoomCode: { textContent: '' }, coopLobby: { hidden: true },
+    coopHostReady: { textContent: '' }, coopGuestReady: { textContent: '' },
+    coopMembersList: { replaceChildren() {} },
+    coopReadyButton: { textContent: '', disabled: false }, coopStartButton: { hidden: false, disabled: false },
+    coopStartHint: { textContent: '' }, coopLeaveButton: { disabled: false }, coopHostButton: { disabled: false },
+    coopJoinButton: { disabled: false }, coopJoinCode: { disabled: false }, coopFriendlyFireControl: null,
+    coopFriendlyFireToggle: null, coopFriendlyFireStatus: null
+  };
+  UIManager.prototype.updateCoopLobby.call(ui, {
+    role: 'guest', code: 'ABC123', connected: true, readyPending: true, localReady: false,
+    hostReady: false, members: [], running: false
+  });
+  assert.equal(ui.coopReadyButton.textContent, '等待确认…');
+  assert.equal(ui.coopReadyButton.disabled, true);
+
+  UIManager.prototype.updateCoopLobby.call(ui, {
+    role: 'host', code: 'ABC123', connected: true, localReady: true,
+    members: [{ id: 'member-a', slot: 2, status: 'connected', connected: true, ready: false }],
+    startBlocker: '等待所有已连接队友准备。', running: false
+  });
+  assert.equal(ui.coopStartButton.disabled, true);
+  assert.equal(ui.coopStartHint.textContent, '等待所有已连接队友准备。');
+});
+
+test('lobby never renders a connected but not-yet-slotted member as an empty seat', () => {
+  const ui = {
+    coopStatus: { textContent: '' }, coopRoomCode: { textContent: '' }, coopLobby: { hidden: true },
+    coopHostReady: { textContent: '' }, coopGuestReady: { textContent: '' },
+    coopMembersList: { replaceChildren(...rows) { this.rows = rows; } },
+    coopReadyButton: { textContent: '', disabled: false }, coopStartButton: { hidden: false, disabled: false },
+    coopStartHint: { textContent: '' }, coopLeaveButton: { disabled: false }, coopHostButton: { disabled: false },
+    coopJoinButton: { disabled: false }, coopJoinCode: { disabled: false }, coopFriendlyFireControl: null,
+    coopFriendlyFireToggle: null, coopFriendlyFireStatus: null
+  };
+
+  UIManager.prototype.updateCoopLobby.call(ui, {
+    role: 'guest', code: 'ABC123', connected: true, localReady: false, hostReady: true,
+    members: [{ id: 'member-a', status: 'connected', connected: true, ready: false }], running: false
+  });
+
+  assert.ok(ui.coopMembersList.rows.some(row => row.children?.[1]?.textContent === '座位同步中…'));
 });

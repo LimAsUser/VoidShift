@@ -153,6 +153,7 @@ class UIManager {
     this.coopMembersList = document.querySelector('#coopMembersList');
     this.coopReadyButton = document.querySelector('#coopReadyButton');
     this.coopStartButton = document.querySelector('#coopStartButton');
+    this.coopStartHint = document.querySelector('#coopStartHint');
     this.coopLeaveButton = document.querySelector('#coopLeaveButton');
     this.coopHostButton = document.querySelector('#coopHostButton');
     this.coopJoinButton = document.querySelector('#coopJoinButton');
@@ -503,24 +504,38 @@ class UIManager {
       : (coop.hostReady ? '已准备' : '房主等待');
     this.coopGuestReady.textContent = `${connectedCount} / 3 位队友已连接`;
     if (this.coopMembersList) {
-      const slots = Array.from({ length: 3 }, (_, index) => members.find(member => member.slot === index + 2));
+      const unassigned = members.filter(member => !Number.isInteger(Number(member.slot)) || Number(member.slot) < 2 || Number(member.slot) > 4);
+      const slots = Array.from({ length: 3 }, (_, index) => {
+        const member = members.find(item => Number(item.slot) === index + 2);
+        return member || unassigned.shift() || null;
+      });
       this.coopMembersList.replaceChildren(...slots.map((member, index) => {
         const row = document.createElement('div');
         row.className = `coop-member${member?.status === 'offline' ? ' offline' : ''}`;
         const label = document.createElement('span');
         const status = document.createElement('strong');
         label.textContent = `队员 ${index + 2}`;
-        status.textContent = !member ? '空席' : member.status === 'offline'
+        status.textContent = !member ? '空席' : !Number.isInteger(Number(member.slot)) || Number(member.slot) < 2 || Number(member.slot) > 4
+          ? '座位同步中…' : member.status === 'offline'
           ? '离线 / 5分钟内可重连'
           : member.ready ? '已准备' : member.connected ? '未准备' : '连接中';
         row.append(label, status);
         return row;
       }));
     }
-    this.coopReadyButton.textContent = coop.localReady ? '取消准备' : '准备';
-    this.coopReadyButton.disabled = !coop.connected || coop.running;
+    this.coopReadyButton.textContent = coop.readyPending ? '等待确认…' : coop.localReady ? '取消准备' : '准备';
+    this.coopReadyButton.disabled = !coop.connected || coop.running || !!coop.readyPending;
     this.coopStartButton.hidden = coop.role !== 'host';
-    this.coopStartButton.disabled = !coop.connected || !coop.localReady || !guestsReady || coop.running;
+    const startHint = this.coopStartHint;
+    if (startHint) {
+      startHint.textContent = coop.role === 'host'
+        ? (coop.startBlocker || '全员已准备，可以开始任务。')
+        : coop.readyPending ? '准备请求已发送，等待房主确认…'
+          : coop.localReady ? '房主已确认你准备就绪。' : '请准备并等待房主开始。';
+    }
+    this.coopStartButton.disabled = coop.role === 'host'
+      ? !!coop.startBlocker
+      : !coop.connected || !coop.localReady || !guestsReady || coop.running;
     this.coopLeaveButton.disabled = coop.running;
     this.coopHostButton.disabled = !!coop.role;
     this.coopJoinButton.disabled = !!coop.role;
