@@ -159,8 +159,8 @@ class CoopSession extends EventTarget {
     if (previous) this._closePeer(previous);
     const record = this._createPeerRecord(member.id, member.generation, 'host');
     record.slot = member.slot;
-    record.peer.createDataChannel(`state:${member.id}`, { ordered: false, maxRetransmits: 0 });
-    record.peer.createDataChannel(`events:${member.id}`, { ordered: true });
+    this._bindChannel(record.peer.createDataChannel(`state:${member.id}`, { ordered: false, maxRetransmits: 0 }), record);
+    this._bindChannel(record.peer.createDataChannel(`events:${member.id}`, { ordered: true }), record);
     try {
       await record.peer.setLocalDescription(await record.peer.createOffer());
       await this._waitForIce(record.peer);

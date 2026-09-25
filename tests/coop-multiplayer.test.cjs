@@ -10,6 +10,15 @@ const sandbox = {
   crypto: { getRandomValues(array) { array[0] = 123; return array; } },
   EventTarget,
   CustomEvent,
+  RTCPeerConnection: class {
+    constructor() { this.connectionState = 'new'; this.iceGatheringState = 'complete'; this.localDescription = null; }
+    addEventListener() {}
+    createDataChannel(label) { return { label, readyState: 'connecting', addEventListener() {}, close() {} }; }
+    async createOffer() { return { type: 'offer', sdp: 'v=0' }; }
+    async setLocalDescription(description) { this.localDescription = description; }
+    async close() {}
+  },
+  fetch: async () => ({ ok: true }),
   structuredClone,
   performance: { now: () => 1000 }
 };
@@ -24,6 +33,17 @@ for (const [file, exportCode] of [
 
 const CoopSession = sandbox.CoopSessionUnderTest;
 const Game = sandbox.GameUnderTest;
+
+test('host binds both created RTC channels before waiting for channel readiness', async () => {
+  const session = new CoopSession();
+  session.roomCode = 'ABC234';
+  session.hostToken = 'host-token';
+  await session._createHostPeer({ id: 'guest-2', slot: 2, generation: 0 });
+  const peer = session.peers.get('guest-2');
+
+  assert.equal(peer.stateChannel.label, 'state:guest-2');
+  assert.equal(peer.eventChannel.label, 'events:guest-2');
+});
 const Config = sandbox.ConfigUnderTest;
 const Player = sandbox.PlayerUnderTest;
 const testMap = { spawnPoint: { x: 100, y: 100 }, blocked: () => false };
