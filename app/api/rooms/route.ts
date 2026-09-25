@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const hostToken = createHostToken();
     const result = await db.prepare(
       "INSERT OR IGNORE INTO rooms (code, host_token, offer_sdp, answer_sdp, claimed, protocol_version, status, created_at, expires_at) VALUES (?, ?, ?, NULL, 0, ?, 'lobby', ?, ?)"
-    ).bind(code, hostToken, protocolVersion === COOP_PROTOCOL_VERSION ? "MULTI_PEER_V3" : body.offer, protocolVersion, now, roomExpiry(now)).run();
+    ).bind(code, hostToken, protocolVersion === COOP_PROTOCOL_VERSION ? "MULTI_PEER_V4" : body.offer, protocolVersion, now, roomExpiry(now)).run();
     if (result.meta.changes === 1) return Response.json({ code, hostToken, protocolVersion, expiresAt: roomExpiry(now) }, { status: 201 });
   }
 

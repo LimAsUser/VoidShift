@@ -29,6 +29,26 @@ const Game = sandbox.GameUnderTest;
 const UIManager = sandbox.UIManagerUnderTest;
 const Config = sandbox.ConfigUnderTest;
 
+function makeReviveGame({ rescuerId = 'host', rescuerLocal = true } = {}) {
+  const rescuer = { x: 100, y: 100, downed: false, health: 100, oxygen: 100, dodgeTimer: 0, stunned: 0 };
+  const downed = { x: 120, y: 100, downed: true, health: 0, oxygen: 0, bleedout: 30, reviveProgress: 0, dodgeTimer: 0 };
+  const game = Object.create(Game.prototype);
+  game.state = {
+    running: true, tutorial: null, keys: {}, coop: { role: 'host', running: true, playerId: 'host', hostPaused: false }
+  };
+  game.player = rescuerLocal ? rescuer : downed;
+  game.remotePlayers = new Map([[rescuerLocal ? 'guest-1' : rescuerId, {
+    id: rescuerLocal ? 'guest-1' : rescuerId,
+    slot: 2,
+    player: rescuerLocal ? downed : rescuer,
+    online: true,
+    input: { keys: {} }
+  }]]);
+  game.coopReviveAssignments = new Map();
+  game.ui = { showToast() {}, updateCoopRevivePrompt(text) { this.revivePrompt = text; } };
+  return { game, rescuer, downed, rescuerEntry: [...game.remotePlayers.values()][0] };
+}
+
 test('host focus loss pauses both players and sends a reliable pause event', () => {
   const sent = [];
   const pauses = [];
@@ -377,4 +397,120 @@ test('lobby never renders a connected but not-yet-slotted member as an empty sea
   });
 
   assert.ok(ui.coopMembersList.rows.some(row => row.children?.[1]?.textContent === '座位同步中…'));
+});
+
+test('lobby exposes one host seat and three independently updated guest seats', () => {
+  const ui = {
+    coopStatus: { textContent: '' }, coopRoomCode: { textContent: '' }, coopLobby: { hidden: true, classList: { toggle() {} } },
+    coopHostReady: { textContent: '' }, coopGuestReady: { textContent: '' },
+    coopMembersList: { replaceChildren(...rows) { this.rows = rows; } },
+    coopReadyButton: { textContent: '', disabled: false }, coopStartButton: { hidden: false, disabled: false },
+    coopStartHint: { textContent: '' }, coopLeaveButton: { disabled: false }, coopHostButton: { disabled: false },
+    coopJoinButton: { disabled: false }, coopJoinCode: { disabled: false }, coopFriendlyFireControl: null,
+    coopFriendlyFireToggle: null, coopFriendlyFireStatus: null
+  };
+
+  UIManager.prototype.updateCoopLobby.call(ui, {
+    role: 'host', code: 'ABC123', connected: true, localReady: true,
+    members: [
+      { id: 'guest-1', slot: 2, connected: true, ready: true },
+      { id: 'guest-2', slot: 3, connected: true, ready: false },
+      { id: 'guest-3', slot: 4, status: 'offline', connected: false, ready: false }
+    ],
+    running: false, startBlocker: '等待队友连接。'
+  });
+
+  assert.equal(ui.coopHostReady.textContent, '已准备');
+  assert.equal(ui.coopGuestReady.textContent, '2 / 3 位队友已连接');
+  assert.equal(ui.coopMembersList.rows.length, 3);
+  assert.equal(ui.coopMembersList.rows[0].children[1].textContent, '已准备');
+  assert.equal(ui.coopMembersList.rows[1].children[1].textContent, '未准备');
+  assert.match(ui.coopMembersList.rows[2].children[1].textContent, /离线/);
+});
+
+test('one E interaction starts a three-second revive without requiring the key to stay down', () => {
+  const { game, downed } = makeReviveGame();
+
+  game.interact(game.player);
+  assert.equal(game._updateCoopRevive(1), false);
+  assert.equal(game._updateCoopRevive(1), false);
+  assert.equal(game._updateCoopRevive(1), false);
+
+  assert.equal(downed.downed, false);
+  assert.equal(downed.health, 40);
+  assert.equal(downed.oxygen, 30);
+  assert.equal(downed.bleedout, 0);
+});
+
+test('movement cancels a started revive and clears its progress', () => {
+  const { game, downed } = makeReviveGame();
+  game.interact(game.player);
+  game._updateCoopRevive(1);
+  assert.equal(downed.reviveProgress, 1);
+
+  game.state.keys.d = true;
+  game._updateCoopRevive(0.1);
+
+  assert.equal(downed.reviveProgress, 0);
+  assert.equal(downed.downed, true);
+
+  game.state.keys.d = false;
+  game.interact(game.player);
+  game._updateCoopRevive(1);
+  game.player.x = 180;
+  game._updateCoopRevive(0.1);
+  assert.equal(downed.reviveProgress, 0);
+});
+
+test('a downed player still bleeds out when there is no active rescuer', () => {
+  const { game, downed } = makeReviveGame();
+  downed.bleedout = 0.05;
+
+  assert.equal(game._updateCoopRevive(0.1), true);
+  assert.equal(downed.bleedout, 0);
+});
+
+test('a guest interaction event starts a revive without holding E in the input state', () => {
+  const { game, downed, rescuerEntry } = makeReviveGame({ rescuerId: 'guest-1', rescuerLocal: false });
+  game._handleRemoteAction({ action: 'interact' }, 'guest-1');
+  rescuerEntry.input.keys.e = false;
+
+  game._updateCoopRevive(0.5);
+
+  assert.equal(downed.reviveProgress, 0.5);
+  assert.equal(downed.downed, true);
+
+  rescuerEntry.input.keys.d = true;
+  game._updateCoopRevive(0.1);
+  assert.equal(downed.reviveProgress, 0);
+});
+
+test('revive prompt shows a contextual E action and hides when there is no nearby teammate', () => {
+  const prompt = { hidden: true, textContent: '' };
+  const ui = { coopRevivePrompt: prompt };
+
+  UIManager.prototype.updateCoopRevivePrompt.call(ui, '队员 2 · 按 E 开始救援 · 移动会中断');
+  assert.equal(prompt.hidden, false);
+  assert.match(prompt.textContent, /按 E/);
+
+  UIManager.prototype.updateCoopRevivePrompt.call(ui, '');
+  assert.equal(prompt.hidden, true);
+});
+
+test('nearby teammate prompt changes from one-tap E guidance to live revive progress', () => {
+  const { game, downed } = makeReviveGame();
+  game._updateCoopRevivePrompt();
+  assert.match(game.ui.revivePrompt, /按 E 开始救援/);
+
+  game.interact(game.player);
+  game._updateCoopRevivePrompt();
+  assert.match(game.ui.revivePrompt, /救援中 0%/);
+
+  game._updateCoopRevive(1);
+  game._updateCoopRevivePrompt();
+  assert.match(game.ui.revivePrompt, /救援中 33%/);
+
+  downed.x = 200;
+  game._updateCoopRevivePrompt();
+  assert.equal(game.ui.revivePrompt, '');
 });

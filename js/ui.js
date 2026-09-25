@@ -163,6 +163,7 @@ class UIManager {
     this.coopPauseOverlay = document.querySelector('#coopPauseOverlay');
     this.coopPauseTitle = document.querySelector('#coopPauseTitle');
     this.coopPauseHint = document.querySelector('#coopPauseHint');
+    this.coopRevivePrompt = document.querySelector('#coopRevivePrompt');
     this.tutorialOverlay = document.querySelector('#tutorialOverlay');
     this.tutorialCard = document.querySelector('#tutorialCard');
     this.tutorialPractice = document.querySelector('#tutorialPractice');
@@ -499,6 +500,8 @@ class UIManager {
     this.coopStatus.textContent = coop.status || 'OFFLINE';
     this.coopRoomCode.textContent = coop.code || '------';
     this.coopLobby.hidden = !coop.role;
+    this.coopLobby.classList?.toggle?.('guest-lobby', coop.role === 'guest');
+    this.coopLobby.classList?.toggle?.('host-lobby', coop.role === 'host');
     this.coopHostReady.textContent = coop.role === 'host'
       ? (coop.localReady ? '已准备' : '未准备')
       : (coop.hostReady ? '已准备' : '房主等待');
@@ -512,6 +515,7 @@ class UIManager {
       this.coopMembersList.replaceChildren(...slots.map((member, index) => {
         const row = document.createElement('div');
         row.className = `coop-member${member?.status === 'offline' ? ' offline' : ''}`;
+        row.setAttribute?.('role', 'listitem');
         const label = document.createElement('span');
         const status = document.createElement('strong');
         label.textContent = `队员 ${index + 2}`;
@@ -549,6 +553,12 @@ class UIManager {
       this.coopFriendlyFireStatus.hidden = coop.role !== 'guest';
       this.coopFriendlyFireStatus.textContent = `友伤：${coop.friendlyFire === false ? '关闭' : '开启'}`;
     }
+  }
+
+  updateCoopRevivePrompt(text = '') {
+    if (!this.coopRevivePrompt) return;
+    this.coopRevivePrompt.textContent = text;
+    this.coopRevivePrompt.hidden = !text;
   }
 
   setCoopPaused(paused, reason = 'host') {
@@ -899,6 +909,7 @@ class UIManager {
     this.startButton.disabled = false;
     this.startButton.innerHTML = '重新下潜 <b>↘</b>';
     this.hudOverlay.style.display = 'none';
+    this.updateCoopRevivePrompt?.('');
     if (this.scaleButtons) {
       Object.values(this.scaleButtons).forEach(btn => { if (btn) btn.disabled = false; });
     }

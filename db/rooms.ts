@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 
 const ROOM_TTL_MS = 10 * 60 * 1000;
 export const ROOM_MEMBER_RECONNECT_MS = 5 * 60 * 1000;
-export const COOP_PROTOCOL_VERSION = 3;
+export const COOP_PROTOCOL_VERSION = 4;
 export const MAX_GUESTS = 3;
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 

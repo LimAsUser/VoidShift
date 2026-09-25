@@ -20,6 +20,8 @@ const sandbox = {
   },
   fetch: async () => ({ ok: true }),
   structuredClone,
+  setTimeout: () => 1,
+  clearTimeout() {},
   performance: { now: () => 1000 }
 };
 for (const [file, exportCode] of [
@@ -72,7 +74,7 @@ test('host state snapshots fan out independently to all three guest connections'
 
   assert.equal(sent, 3);
   assert.deepEqual(members.map(member => member.stateChannel.sent[0].tick), [30, 30, 30]);
-  assert.ok(members.every(member => member.stateChannel.sent[0].version === 3));
+  assert.ok(members.every(member => member.stateChannel.sent[0].version === 4));
 });
 
 test('host can target one guest with an event without broadcasting to the others', () => {
@@ -98,7 +100,16 @@ test('new ready acknowledgment messages use the bumped lobby protocol version', 
 
   session.sendEvent('request-roster', { slot: 2 });
 
-  assert.equal(host.eventChannel.sent[0].version, 3);
+  assert.equal(host.eventChannel.sent[0].version, 4);
+});
+
+test('joining an older room explains that both players must refresh and recreate it', async () => {
+  const originalFetch = sandbox.fetch;
+  sandbox.fetch = async () => ({ ok: true, json: async () => ({ protocol_version: 3 }) });
+  const session = new CoopSession();
+
+  await assert.rejects(session.join('ABC234'), /刷新页面并重建房间/);
+  sandbox.fetch = originalFetch;
 });
 
 test('host relays one accepted shot effect to every connected guest except its shooter', () => {
@@ -151,7 +162,7 @@ test('guest firing plays locally, sends the authoritative shot intent and mirror
   const sounds = [];
   const game = Object.create(Game.prototype);
   game.state = {
-    running: true, tutorial: null, stabilized: false, muzzleFlashes: [],
+    running: true, tutorial: null, stabilized: true, muzzleFlashes: [],
     coop: { role: 'guest', running: true, playerId: 'guest-1', hostPaused: false }
   };
   game.player = {
@@ -174,7 +185,124 @@ test('guest firing plays locally, sends the authoritative shot intent and mirror
   assert.equal(sounds.length, 1);
   assert.equal(sent[0][1].action, 'shoot');
   assert.equal(sent[0][1].shotId, 'guest-1:1');
+  assert.equal(sent[0][1].aiming, true);
   assert.equal(sent[1][1].action, 'reload');
+});
+
+test('host applies a guest one-shot aiming flag before authoritative spread is calculated', () => {
+  let aimedShot = null;
+  const game = Object.create(Game.prototype);
+  const shooter = {
+    x: 100, y: 100, angle: 0, dodgeTimer: 0, stunned: 0, downed: false,
+    shoot(aiming) { aimedShot = aiming; return { fired: false, reason: 'cooldown' }; }
+  };
+  const entry = { id: 'guest-1', player: shooter, online: true, input: { keys: {}, aiming: false } };
+  game.state = { running: true, tutorial: null, coop: { role: 'host', running: true, hostPaused: false } };
+  game.player = { x: 0, y: 0 };
+  game.remotePlayers = new Map([['guest-1', entry]]);
+  game.audio = { playTone() {} };
+  game.ui = { showToast() {} };
+
+  game._handleRemoteAction({ action: 'shoot', aim: 0.75, aiming: true, shotId: 'guest-1:4' }, 'guest-1');
+
+  assert.equal(entry.input.aiming, true);
+  assert.equal(shooter.angle, 0.75);
+  assert.equal(aimedShot, true);
+});
+
+test('host moves remote players at aimed speed', () => {
+  const game = Object.create(Game.prototype);
+  game.state = { coop: { role: 'host', running: true, playerId: 'host' } };
+  game.map = testMap;
+  game.audio = quietAudio;
+  game.player = new Player();
+  game.player.reset(testMap);
+  game.player.x = 100;
+  game.player.y = 100;
+  const aimed = new Player();
+  aimed.reset(testMap);
+  aimed.x = 100;
+  aimed.y = 140;
+  const entry = {
+    id: 'guest-1', player: aimed, online: true, qte: null,
+    input: { keys: { d: true }, aim: 0, aiming: true, activeSlot: 'sidearm', flashlight: true, fire: false, seq: 1 }
+  };
+  game.remotePlayers = new Map([['guest-1', entry]]);
+
+  game._updateRemotePlayers(0.05);
+
+  assert.ok(Math.abs(aimed.x - 101.925) < 0.001);
+});
+
+test('host uses the continuous remote aiming state when processing automatic fire', () => {
+  let aimedShot = null;
+  const game = Object.create(Game.prototype);
+  const shooter = {
+    x: 100, y: 100, angle: 0, activeSlot: 'sidearm',
+    weapon: { automatic: true }, ammo: 4, reloading: 0,
+    update() {}
+  };
+  game.state = { coop: { role: 'host', running: true, playerId: 'host' } };
+  game.remotePlayers = new Map([['guest-1', {
+    id: 'guest-1', player: shooter, online: true, qte: null,
+    input: { keys: {}, aim: 0, aiming: true, activeSlot: 'sidearm', flashlight: true, fire: true, seq: 1 }
+  }]]);
+  game._onlineCoopPlayers = () => [];
+  game._syncLegacyRemoteAliases = () => {};
+  game.shoot = player => { aimedShot = game._isPlayerAiming(player); };
+
+  game._updateRemotePlayers(0.05);
+
+  assert.equal(aimedShot, true);
+});
+
+test('guest includes its current aiming state in continuous input updates', () => {
+  const sent = [];
+  const game = Object.create(Game.prototype);
+  game.state = {
+    elapsed: 0, stabilized: true, keys: {}, fireHeld: false,
+    coop: { role: 'guest', running: true, playerId: 'guest-1', connected: true, inputSeq: 0 }
+  };
+  game.player = {
+    downed: false, angle: 0.45, activeSlot: 'sidearm', flashlight: true,
+    weapon: { automatic: false }, oxygen: 100, health: 100, stamina: 100, noise: 0, reloading: 0,
+    update() {}
+  };
+  game._onlineCoopPlayers = () => [];
+  game._lockFinalTerminalNoise = () => {};
+  game._checkCoopDisconnect = () => {};
+  game._coopSendTimer = 0;
+  game.coopSession = { sendState: (...args) => sent.push(args) };
+  game.audio = { update() {} };
+  game.ui = { update() {} };
+
+  game._updateGuestCoop(0.05);
+
+  assert.equal(sent[0][0], 'input');
+  assert.equal(sent[0][1].aim, 0.45);
+  assert.equal(sent[0][1].aiming, true);
+});
+
+test('mouse aim exactly inverts the zoomed camera including look and recoil offsets', () => {
+  const game = Object.create(Game.prototype);
+  const scaleX = 2;
+  const scaleY = 2;
+  const rect = {
+    left: 100, top: 50,
+    width: Config.VIEW_W * scaleX,
+    height: Config.VIEW_H * scaleY
+  };
+  game.ui = { frame: { getBoundingClientRect: () => rect } };
+  game.player = { x: 200, y: 300, angle: 0 };
+  game.state = { stabilized: true, cameraLookX: 0, cameraLookY: 0, recoilX: 12, recoilY: -7 };
+  game.renderer = { prepareCamera() {} };
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+
+  game.handleAim({ clientX: centerX + scaleX * 250, clientY: centerY - scaleY * 130 });
+
+  assert.ok(Math.abs(game.state.mouseX - (200 + 55 + 12 + 250 / 1.1)) < 0.001);
+  assert.ok(Math.abs(game.state.mouseY - (300 - 28.6 - 7 - 130 / 1.1)) < 0.001);
 });
 
 test('host snapshots carry stable IDs and state for all four players', () => {

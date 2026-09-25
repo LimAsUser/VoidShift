@@ -1,4 +1,4 @@
-const COOP_PROTOCOL_VERSION = 3;
+const COOP_PROTOCOL_VERSION = 4;
 const COOP_MAX_GUESTS = 3;
 const COOP_RECONNECT_WINDOW_MS = 5 * 60 * 1000;
 
@@ -254,7 +254,7 @@ class CoopSession extends EventTarget {
     const roomResponse = await fetch(`/api/rooms/${this.roomCode}`, { cache: 'no-store' });
     if (!roomResponse.ok) throw new Error('房间不存在或已过期');
     const room = await roomResponse.json();
-    if (room.protocol_version !== COOP_PROTOCOL_VERSION) throw new Error('房主游戏版本不兼容，请双方刷新页面');
+    if (room.protocol_version !== COOP_PROTOCOL_VERSION) throw new Error('游戏版本不兼容，请双方刷新页面并重建房间');
     this._roomExpiresAt = room.expires_at || Date.now() + 10 * 60 * 1000;
     const stored = this._readMemberCredentials(this.roomCode);
     await this._requestMemberSlot(stored);

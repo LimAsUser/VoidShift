@@ -2731,3 +2731,234 @@ body:not(.in-dive) .ammo-choice-card:focus-visible { outline: 2px solid var(--cy
 .coop-pause-overlay .kicker{color:var(--cyan);letter-spacing:.16em}
 .coop-pause-overlay strong{color:var(--acid);font:600 20px var(--display)}
 .coop-pause-overlay small{color:var(--muted)}
+
+/* Full-viewport safehouse, zoom-safe pages, and larger readable controls. */
+body:not(.in-dive) {
+  height: 100vh;
+  height: 100svh;
+  overflow: hidden;
+}
+body:not(.in-dive) .app-shell {
+  width: 100%;
+  max-width: none;
+  display: flex !important;
+  flex-direction: column;
+  height: 100vh;
+  height: 100svh;
+  min-height: 0;
+  margin: 0;
+  padding: clamp(10px, 1.5vw, 26px) clamp(12px, 2vw, 34px) 12px;
+}
+body:not(.in-dive) .game-layout {
+  display: flex !important;
+  width: 100%;
+  max-width: none !important;
+  min-height: 0 !important;
+  height: auto;
+  flex: 1 1 0%;
+  align-items: stretch;
+  justify-content: stretch !important;
+  padding: clamp(8px, 1.2vh, 14px) 0 0 !important;
+  margin: 0 !important;
+}
+body:not(.in-dive) .briefing-panel {
+  width: 100% !important;
+  height: 100%;
+  min-height: 0 !important;
+  max-height: 100%;
+  max-width: none !important;
+  padding: clamp(12px, 1.5vw, 24px) clamp(14px, 2vw, 30px) 12px !important;
+}
+
+body:not(.in-dive) .topbar { padding-bottom: clamp(9px, 1.2vh, 16px); }
+body:not(.in-dive) .brand h1 { font-size: clamp(30px, 2.2vw, 38px); }
+body:not(.in-dive) .kicker { font-size: 12px; }
+body:not(.in-dive) .settings-launch { min-height: 42px; padding: 9px 14px; font-size: 12px; }
+body:not(.in-dive) .safehouse-market { padding-bottom: 12px; }
+body:not(.in-dive) .market-balance strong,
+body:not(.in-dive) .market-quota strong { font-size: 18px; }
+body:not(.in-dive) .ammo-buy-button { min-height: 44px; font-size: 13px; }
+body:not(.in-dive) .safehouse-tabs { gap: 8px; }
+body:not(.in-dive) .safehouse-tabs .tab-btn { min-height: 46px; font-size: clamp(12px, .9vw, 15px); }
+body:not(.in-dive) .safehouse-pages {
+  min-height: 0 !important;
+  flex: 1 1 0%;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: clamp(12px, 1.7vw, 24px) 4px;
+}
+body:not(.in-dive) .safehouse-page {
+  height: auto !important;
+  min-height: 100%;
+  max-height: none;
+  overflow: visible !important;
+  font-size: 14px;
+}
+body:not(.in-dive) .safehouse-page small { font-size: 13px !important; line-height: 1.5; }
+body:not(.in-dive) .safehouse-page button { min-height: 44px; font-size: 14px; }
+body:not(.in-dive) .page-heading h2 { font-size: clamp(28px, 2vw, 34px); }
+body:not(.in-dive) .page-heading { margin-bottom: clamp(14px, 1.6vw, 22px); }
+body:not(.in-dive) .metric-tile { min-height: 92px; padding: 16px; }
+body:not(.in-dive) .metric-tile > span,
+body:not(.in-dive) .briefing-warning,
+body:not(.in-dive) .map-scale-card small,
+body:not(.in-dive) .loadout-card small,
+body:not(.in-dive) .ammo-page label,
+body:not(.in-dive) .ammo-page > small,
+body:not(.in-dive) .tutorial-launch-card p,
+body:not(.in-dive) .tutorial-launch-card small { font-size: 13px; line-height: 1.55; }
+body:not(.in-dive) .metric-tile strong { font-size: 20px; }
+body:not(.in-dive) .storage-stats { padding: 12px 14px; font-size: 14px; }
+body:not(.in-dive) .storage-grid .bp-item-name { font-size: 9px; }
+body:not(.in-dive) .storage-grid .bp-item-value { font-size: 8px; }
+body:not(.in-dive) .storage-selection,
+body:not(.in-dive) .storage-overflow-heading,
+body:not(.in-dive) .storage-actions .weapon-action { font-size: 12px; }
+body:not(.in-dive) .loadout-type { font-size: 11px; }
+body:not(.in-dive) .tutorial-launch-card strong { font-size: 22px; }
+body:not(.in-dive) input,
+body:not(.in-dive) select,
+body:not(.in-dive) .weapon-action,
+body:not(.in-dive) .ammo-choice-card { min-height: 44px; font-size: 13px; }
+body:not(.in-dive) .safehouse-footer {
+  flex: 0 0 auto;
+  gap: 14px;
+  padding-top: 10px;
+  z-index: 8;
+}
+body:not(.in-dive) .safehouse-footer .launch-ammo-loss { max-width: 56%; font-size: 12px; line-height: 1.45; }
+body:not(.in-dive) .selected-facility { font-size: 10px; }
+body:not(.in-dive) .selected-facility strong { font-size: 13px; }
+body:not(.in-dive) .safehouse-footer #startButton { min-height: 56px; flex-basis: clamp(220px, 20vw, 300px); font-size: 17px; }
+.hunter-settings-modal { width: min(1100px, calc(100vw - 32px)); max-width: none; max-height: calc(100svh - 32px); overflow: hidden; }
+.hunter-settings-modal .settings-modal-content { max-height: calc(100svh - 220px); overflow: auto; }
+.hunter-settings-modal .settings-section-btn { min-height: 44px; padding: 10px 14px; font-size: 12px; }
+.hunter-settings-modal .performance-settings-content label,
+.hunter-settings-modal .performance-settings-content select,
+.hunter-settings-modal .performance-settings-content small { font-size: 14px; }
+.hunter-profile-table { font-size: 12px; }
+.hunter-profile-table thead th { font-size: 12px; }
+.hunter-profile-table th, .hunter-profile-table td { padding: 10px; }
+.hunter-profile-table input, .final-spawn-settings input { min-height: 44px; width: 88px; font-size: 13px; }
+.final-spawn-settings label, .final-spawn-settings small, .reset-profile-button { font-size: 12px; }
+
+/* Lobby hierarchy: connection/code, host plus three seats, then pinned actions. */
+body:not(.in-dive) .coop-panel { gap: 16px; padding: clamp(14px, 1.7vw, 24px); }
+.coop-link-header { display: grid; grid-template-columns: minmax(0, 1fr) minmax(190px, .55fr); gap: 12px; }
+.coop-status-card, .coop-code-card { display: grid; align-content: center; gap: 7px; min-height: 76px; padding: 14px 16px; border: 1px solid rgba(101,221,235,.28); background: rgba(5,16,27,.78); }
+.coop-status { margin: 0; color: var(--cyan); font-size: 14px; line-height: 1.45; letter-spacing: .02em; }
+.coop-code { padding: 0; border: 0; color: var(--acid); background: transparent; font-size: clamp(22px, 2vw, 30px); letter-spacing: .2em; text-align: left; }
+.coop-room-entry { display: grid; grid-template-columns: minmax(190px, .8fr) minmax(0, 1.2fr); gap: 12px; }
+.coop-join-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; }
+.coop-action { min-height: 46px; padding: 10px 14px; font-size: 14px; }
+.coop-lobby { gap: 14px; border-top: 1px solid rgba(101,221,235,.28); padding-top: 14px; }
+.coop-lobby[hidden] { display: none !important; }
+.coop-roster-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 14px; }
+.coop-roster-summary strong { color: var(--acid); font-size: 15px; }
+.coop-roster-grid { display: grid; grid-template-columns: minmax(190px, .78fr) minmax(0, 2.22fr); gap: 12px; }
+.coop-host-seat { display: grid; align-content: center; gap: 8px; min-height: 78px; padding: 14px; border: 1px solid rgba(215,243,107,.48); background: rgba(215,243,107,.08); color: var(--muted); font-size: 13px; }
+.coop-host-seat strong { color: var(--acid); font-size: 16px; }
+.coop-member-list { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin: 0; }
+.coop-member { display: grid; align-content: center; gap: 8px; min-height: 78px; padding: 12px; border-color: rgba(101,221,235,.25); background: rgba(5,16,27,.66); font-size: 13px; }
+.coop-member strong { color: var(--cyan); font-size: 14px; }
+.coop-member.offline strong { color: var(--rust); }
+.coop-lobby-options { display: grid; gap: 8px; }
+.coop-friendly-fire { min-height: 50px; padding: 10px 14px; font-size: 14px; }
+.coop-friendly-fire label { font-size: 14px; }
+.coop-friendly-fire input { width: 20px; height: 20px; }
+.coop-friendly-fire small, .coop-friendly-fire-status { font-size: 12px; }
+.coop-lobby-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  display: grid;
+  gap: 9px;
+  margin: 0 -4px -2px;
+  padding: 12px 4px 4px;
+  border-top: 1px solid rgba(101,221,235,.28);
+  background: linear-gradient(180deg, rgba(5,16,27,.88), rgba(5,16,27,.99) 35%);
+}
+.coop-start-hint { min-height: 1.4em; color: var(--muted); font-size: 13px; line-height: 1.4; }
+.coop-action-buttons { display: grid; grid-template-columns: 1fr 1.35fr 1fr; gap: 10px; }
+.coop-lobby.guest-lobby .coop-action-buttons { grid-template-columns: 1fr 1fr; }
+.coop-action-buttons button[hidden] { display: none !important; }
+
+/* In-dive controls stay on the perimeter so the center of the view remains clear. */
+body.in-dive .hud-vitals-cluster { top: 18px; left: 18px; gap: 14px; }
+body.in-dive .hud-vitals { width: min(320px, 30vw); gap: 9px; padding: 13px 16px; }
+body.in-dive .hud-vital-row { grid-template-columns: 48px minmax(0,1fr); gap: 10px; font-size: 12px; }
+body.in-dive .hud-meter { height: 11px; }
+body.in-dive .hud-noise-lamp { width: 30px; height: 30px; }
+body.in-dive .hud-utility { top: 18px; right: 18px; min-width: 210px; gap: 8px; padding: 12px 14px; }
+body.in-dive .hud-utility > span { gap: 14px; font-size: 12px; }
+body.in-dive .hud-utility strong { font-size: 13px; }
+body.in-dive .hud-ammo, body.in-dive .hud-terminal-tracker { bottom: 18px; min-height: 58px; padding: 10px 14px; gap: 7px; }
+body.in-dive .hud-ammo { left: 18px; min-width: 185px; }
+body.in-dive .hud-ammo > span, body.in-dive .hud-terminal-tracker > span { font-size: 12px; }
+body.in-dive .hud-ammo strong { font-size: 19px; }
+body.in-dive .hud-terminal-tracker { right: 18px; min-width: 170px; }
+body.in-dive .terminal-pixel-icon { width: 22px; height: 22px; }
+.coop-revive-prompt {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(82px, 14vh, 150px);
+  max-width: min(760px, calc(100% - 32px));
+  padding: 12px 18px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(101,221,235,.62);
+  background: rgba(4,15,25,.92);
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.45;
+  text-align: center;
+  box-shadow: 0 0 20px rgba(101,221,235,.18);
+}
+.coop-revive-prompt[hidden] { display: none !important; }
+.qte-container { width: min(760px, calc(100vw - 36px)); padding: clamp(20px, 3vw, 34px); }
+.qte-header h3 { font-size: clamp(24px, 3vw, 32px); }
+.qte-header p, .qte-status { font-size: 15px; line-height: 1.55; }
+.qte-status { min-height: 48px; }
+.settlement-header, .settlement-stats span { font-size: 12px; }
+.settlement-subtitle, .settlement-ammo-note { font-size: 14px; }
+.settlement-stats strong { font-size: clamp(16px, 2vw, 22px); }
+
+@media (max-width: 900px) {
+  body:not(.in-dive) .app-shell { padding: 10px 12px; }
+  .coop-link-header { grid-template-columns: minmax(0,1fr) minmax(150px,.55fr); }
+  .coop-room-entry { grid-template-columns: 1fr; }
+  .coop-roster-grid { grid-template-columns: 1fr; }
+  .coop-member-list { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .coop-action-buttons { grid-template-columns: 1fr 1.2fr 1fr; }
+}
+
+@media (max-width: 680px) {
+  body:not(.in-dive) .app-shell { padding: 8px; }
+  body:not(.in-dive) .safehouse-tabs { display: flex; grid-template-columns: none; overflow-x: auto; }
+  body:not(.in-dive) .safehouse-tabs .tab-btn { min-width: 104px; min-height: 44px; font-size: 12px; }
+  body:not(.in-dive) .safehouse-footer { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; }
+  body:not(.in-dive) .safehouse-footer .launch-ammo-loss { grid-column: 1 / -1; max-width: 100%; font-size: 11px; }
+  body:not(.in-dive) .safehouse-footer #startButton { grid-column: 2; grid-row: 2; width: 100%; min-width: 150px; max-width: 200px; min-height: 48px; }
+  body:not(.in-dive) .selected-facility { grid-column: 1; grid-row: 2; align-self: center; }
+  .coop-link-header { grid-template-columns: 1fr; }
+  .coop-room-entry { grid-template-columns: 1fr; }
+  .coop-member-list { grid-template-columns: 1fr; }
+  .coop-host-seat, .coop-member { min-height: 62px; }
+  .coop-action-buttons { grid-template-columns: 1fr 1fr; }
+  .coop-action-buttons #coopStartButton { grid-column: 1 / -1; grid-row: 2; }
+  body.in-dive .hud-vitals-cluster { top: 10px; left: 10px; gap: 8px; }
+  body.in-dive .hud-vitals { width: min(240px, 42vw); gap: 6px; padding: 9px 10px; }
+  body.in-dive .hud-vital-row { grid-template-columns: 36px minmax(0,1fr); gap: 6px; font-size: 11px; }
+  body.in-dive .hud-meter { height: 9px; }
+  body.in-dive .hud-noise-lamp { width: 23px; height: 23px; }
+  body.in-dive .hud-utility { top: 10px; right: 10px; min-width: min(150px, 38vw); max-width: 42vw; padding: 8px; }
+  body.in-dive .hud-utility > span { gap: 4px; font-size: 10px; }
+  body.in-dive .hud-utility strong { font-size: 10px; overflow-wrap: anywhere; }
+  body.in-dive .hud-ammo { left: 10px; bottom: 10px; min-width: 145px; min-height: 48px; padding: 7px 10px; }
+  body.in-dive .hud-terminal-tracker { right: 10px; bottom: 10px; min-height: 48px; padding: 7px 9px; }
+  body.in-dive .hud-ammo > span, body.in-dive .hud-terminal-tracker > span { font-size: 10px; }
+  body.in-dive .hud-ammo strong { font-size: 16px; }
+  body.in-dive .terminal-pixel-icon { width: 18px; height: 18px; }
+  .coop-revive-prompt { bottom: 76px; padding: 10px 12px; font-size: 13px; }
+}

@@ -119,10 +119,11 @@ class Game {
     this.nextHunterSpawnIndex = this.hunters.length;
     this.coopSession = new CoopSession();
     this.remotePlayers = new Map();
+    this.coopReviveAssignments = new Map();
     this.remoteQtes = new Map();
     this.pendingCoopFinishes = new Map();
     this.remotePlayer = null;
-    this.remoteInput = { keys: {}, aim: 0, fire: false, seq: 0 };
+    this.remoteInput = { keys: {}, aim: 0, aiming: false, fire: false, seq: 0 };
     this.remoteQte = null;
     this._coopSendTimer = 0;
     this._lastRemoteInputSeq = -1;
@@ -319,7 +320,7 @@ class Game {
       remote.offlineAt = member.offlineAt;
       if (status === 'connected' && (wasOffline || forceRejoin)) {
         remote.input = {
-          keys: {}, aim: remote.player.angle, activeSlot: remote.player.activeSlot,
+          keys: {}, aim: remote.player.angle, aiming: false, activeSlot: remote.player.activeSlot,
           flashlight: remote.player.flashlight, fire: false, seq: -1
         };
       }
@@ -425,7 +426,7 @@ class Game {
   _syncLegacyRemoteAliases() {
     const first = this.remotePlayers?.values().next().value;
     this.remotePlayer = first?.player || null;
-    this.remoteInput = first?.input || { keys: {}, aim: 0, fire: false, seq: 0 };
+    this.remoteInput = first?.input || { keys: {}, aim: 0, aiming: false, fire: false, seq: 0 };
     this.remoteBackpack = first?.backpack || this.remoteBackpack;
     this.state.remoteInventory = first?.inventory || [];
   }
@@ -617,7 +618,7 @@ class Game {
       if (coop.role === 'host') {
         for (const entry of this.remotePlayers?.values?.() || []) {
           entry.input = {
-            ...entry.input, keys: {}, fire: false, seq: entry.input?.seq || 0
+            ...entry.input, keys: {}, aiming: false, fire: false, seq: entry.input?.seq || 0
           };
         }
         this._syncLegacyRemoteAliases();
@@ -795,7 +796,7 @@ class Game {
       player.y = spawn.y;
       const entry = {
         id: member.id, slot: member.slot, player, online: true, status: 'connected', ready: true,
-        input: { keys: {}, aim: 0, activeSlot: player.activeSlot, flashlight: player.flashlight, fire: false, seq: 0 },
+        input: { keys: {}, aim: 0, aiming: false, activeSlot: player.activeSlot, flashlight: player.flashlight, fire: false, seq: 0 },
         inventory: [], backpack: BackpackManager.fromType(Config.activeBackpack),
         qte: null, offlineAt: 0
       };
@@ -1083,7 +1084,7 @@ class Game {
           player.reset(this.map, state.state?.armory || Player.createDefaultArmory());
           remote = {
             id: state.id, slot: state.slot, player, online: state.online !== false,
-            status: state.online === false ? 'offline' : 'connected', input: { keys: {}, seq: 0 },
+            status: state.online === false ? 'offline' : 'connected', input: { keys: {}, aiming: false, seq: 0 },
             inventory: [], backpack: BackpackManager.fromType(Config.activeBackpack), qte: null
           };
           remote.backpack.items = remote.inventory;
@@ -1264,6 +1265,7 @@ class Game {
         seq: this.state.coop.inputSeq,
         keys: { w: !!keys.w, a: !!keys.a, s: !!keys.s, d: !!keys.d, shift: !!keys.shift, e: !!keys.e },
         aim: this.player.angle,
+        aiming: !!this.state.stabilized,
         activeSlot: this.player.activeSlot,
         flashlight: this.player.flashlight,
         fire: !!this.state.fireHeld
@@ -1291,7 +1293,7 @@ class Game {
       if (typeof input.flashlight === 'boolean') player.flashlight = input.flashlight;
       const keys = player.downed ? {} : (input.keys || {});
       const collisionPlayers = this._onlineCoopPlayers(entry.id);
-      player.update(dt, keys, false, this.map, this.audio, collisionPlayers);
+      player.update(dt, keys, input.aiming === true, this.map, this.audio, collisionPlayers);
       if (input.fire && player.weapon.automatic && player.ammo > 0 && player.reloading <= 0) this.shoot(player);
       if (entry.qte) {
         entry.qte.timeLeft = Math.max(0, entry.qte.timeLeft - dt);
@@ -1306,7 +1308,10 @@ class Game {
     if (!entry || !entry.online || this.state.coop.role !== 'host' || this.state.coop.hostPaused) return;
     const player = entry.player;
     if (Number.isFinite(message.aim)) player.angle = message.aim;
-    if (message.action === 'shoot') this.shoot(player, message.shotId);
+    if (message.action === 'shoot') {
+      entry.input = { ...entry.input, aim: player.angle, aiming: message.aiming === true };
+      this.shoot(player, message.shotId);
+    }
     if (message.action === 'reload') player.reload(this.audio);
     if (message.action === 'switch-slot') player.switchWeaponSlot(message.slot);
     if (message.action === 'roll') this.roll(player, message.dx, message.dy);
@@ -1409,30 +1414,96 @@ class Game {
     player.oxygen = Math.max(0, player.oxygen);
   }
 
+  _beginCoopRevive(actor, downedEntry) {
+    if (this.state.coop.role !== 'host') return false;
+    const players = this._coopRosterEntries().filter(entry => entry.online !== false);
+    const rescuer = players.find(entry => entry.player === actor);
+    if (!rescuer || rescuer.player.downed) return false;
+    const target = downedEntry || players
+      .filter(entry => entry.player !== actor && entry.player.downed)
+      .map(entry => ({ ...entry, distance: Math.hypot(entry.player.x - actor.x, entry.player.y - actor.y) }))
+      .filter(entry => entry.distance < 48)
+      .sort((a, b) => a.distance - b.distance)[0];
+    if (!target) return false;
+
+    const assignments = this.coopReviveAssignments || (this.coopReviveAssignments = new Map());
+    if (assignments.get(target.id) === rescuer.id) return true;
+    if (assignments.has(target.id)) {
+      this.ui.showToast('队友正在救援这名玩家');
+      return true;
+    }
+    for (const [targetId, rescuerId] of assignments) {
+      if (rescuerId !== rescuer.id) continue;
+      assignments.delete(targetId);
+      const previousTarget = players.find(entry => entry.id === targetId);
+      if (previousTarget) previousTarget.player.reviveProgress = 0;
+    }
+    assignments.set(target.id, rescuer.id);
+    target.player.reviveProgress = 0;
+    this.ui.showToast('救援开始，移动会中断进度');
+    return true;
+  }
+
   _updateCoopRevive(dt) {
     if (this.state.coop.role !== 'host') return false;
     const players = this._coopRosterEntries().filter(entry => entry.online !== false);
+    const assignments = this.coopReviveAssignments || (this.coopReviveAssignments = new Map());
     if (!players.length) return false;
     players.forEach(entry => this._markDowned(entry.player));
     for (const downed of players.filter(entry => entry.player.downed)) {
       const player = downed.player;
       player.bleedout = Math.max(0, player.bleedout - dt);
-      const rescuer = players.find(entry => {
-        if (entry.id === downed.id || entry.player.downed) return false;
-        const input = entry.local ? this.state.keys : entry.input?.keys;
-        return !!input?.e && Math.hypot(player.x - entry.player.x, player.y - entry.player.y) < 48;
-      });
-      player.reviveProgress = rescuer ? player.reviveProgress + dt : 0;
+      const rescuerId = assignments.get(downed.id);
+      const rescuer = players.find(entry => entry.id === rescuerId && !entry.player.downed);
+      const keys = rescuer ? (rescuer.local ? this.state.keys : rescuer.input?.keys) : null;
+      const moving = !!(keys?.w || keys?.a || keys?.s || keys?.d);
+      const inRange = rescuer && Math.hypot(player.x - rescuer.player.x, player.y - rescuer.player.y) < 48;
+      if (!rescuer || !inRange || moving) {
+        assignments.delete(downed.id);
+        player.reviveProgress = 0;
+        if (player.bleedout <= 0) return true;
+        continue;
+      }
+      if (player.bleedout <= 0) return true;
+      player.reviveProgress = (player.reviveProgress || 0) + dt;
       if (player.reviveProgress >= 3) {
+        assignments.delete(downed.id);
         player.downed = false;
         player.health = 40;
         player.oxygen = 30;
         player.bleedout = 0;
         player.reviveProgress = 0;
       }
-      if (player.bleedout <= 0) return true;
     }
     return players.length > 0 && players.every(entry => entry.player.downed);
+  }
+
+  _updateCoopRevivePrompt() {
+    const coop = this.state.coop;
+    const updatePrompt = text => this.ui?.updateCoopRevivePrompt?.(text);
+    if (!coop?.running || this.player.downed || this.player.stunned > 0 || this.state.activeQte) {
+      updatePrompt('');
+      return;
+    }
+    const target = this._coopRosterEntries()
+      .filter(entry => entry.player !== this.player && entry.online !== false && entry.player.downed)
+      .map(entry => ({ ...entry, distance: Math.hypot(entry.player.x - this.player.x, entry.player.y - this.player.y) }))
+      .filter(entry => entry.distance < 48)
+      .sort((a, b) => a.distance - b.distance)[0];
+    if (!target) {
+      updatePrompt('');
+      return;
+    }
+    const slot = target.slot || (target.local ? coop.localSlot : null) || '?';
+    const assignedBy = this.coopReviveAssignments?.get(target.id);
+    const assignedToMe = assignedBy === coop.playerId;
+    const inProgress = target.player.reviveProgress > 0 || !!assignedBy;
+    const progress = Math.min(100, Math.round(((target.player.reviveProgress || 0) / 3) * 100));
+    updatePrompt(assignedBy && !assignedToMe
+      ? `队员 ${slot} · 队友正在救援`
+      : inProgress
+        ? `队员 ${slot} · 救援中 ${progress}% · 移动会中断`
+        : `队员 ${slot} 倒地 · 按 E 开始救援 · 移动会中断`);
   }
 
   _finishGuestCoop(message) {
@@ -2104,7 +2175,9 @@ class Game {
     this.seenWeaponEffects?.clear?.();
     this.shotSequence = 0;
     this.state.keys = {};
+    this.coopReviveAssignments?.clear?.();
     this.ui.hideDescentTransition();
+    this.ui.updateCoopRevivePrompt?.('');
     this.ui.hideTutorial();
     if (this.ui.setFullMapVisible) {
       this.ui.setFullMapVisible(false);
@@ -2599,9 +2672,17 @@ class Game {
       this.ui.showToast('身体麻痹硬直中，无法交互！');
       return;
     }
-    if (this.state.coop.running && this._coopRosterEntries().some(entry =>
-      entry.player !== actor && entry.online !== false && entry.player.downed &&
-      Math.hypot(entry.player.x - actor.x, entry.player.y - actor.y) < 48)) return;
+    if (this.state.coop.running) {
+      const downedMate = this._coopRosterEntries()
+        .filter(entry => entry.player !== actor && entry.online !== false && entry.player.downed)
+        .map(entry => ({ ...entry, distance: Math.hypot(entry.player.x - actor.x, entry.player.y - actor.y) }))
+        .filter(entry => entry.distance < 48)
+        .sort((a, b) => a.distance - b.distance)[0];
+      if (downedMate) {
+        this._beginCoopRevive(actor, downedMate);
+        return;
+      }
+    }
 
     // Check doors with interaction radius from door center
     const door = this.map.doors.find(item => {
@@ -3606,6 +3687,11 @@ class Game {
   /**
    * Weapon discharge action and target intersection resolving
    */
+  _isPlayerAiming(shooter) {
+    if (shooter === this.player) return !!this.state.stabilized;
+    return this._remoteEntryForActor(shooter)?.input?.aiming === true;
+  }
+
   shoot(shooter = this.player, confirmedShotId = null) {
     if (!this.state.running || this.state.tutorial?.paused || this.state.coop.hostPaused || shooter.dodgeTimer > 0) return;
     if (shooter.stunned > 0 || shooter.downed) {
@@ -3618,7 +3704,9 @@ class Game {
         const shotId = this._createWeaponShotId(shooter);
         this._addMuzzleFlash(shooter, shotId);
         this._tutorialAction('fire');
-        this.coopSession.sendEvent('action', { action: 'shoot', aim: shooter.angle, shotId });
+        this.coopSession.sendEvent('action', {
+          action: 'shoot', aim: shooter.angle, aiming: !!this.state.stabilized, shotId
+        });
         if (shooter.ammo === 0 && shooter.reserveAmmo > 0 && shooter.reload(this.audio)) {
           this.coopSession.sendEvent('action', { action: 'reload' });
           this.ui.showToast('弹匣打空，自动换弹中');
@@ -3637,7 +3725,7 @@ class Game {
         ? this.audio.playSpatialSound(url, volume, this.player, shooter, this.map)
         : this.audio.playSound(url, volume)
     };
-    const result = shooter.shoot(shooter === this.player && this.state.stabilized, this.map, shooterAudio, this.monster);
+    const result = shooter.shoot(this._isPlayerAiming(shooter), this.map, shooterAudio, this.monster);
     if (result.fired) {
       const shotId = confirmedShotId || this._createWeaponShotId(shooter);
       if (shooter === this.player) this._tutorialAction('fire');
@@ -3729,13 +3817,10 @@ class Game {
     this.state.cameraLookY = lookY;
     this.state.cameraZoom = aimZoom;
 
-    // Use uniform base coordinates center offsets to translate screen client mouse into world coordinates.
-    // This perfectly matches the new 2D context-level applyCamera transforms (preventing offset drift).
-    const lookOffsetPxX = lookX * scaleX;
-    const lookOffsetPxY = lookY * scaleY;
-    
-    this.state.mouseX = this.player.x + (event.clientX - (centerX - lookOffsetPxX)) / (scaleX * aimZoom);
-    this.state.mouseY = this.player.y + (event.clientY - (centerY - lookOffsetPxY)) / (scaleY * aimZoom);
+    const recoilX = this.state.recoilX || 0;
+    const recoilY = this.state.recoilY || 0;
+    this.state.mouseX = this.player.x + lookX + recoilX + screenOffsetX / aimZoom;
+    this.state.mouseY = this.player.y + lookY + recoilY + screenOffsetY / aimZoom;
 
     this.player.angle = Math.atan2(this.state.mouseY - this.player.y, this.state.mouseX - this.player.x);
     
@@ -3807,6 +3892,7 @@ class Game {
     this._advanceMuzzleFlashes(dt);
     if (this.state.coop.running && this.state.coop.role === 'guest') {
       this._updateGuestCoop(dt);
+      this._updateCoopRevivePrompt();
       return;
     }
     this.state.elapsed += dt;
@@ -4093,6 +4179,7 @@ class Game {
       this.finish(false);
       return;
     }
+    this._updateCoopRevivePrompt();
 
     if (this.state.coop.running && this.state.coop.role === 'host') {
       this._coopSendTimer -= dt;

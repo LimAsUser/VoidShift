@@ -276,14 +276,32 @@
           <div id="coopContent" class="safehouse-page coop-page" style="display:none;">
             <div class="page-heading"><span class="page-index">06</span><div><p class="kicker">CREW LINK</p><h2>CO-OP</h2></div></div>
             <div class="coop-panel">
-              <p class="coop-status" id="coopStatus">OFFLINE // 选择创建或加入房间</p>
-              <div class="coop-code" id="coopRoomCode">------</div>
-              <button class="coop-action" id="coopHostButton" type="button" onclick="game.hostCoopRoom()">创建四人房间</button>
-              <div class="coop-join-row"><input id="coopJoinCode" maxlength="6" autocomplete="off" placeholder="6位房间码" aria-label="6位房间码"><button class="coop-action" id="coopJoinButton" type="button" onclick="game.joinCoopRoom()">加入</button></div>
+              <div class="coop-link-header">
+                <div class="coop-status-card"><span class="kicker">连接状态</span><strong class="coop-status" id="coopStatus">OFFLINE // 选择创建或加入房间</strong></div>
+                <div class="coop-code-card"><span class="kicker">房间代码</span><strong class="coop-code" id="coopRoomCode">------</strong></div>
+              </div>
+              <div class="coop-room-entry">
+                <button class="coop-action" id="coopHostButton" type="button" onclick="game.hostCoopRoom()">创建四人房间</button>
+                <div class="coop-join-row"><input id="coopJoinCode" maxlength="6" autocomplete="off" placeholder="输入 6 位房间代码" aria-label="6位房间码"><button class="coop-action" id="coopJoinButton" type="button" onclick="game.joinCoopRoom()">加入房间</button></div>
+              </div>
               <div class="coop-lobby" id="coopLobby" hidden>
-                <div><span>房主</span><strong id="coopHostReady">等待</strong></div><div><span>队友</span><strong id="coopGuestReady">0 / 3 位队友已连接</strong></div><div class="coop-member-list" id="coopMembersList"></div>
-                <div class="coop-friendly-fire" id="coopFriendlyFireControl"><label><input id="coopFriendlyFireToggle" type="checkbox" checked><span>友伤</span></label><small>枪械可以伤害队友</small></div><p class="coop-friendly-fire-status" id="coopFriendlyFireStatus" hidden></p>
-                <button class="coop-action" id="coopReadyButton" type="button" onclick="game.toggleCoopReady()">准备</button><small class="coop-start-hint" id="coopStartHint" aria-live="polite"></small><button class="coop-action primary" id="coopStartButton" type="button" onclick="game.startCoopMission()" disabled>房主开始任务</button><button class="coop-action" id="coopLeaveButton" type="button" onclick="game.leaveCoopRoom()">离开房间</button>
+                <div class="coop-roster-summary"><span>任务成员</span><strong id="coopGuestReady">0 / 3 位队友已连接</strong></div>
+                <div class="coop-roster-grid">
+                  <div class="coop-host-seat"><span>队员 1 · 房主</span><strong id="coopHostReady">等待</strong></div>
+                  <div class="coop-member-list" id="coopMembersList" role="list" aria-label="队员席位"></div>
+                </div>
+                <div class="coop-lobby-options">
+                  <div class="coop-friendly-fire" id="coopFriendlyFireControl"><label><input id="coopFriendlyFireToggle" type="checkbox" checked><span>友伤</span></label><small>枪械可以伤害队友</small></div>
+                  <p class="coop-friendly-fire-status" id="coopFriendlyFireStatus" hidden></p>
+                </div>
+                <div class="coop-lobby-actions">
+                  <small class="coop-start-hint" id="coopStartHint" aria-live="polite"></small>
+                  <div class="coop-action-buttons">
+                    <button class="coop-action" id="coopReadyButton" type="button" onclick="game.toggleCoopReady()">准备</button>
+                    <button class="coop-action primary" id="coopStartButton" type="button" onclick="game.startCoopMission()" disabled>房主开始任务</button>
+                    <button class="coop-action" id="coopLeaveButton" type="button" onclick="game.leaveCoopRoom()">离开房间</button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -351,6 +369,7 @@
             </div>
             <div class="hud-ammo"><span>弹药</span><strong id="hudAmmo">6 / 24</strong></div>
             <div class="hud-terminal-tracker"><span>终端</span><div id="hudTerminals" class="terminal-icon-strip" role="group" aria-label="终端破解状态"></div></div>
+            <div class="coop-revive-prompt" id="coopRevivePrompt" role="status" aria-live="polite" hidden></div>
           </div>
 
           <!-- QTE Terminal Interface Overlay -->
