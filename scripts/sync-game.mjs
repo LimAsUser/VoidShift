@@ -3,7 +3,7 @@ import path from "node:path";
 
 const root = process.cwd();
 const destination = path.join(root, "public", "game");
-const entries = ["index.html", "styles.css", "js", "resources"];
+const entries = ["index.html", "styles.css", "menu.css", "js", "resources"];
 
 await rm(destination, { recursive: true, force: true });
 await mkdir(destination, { recursive: true });

@@ -1,0 +1,805 @@
+diff --git a/tmp/v17-baseline/ui.js b/js/ui.js
+index b6094061..264374d8 100644
+--- a/tmp/v17-baseline/ui.js
++++ b/js/ui.js
+@@ -50,6 +50,13 @@ class UIManager {
+     this.hudSkillStatus = document.querySelector('#hudSkillStatus');
+     this.hudOxygenCount = document.querySelector('#hudOxygenCount');
+     this.hudMedkitCount = document.querySelector('#hudMedkitCount');
++    this.hudSupplyProgress = document.querySelector('#hudSupplyProgress');
++    this.hudSupplyProgressBar = document.querySelector('#hudSupplyProgressBar');
++    this.hudSupplyProgressLabel = document.querySelector('#hudSupplyProgressLabel');
++    this.hudShield = document.querySelector('#hudShield');
++    this.hudShieldBar = document.querySelector('#hudShieldBar');
++    this.hudShieldStatus = document.querySelector('#hudShieldStatus');
++    this.hudParty = document.querySelector('#hudParty');
+     this.coopHostLatency = document.querySelector('#coopHostLatency');
+     this.hudFlashStun = document.querySelector('#hudFlashStun');
+     this.hudNoise = document.querySelector('#hudNoise');
+@@ -99,6 +106,8 @@ class UIManager {
+     this.settingsModal = document.querySelector('#hunterSettingsModal');
+     this.settingsOpenButton = document.querySelector('#hunterSettingsOpen');
+     this.settingsCloseButton = document.querySelector('#hunterSettingsClose');
++    const refreshRecords = () => this.updatePersonalRecords(window.game?.getPersonalRecords?.());
++    this.settingsOpenButton?.addEventListener('click', refreshRecords);
+     this.descentTransition = document.querySelector('#descentTransition');
+     this.descentTip = document.querySelector('#descentTip');
+     this.settlementDialog = document.querySelector('#settlementDialog');
+@@ -118,6 +127,7 @@ class UIManager {
+     this.pauseMenuStatus = document.querySelector('#pauseMenuStatus');
+     this.pauseResumeButton = document.querySelector('#pauseResumeButton');
+     this.pauseSettingsButton = document.querySelector('#pauseSettingsButton');
++    this.pauseSettingsButton?.addEventListener('click', refreshRecords);
+     this.pauseAbandonButton = document.querySelector('#pauseAbandonButton');
+     this.abandonConfirmDialog = document.querySelector('#abandonConfirmDialog');
+     this.abandonConfirmTitle = document.querySelector('#abandonConfirmTitle');
+@@ -153,6 +163,7 @@ class UIManager {
+     this.loadoutEquipButtons = Object.fromEntries(
+       Object.keys(Config.weapons).map(weaponId => [weaponId, document.querySelector(`#equip${weaponId[0].toUpperCase()}${weaponId.slice(1)}`)])
+     );
++    this.ensureLoadoutCards();
+     this.abilityCards = { skill: {}, passive: {} };
+     this.abilityCatalogs = {
+       skill: document.querySelector('#skillCatalog'),
+@@ -170,6 +181,7 @@ class UIManager {
+     this.ammoTransferButton = document.querySelector('#ammoTransferButton');
+     this.ammoTransferPreview = document.querySelector('#ammoTransferPreview');
+     this.ammoStockGrid = document.querySelector('#ammoStockGrid');
++    this.weaponAmmoCatalog = document.querySelector('#weaponAmmoCatalog');
+     this.coopStatus = document.querySelector('#coopStatus');
+     this.coopRoomCode = document.querySelector('#coopRoomCode');
+     this.coopJoinCode = document.querySelector('#coopJoinCode');
+@@ -267,7 +279,7 @@ class UIManager {
+     const label = grouped ? amount.toLocaleString('en-US') : String(amount);
+     const icon = document.createElement('img');
+     icon.setAttribute('class', 'credit-token-image');
+-    icon.setAttribute('src', 'resources/images/voidshift-credit-coin.png');
++    icon.setAttribute('src', element.closest?.('#titleScreen') ? 'resources/images/voidshift-credit-coin.png' : 'resources/images/equipment-v17/credit.png');
+     icon.setAttribute('alt', '');
+     icon.setAttribute('aria-hidden', 'true');
+     const amountNode = document.createElement('span');
+@@ -340,6 +352,7 @@ class UIManager {
+   }
+ 
+   showSettingsSection(sectionId) {
++    if (sectionId === 'personalRecordsContent') this.updatePersonalRecords(window.game?.getPersonalRecords?.());
+     this.settingsSectionButtons.forEach(button => {
+       const active = button.dataset.settingsSection === sectionId;
+       button.classList.toggle('active', active);
+@@ -403,6 +416,44 @@ class UIManager {
+     return true;
+   }
+ 
++  ensureLoadoutCards() {
++    for (const [id, weapon] of Object.entries(Config.weapons)) {
++      const suffix = id[0].toUpperCase() + id.slice(1);
++      if (this.loadoutCards[id]) continue;
++      const container = document.querySelector(`[aria-labelledby="${weapon.slot === 'primary' ? 'primary' : 'sidearm'}SlotTitle"] .loadout-grid`);
++      if (!container) continue;
++      const card = document.createElement('article'); card.id = `loadout${suffix}`; card.className = 'loadout-card';
++      const frame = document.createElement('div'); frame.className = 'menu-media-frame weapon-icon-frame';
++      const art = document.createElement('img'); art.className = 'weapon-icon'; art.src = UIManager.equipmentImage(id, weapon.image); art.alt = weapon.label; art.draggable = false;
++      frame.append(art);
++      const copy = document.createElement('div'); copy.className = 'weapon-copy';
++      const title = document.createElement('h3'); title.textContent = weapon.label;
++      const stock = document.createElement('p'); stock.dataset.weaponAmmo = id;
++      const description = document.createElement('p'); description.textContent = `${weapon.automatic ? '自动射击' : `${weapon.pelletCount || 1} 弹丸`} · 间隔 ${weapon.shootCooldownDuration} 秒`;
++      const reload = document.createElement('p'); reload.textContent = `${weapon.reloadMode === 'shell' ? '逐发装填' : '换弹'} ${weapon.reloadDuration} 秒`;
++      const actions = document.createElement('div'); actions.className = 'weapon-card-actions';
++      const price = document.createElement('p'); price.className = 'weapon-price'; this.setCurrencyValue(price, weapon.purchasePrice, { grouped: true });
++      const purchase = document.createElement('button'); purchase.id = `purchase${suffix}`; purchase.type = 'button'; purchase.className = 'weapon-action purchase'; purchase.textContent = '前往商店';
++      purchase.addEventListener('click', () => window.menu.openShop('weapons'));
++      const equip = document.createElement('button'); equip.id = `equip${suffix}`; equip.type = 'button'; equip.className = 'weapon-action equip';
++      equip.addEventListener('click', () => window.game.equipWeapon(weapon.slot, id));
++      actions.append(price, purchase, equip); copy.append(title, stock, description, reload, actions); card.append(frame, copy); container.append(card);
++      this.loadoutCards[id] = card; this.loadoutPurchaseButtons[id] = purchase; this.loadoutEquipButtons[id] = equip;
++    }
++  }
++
++  static equipmentImage(id, fallback = '') {
++    return ['pistol', 'smg', 'shotgun', 'revolver', 'machinegun', 'mini-shotgun', 'grenade', 'roll', 'life-scan', 'shield', 'barrier'].includes(id)
++      ? `resources/images/equipment-v17/${id}.png` : fallback;
++  }
++
++  updatePersonalRecords(records = {}) {
++    for (const difficulty of ['easy', 'medium', 'hard']) for (const outcome of ['success', 'failure']) {
++      const node = document.querySelector(`[data-record="${difficulty}-${outcome}"]`);
++      if (node) node.textContent = String(Math.max(0, Math.floor(Number(records?.[difficulty]?.[outcome]) || 0)));
++    }
++  }
++
+   updateLoadout(armory, disabled = false) {
+     if (!armory) return;
+     Object.entries(this.loadoutCards).forEach(([weaponId, card]) => {
+@@ -450,7 +501,7 @@ class UIManager {
+           card.dataset.ability = id;
+           const art = document.createElement('img');
+           art.className = 'ability-art';
+-          art.src = ability.image;
++          art.src = UIManager.equipmentImage(id, ability.image);
+           art.alt = ability.label;
+           art.draggable = false;
+           const copy = document.createElement('div');
+@@ -463,7 +514,8 @@ class UIManager {
+           description.textContent = ability.description;
+           const usage = document.createElement('p');
+           usage.className = 'ability-usage';
+-          usage.textContent = kind === 'skill' ? `T 使用 · 冷却 ${ability.cooldown} 秒` : '装备后生效';
++          usage.textContent = id === 'barrier' ? 'T 蓝图 · R 旋转 · 左键放置 · Esc 取消 · 按住 E 3 秒拆除'
++            : id === 'shield' ? '装备后自动触发 · 持续 3 秒 · 冷却 50 秒' : kind === 'skill' ? `T 使用 · 冷却 ${ability.cooldown} 秒` : '装备后生效';
+           const actions = document.createElement('div');
+           actions.className = 'ability-actions';
+           const price = document.createElement('p');
+@@ -501,7 +553,7 @@ class UIManager {
+       if (name) name.textContent = ability?.label || '未装备';
+       if (image) {
+         image.hidden = !ability;
+-        if (ability) { image.src = ability.image; image.alt = ability.label; }
++        if (ability) { image.src = UIManager.equipmentImage(selected, ability.image); image.alt = ability.label; }
+       }
+       if (clear) clear.disabled = locked || !ability;
+     }
+@@ -517,7 +569,8 @@ class UIManager {
+     if (this.hudSkillName) this.hudSkillName.textContent = ability?.label || '主动技能未装备';
+     if (this.hudSkillImage) {
+       this.hudSkillImage.hidden = !ability;
+-      if (ability && this.hudSkillImage.getAttribute('src') !== ability.image) this.hudSkillImage.src = ability.image;
++      const image = UIManager.equipmentImage(player?.armory?.equippedSkill, ability?.image);
++      if (ability && this.hudSkillImage.getAttribute('src') !== image) this.hudSkillImage.src = image;
+     }
+     if (this.hudSkillStatus) {
+       this.hudSkillStatus.textContent = !ability ? '' : remaining ? `${remaining}s` : '就绪';
+@@ -525,6 +578,73 @@ class UIManager {
+     }
+   }
+ 
++  updateEquipmentStatus(player, state, partyEntries = []) {
++    const elapsed = Number(state.elapsed) || 0;
++    const removal = player?.barrierRemoval;
++    const use = removal || player?.supplyUse;
++    const remaining = use ? Math.max(0, Number(use.endsAt) - elapsed) : 0;
++    if (this.hudSupplyProgress) this.hudSupplyProgress.hidden = !use || !remaining;
++    if (this.hudSupplyProgressBar) this.hudSupplyProgressBar.style.width = `${Math.max(0, Math.min(100, (1 - remaining / (removal ? 3 : 2)) * 100))}%`;
++    if (this.hudSupplyProgressLabel) this.hudSupplyProgressLabel.textContent = !use ? '' : `${removal ? '拆除隔离栅' : use.effect === 'health-40' ? '使用急救包' : '使用氧气瓶'} · ${remaining.toFixed(1)}s`;
++    const shield = player?.armory?.equippedPassive === 'shield';
++    const active = Math.max(0, (Number(player?.shieldUntil) || 0) - elapsed);
++    const cooldown = Math.max(0, (Number(player?.shieldReadyAt) || 0) - elapsed);
++    if (this.hudShield) this.hudShield.hidden = !shield;
++    if (this.hudShieldBar) this.hudShieldBar.style.width = `${Math.round(Math.max(0, Math.min(100, (1 - cooldown / 50) * 100)))}%`;
++    if (this.hudShieldStatus) this.hudShieldStatus.textContent = active ? `护盾生效 ${active.toFixed(1)}s` : cooldown ? `护盾冷却 ${Math.ceil(cooldown)}s` : '护盾就绪';
++    if (!this.hudParty) return;
++    this.hudParty.hidden = !state.coop?.running;
++    if (this.hudParty.hidden) return;
++    const teammates = partyEntries.filter(entry => !entry.local);
++    const signature = teammates.map(entry => `${entry.id}:${entry.slot}`).join('|');
++    if (this.partyStatusSignature !== signature) {
++      this.partyStatusSignature = signature;
++      this.partyStatusCards = Object.create(null);
++      this.hudParty.replaceChildren(...teammates.map(entry => {
++        const card = document.createElement('article'); card.className = 'hud-party-card';
++        const name = document.createElement('strong'); name.textContent = `队员 ${entry.slot}`;
++        const vitals = document.createElement('span');
++        const status = document.createElement('small');
++        card.append(name, vitals, status);
++        this.partyStatusCards[entry.id] = { card, vitals, status };
++        return card;
++      }));
++    }
++    for (const entry of teammates) {
++      const nodes = this.partyStatusCards[entry.id];
++      const actor = entry.player;
++      nodes.card.classList.toggle('downed', !!actor?.downed);
++      nodes.card.classList.toggle('offline', !entry.online);
++      nodes.vitals.textContent = actor ? `HP ${Math.round(Number(actor.health) || 0)} · O₂ ${Math.round(Number(actor.oxygen) || 0)}` : '状态同步中';
++      nodes.status.textContent = !entry.online ? '离线' : actor?.downed ? `倒地${actor.reviveProgress > 0 ? ` · 救援 ${Number(actor.reviveProgress).toFixed(1)}s` : ''}`
++        : actor?.supplyUse ? '补给使用中' : (Number(actor?.shieldUntil) || 0) > elapsed ? '护盾生效' : '在线';
++    }
++  }
++
++  updateWeaponAmmoShop(armory, money, locked = false) {
++    if (!this.weaponAmmoCatalog) return;
++    this.weaponAmmoCards ||= {};
++    for (const [id, pack] of Object.entries(Config.ammo.weaponPacks || {})) {
++      const weapon = Config.weapons[id];
++      if (!weapon) continue;
++      let nodes = this.weaponAmmoCards[id];
++      if (!nodes) {
++        const card = document.createElement('article'); card.className = 'weapon-ammo-card';
++        const art = document.createElement('img'); art.src = UIManager.equipmentImage(id, weapon.image); art.alt = weapon.label;
++        const title = document.createElement('h3'); title.textContent = `${weapon.label}专用弹药`;
++        const details = document.createElement('p'); details.textContent = `${pack.unitsPerPurchase} 发 · ${pack.pricePerPurchase} 信用点 · 不参与标准弹药转换`;
++        const stock = document.createElement('p');
++        const button = document.createElement('button'); button.className = 'action-button'; button.type = 'button';
++        button.addEventListener('click', () => window.game.purchaseWeaponAmmo(id));
++        card.append(art, title, details, stock, button); this.weaponAmmoCatalog.append(card);
++        nodes = this.weaponAmmoCards[id] = { card, stock, button };
++      }
++      nodes.stock.textContent = `个人备弹 ${armory.weaponAmmo?.[id]?.reserve || 0} 发`;
++      nodes.button.disabled = locked || !armory.ownedWeapons?.[id] || money < pack.pricePerPurchase;
++      nodes.button.textContent = !armory.ownedWeapons?.[id] ? '请先解锁武器' : money < pack.pricePerPurchase ? '余额不足' : `购买 ${pack.unitsPerPurchase} 发`;
++    }
++  }
++
+   static nightmareThreat(monsters) {
+     const active = (Array.isArray(monsters) ? monsters : [monsters]).filter(monster => monster?.active);
+     const chasing = active.some(monster => monster.alerted && !(monster.recoverTimer > 0));
+@@ -551,7 +671,7 @@ class UIManager {
+ 
+     const options = [{ id: 'standard', label: '标准弹药库', stock: armory.standardAmmoUnits }];
+     Object.entries(Config.weapons).forEach(([weaponId, weapon]) => {
+-      if (armory.ownedWeapons[weaponId]) options.push({
++      if (armory.ownedWeapons[weaponId] && Config.ammo.standardUnitsPerRound?.[weaponId] > 0) options.push({
+         id: weaponId,
+         label: weapon.label,
+         stock: armory.weaponAmmo[weaponId].reserve
+@@ -569,7 +689,7 @@ class UIManager {
+         if (option.id === 'standard') {
+           const symbol = document.createElement('img');
+           symbol.className = 'ammo-standard-art';
+-          symbol.src = 'resources/images/menu/ammo-crate.png';
++          symbol.src = 'resources/images/equipment-v17/ammo.png';
+           symbol.alt = '';
+           symbol.setAttribute('aria-hidden', 'true');
+           button.appendChild(symbol);
+@@ -674,28 +794,36 @@ class UIManager {
+     });
+   }
+ 
+-  _renderCrewLoadout(container, loadout) {
++  _renderCrewLoadout(container, loadout, summary = null) {
+     if (!container) return;
+-    if (!loadout) {
++    if (!loadout && !summary) {
+       container.textContent = '装备同步中';
+       return;
+     }
+-    container.replaceChildren(...UIManager.prototype.crewLoadoutRows.call(this, loadout).map(weapon => {
++    const rows = summary?.weapons ? summary.weapons.map(stock => ({ ...stock, key: Config.weapons[stock.id]?.slot === 'primary' ? '1' : '2', label: Config.weapons[stock.id]?.label || stock.id }))
++      : UIManager.prototype.crewLoadoutRows.call(this, loadout);
++    const lines = rows.map(weapon => {
+       const line = document.createElement('span');
+       const key = document.createElement('b');
+       key.textContent = weapon.key;
+       line.appendChild(key);
+       if (weapon.id) {
+         const image = document.createElement('img');
+-        image.src = `resources/images/menu/weapon-${weapon.id}.png`;
++        image.src = UIManager.equipmentImage(weapon.id, Config.weapons[weapon.id]?.image);
+         image.alt = '';
+         line.appendChild(image);
+       }
+       const name = document.createElement('span');
+-      name.textContent = weapon.label;
++      name.textContent = `${weapon.label}${summary ? ` · 总弹药 ${weapon.total ?? (Number(weapon.magazine) || 0) + (Number(weapon.reserve) || 0)}` : ''}`;
+       line.appendChild(name);
+       return line;
+-    }));
++    });
++    if (summary) {
++      for (const text of [`氧气瓶 ${summary.oxygen || 0} · 急救包 ${summary.medkits || 0}`, `主动：${Config.skills?.[summary.skill]?.label || '未装备'}`, `被动：${Config.passives?.[summary.passive]?.label || '未装备'}`]) {
++        const line = document.createElement('span'); const copy = document.createElement('span'); copy.textContent = text; line.append(copy); lines.push(line);
++      }
++    }
++    container.replaceChildren(...lines);
+   }
+ 
+   showCoopDiagnostics(text) {
+@@ -714,7 +842,8 @@ class UIManager {
+     const connectedCount = members.filter(member => member.connected || member.status === 'connected').length;
+     const guestsReady = members.length > 0 && members.every(member =>
+       (member.connected || member.status === 'connected') && member.ready);
+-    this.coopStatus.textContent = coop.status || 'OFFLINE';
++    this.coopStatus.textContent = coop.mapIncompatible ? '地图版本不一致，请全员刷新后重新加入。' : coop.status || 'OFFLINE';
++    this.coopStatus.classList?.toggle?.('warning', !!coop.mapIncompatible);
+     this.coopRoomCode.textContent = coop.code || '------';
+     if (this.coopConnectionFeedback) {
+       this.coopConnectionFeedback.hidden = !coop.connectionPhase && !coop.diagnosticsAvailable;
+@@ -730,7 +859,7 @@ class UIManager {
+     this.coopHostReady.textContent = coop.role === 'host'
+       ? (coop.localReady ? '已准备' : '未准备')
+       : (coop.hostReady ? '已准备' : '房主等待');
+-    UIManager.prototype._renderCrewLoadout.call(this, this.coopHostLoadout, coop.hostLoadout);
++    UIManager.prototype._renderCrewLoadout.call(this, this.coopHostLoadout, coop.hostLoadout, coop.hostSummary);
+     this.coopGuestReady.textContent = `${connectedCount} / 3 位队友已连接`;
+     if (this.coopMembersList) {
+       const unassigned = members.filter(member => !Number.isInteger(Number(member.slot)) || Number(member.slot) < 2 || Number(member.slot) > 4);
+@@ -759,7 +888,7 @@ class UIManager {
+           : member.ready ? '已准备' : member.connected ? '未准备' : '连接中';
+         const equipment = document.createElement('div');
+         equipment.className = 'crew-loadout';
+-        if (member) UIManager.prototype._renderCrewLoadout.call(this, equipment, member.armory?.loadout || member.loadout);
++        if (member) UIManager.prototype._renderCrewLoadout.call(this, equipment, member.armory?.loadout || member.loadout, member.summary);
+         row.append(label, portrait, connection, equipment, status);
+         if (member) {
+           const ping = document.createElement('small');ping.className = 'crew-latency';
+@@ -774,18 +903,18 @@ class UIManager {
+       }));
+     }
+     this.coopReadyButton.textContent = coop.readyPending ? '等待确认…' : coop.localReady ? '取消准备' : '准备';
+-    this.coopReadyButton.disabled = !coop.connected || coop.running || !!coop.readyPending;
++    this.coopReadyButton.disabled = !coop.connected || coop.running || !!coop.readyPending || !!coop.mapIncompatible;
+     if (this.coopStartButton) this.coopStartButton.hidden = coop.role !== 'host';
+     const startHint = this.coopStartHint;
+     if (startHint) {
+-      startHint.textContent = coop.role === 'host'
++      startHint.textContent = coop.mapIncompatible ? '地图版本不一致，无法准备或开局；请全员刷新。' : coop.role === 'host'
+         ? (coop.startBlocker || '全员已准备，可以开始任务。')
+         : coop.readyPending ? '准备请求已发送，等待房主确认…'
+           : coop.localReady ? '房主已确认你准备就绪。' : '请准备并等待房主开始。';
+     }
+     if (this.coopStartButton) this.coopStartButton.disabled = coop.role === 'host'
+-      ? !!coop.startBlocker
+-      : !coop.connected || !coop.localReady || !guestsReady || coop.running;
++      ? !!coop.startBlocker || !!coop.mapIncompatible
++      : !coop.connected || !coop.localReady || !guestsReady || coop.running || !!coop.mapIncompatible;
+     this.coopLeaveButton.disabled = coop.running;
+     this.coopHostButton.disabled = !!coop.role || !!coop.roomPending;
+     this.coopJoinButton.disabled = !!coop.role || !!coop.roomPending;
+@@ -1074,14 +1203,13 @@ class UIManager {
+     const signature = `${allLit ? 'all' : 'mission'}:${terminalList.map(terminal => terminal.solved ? '1' : '0').join('')}`;
+     if (container.dataset.terminalState === signature) return;
+     container.dataset.terminalState = signature;
+-    const svg = '<svg viewBox="0 0 16 16" aria-hidden="true" shape-rendering="crispEdges"><path d="M3 1h10v2h2v11h-2v1H3v-1H1V3h2z"/><path class="terminal-pixel-screen" d="M4 4h8v5H4z"/><path class="terminal-pixel-keys" d="M4 11h2v1H4zm3 0h2v1H7zm3 0h2v1h-2z"/></svg>';
+     container.replaceChildren(...terminalList.map((terminal, index) => {
+       const lit = allLit || !!terminal.solved;
+       const icon = document.createElement('span');
+       icon.className = `terminal-pixel-icon${lit ? ' lit' : ''}`;
+       icon.setAttribute('role', 'img');
+       icon.setAttribute('aria-label', `终端 ${index + 1}${lit ? '已激活' : '未激活'}`);
+-      icon.innerHTML = svg;
++      const art = document.createElement('img'); art.src = 'resources/images/equipment-v17/terminal.png'; art.alt = ''; art.setAttribute('aria-hidden', 'true'); icon.append(art);
+       return icon;
+     }));
+   }
+
+warning: in the working copy of 'tmp/v17-baseline/menu.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'js/menu.js', LF will be replaced by CRLF the next time Git touches it
+diff --git a/tmp/v17-baseline/menu.js b/js/menu.js
+index 7aaf21d2..eb966aa8 100644
+--- a/tmp/v17-baseline/menu.js
++++ b/js/menu.js
+@@ -180,10 +180,21 @@ class SafehouseMenu {
+       const scale = canvas.dataset.mapPreview;
+       const seed = this.mapDraft.seeds[scale];
+       const difficulty = this.game._previewDifficulty();
+-      if (this.mapDraftErrors?.[scale]?.seed === seed && this.mapDraftErrors[scale].difficulty === difficulty) return;
++      const cachedError = this.mapDraftErrors?.[scale];
++      if (cachedError && cachedError.seed === seed && cachedError.difficulty === difficulty) return;
+       delete this.mapDraftErrors?.[scale];
+       try {
+-        if (this.mapDraftMaps[scale]?.seed !== seed || this.mapDraftMaps[scale]?.difficulty !== difficulty) this.mapDraftMaps[scale] = new MapManager(scale, seed, difficulty);
++        if (guest) {
++          this.mapDraftMaps[scale] = this.game.getMenuPreviewMap?.(scale) || null;
++          if (!this.mapDraftMaps[scale] || this.game.state.coop.mapIncompatible) {
++            delete this.mapDraftMaps[scale];
++            const incompatible = !!this.game.state.coop.mapIncompatible;
++            this.setMapPreviewStatus(scale, incompatible ? 'error' : 'loading', incompatible ? '地图版本不一致 · 请全员刷新' : '正在同步房主布局…');
++            document.querySelector(`[data-map-enemies="${scale}"]`)?.replaceChildren(document.createTextNode(incompatible ? '地图资料不兼容' : '敌人资料同步中…'));
++            this.drawMapPreview(canvas, null);
++            return;
++          }
++        } else if (this.mapDraftMaps[scale]?.seed !== seed || this.mapDraftMaps[scale]?.difficulty !== difficulty) this.mapDraftMaps[scale] = new MapManager(scale, seed, difficulty);
+         const facts = document.querySelector(`[data-draft-scale="${scale}"] .facility-facts`);
+         if (facts?.children.length >= 2) {
+           facts.children[0].textContent = `${this.mapDraftMaps[scale].functionalRooms.length} 舱`;
+@@ -448,7 +459,7 @@ class SafehouseMenu {
+         let nodes = this.shopCards.get(key);
+         if (!nodes) {
+           const card = document.createElement('article');card.className = 'shop-product-card';
+-          const art = document.createElement('img');art.src = item.image || `resources/images/menu/weapon-${id}.png`;art.alt = item.label;art.draggable = false;
++          const art = document.createElement('img');art.src = UIManager.equipmentImage(id, item.image);art.alt = item.label;art.draggable = false;
+           const title = document.createElement('h3');title.textContent = item.label;
+           const description = document.createElement('p');description.textContent = item.description || `弹匣 ${item.maxAmmo} 发 · 间隔 ${item.shootCooldownDuration} 秒`;
+           const cost = document.createElement('strong');cost.textContent = `${Number(price).toLocaleString()} 信用点`;
+@@ -468,6 +479,7 @@ class SafehouseMenu {
+     }
+     const medkit = document.getElementById('purchaseMedkitButton');
+     medkit.disabled = locked || game.state.money < Config.consumables.medkit.purchasePrice;
++    game.ui.updateWeaponAmmoShop(armory, game.state.money, locked);
+   }
+ 
+   selectLoadoutSection(section) {
+@@ -520,7 +532,7 @@ class SafehouseMenu {
+ 
+   static weaponDamageText(weapon) {
+     const damage = Number(weapon.damage) || 0;
+-    if (weapon.pelletCount) return `每弹丸 ${damage} · 四弹丸全中最多 ${damage * weapon.pelletCount}`;
++    if (weapon.pelletCount) return `每弹丸 ${damage} · ${weapon.pelletCount} 弹丸全中最多 ${damage * weapon.pelletCount}`;
+     return `单发伤害 ${damage}${weapon.penetrationTargets > 1 ? ` · 最多命中 ${weapon.penetrationTargets} 个目标` : ''}`;
+   }
+ 
+@@ -623,6 +635,11 @@ class SafehouseMenu {
+   }
+ 
+   drawMapPreview(canvas, map) {
++    if (!canvas) return;
++    if (!map) {
++      canvas.getContext?.('2d')?.clearRect(0, 0, canvas.width || 0, canvas.height || 0);
++      return;
++    }
+     const width = canvas.clientWidth;
+     const height = canvas.clientHeight;
+     if (!width || !height || !map?.worldRooms?.length) return;
+@@ -704,7 +721,8 @@ class SafehouseMenu {
+   }
+ 
+   renderEnemyTypes(container, map) {
+-    if (!container || !map) return;
++    if (!container) return;
++    if (!map) { container.replaceChildren(document.createTextNode('敌人资料同步中…')); return; }
+     const types = map.enemyTypes || [];
+     const label = document.createElement('strong');
+     label.textContent = '每舱 1–3 个物资箱 · 本局敌人';
+@@ -714,10 +732,9 @@ class SafehouseMenu {
+       row.className = 'map-enemy';
+       const art = document.createElement('img');
+       art.src = `resources/images/${type}-topdown.png`;
+-      art.alt = '';
+-      const name = document.createElement('span');
+-      name.textContent = names[type] || type;
+-      row.append(art, name);
++      art.alt = names[type] || type;
++      art.title = names[type] || type;
++      row.append(art);
+       return row;
+     });
+     container.replaceChildren(label, ...rows);
+@@ -794,7 +811,7 @@ class SafehouseMenu {
+     const image = document.getElementById('menuItemImage');
+     image.hidden = !selected;
+     document.getElementById('menuItemName').textContent = selected?.name || '选择一件物资';
+-    document.getElementById('menuItemEffect').textContent = selected?.effect === 'oxygen-50' ? '恢复 50 点氧气' : selected?.effect === 'health-40' ? '恢复 40 生命值' : '';
++    document.getElementById('menuItemEffect').textContent = selected?.effect === 'oxygen-50' ? '使用 2 秒后恢复 50 点氧气' : selected?.effect === 'health-40' ? '使用 2 秒后恢复 40 生命值' : '';
+     document.getElementById('menuItemValue').textContent = selected ? `回收价 ${game.ui.formatCreditText(selected.value || 0)}` : '';
+     const manager = bag.includes(selected) ? game.backpack : game.storageBackpack;
+     const matrix = selected && manager.matrixFor(selected);
+@@ -812,7 +829,7 @@ class SafehouseMenu {
+     const coop = this.game.state.coop;
+     const pending = !!coop.roomPending;
+     if (coop.role !== 'guest') this.game.ui._renderCrewLoadout?.(
+-      document.getElementById('coopHostLoadout'), this.game.player.armory.loadout);
++      document.getElementById('coopHostLoadout'), this.game.player.armory.loadout, coop.hostSummary);
+     if (coop.role) this.offlineCrewPreview = false;
+     const preview = !!this.offlineCrewPreview;
+     const joined = !!coop.role || preview;
+@@ -850,13 +867,13 @@ class SafehouseMenu {
+     document.getElementById('lobbyScaleName').textContent = Config.mapScales[Config.currentScale].label;
+     document.getElementById('coopHostRoleLabel').textContent = preview ? '预览房主' : coop.role ? '房主' : '玩家';
+     document.querySelector('.coop-map-summary small').textContent = coop.role === 'guest'
+-      ? '房主当前选择的设施结构 · 出生点已标记'
++      ? coop.mapIncompatible ? '地图版本不一致 · 请全员刷新后重新加入' : this.game.getMenuPreviewMap(Config.currentScale) ? '房主当前选择的设施结构 · 出生点已标记' : '正在同步房主布局…'
+       : preview ? '本机预览结构 · 出生点已标记' : '下一潜设施结构 · 出生点已标记';
+     if (this.tab === 'briefing') {
+       this.drawMapPreview(document.getElementById('lobbyMapPreview'), this.game.getMenuPreviewMap(Config.currentScale));
+     }
+-    ready.disabled = pending || preview || joined && (coop.role !== 'host' || !!coop.startBlocker);
+-    ready.textContent = pending && !coop.role ? '正在连接房间…' : preview ? '退出预览后可单人下潜' : !joined ? (this.game.state.completed ? '重新下潜' : '开始下潜')
++    ready.disabled = pending || preview || !!coop.mapIncompatible || joined && (coop.role !== 'host' || !!coop.startBlocker);
++    ready.textContent = coop.mapIncompatible ? '地图版本不一致' : pending && !coop.role ? '正在连接房间…' : preview ? '退出预览后可单人下潜' : !joined ? (this.game.state.completed ? '重新下潜' : '开始下潜')
+       : coop.role === 'guest' ? (coop.localReady ? '等待房主开始' : '请先准备')
+         : coop.startBlocker ? '等待队员准备' : '开始任务';
+     if (!ready.disabled) {
+
+diff --git a/tmp/v17-baseline/inventory.js b/js/inventory.js
+index 9ba732bf..4aacffde 100644
+--- a/tmp/v17-baseline/inventory.js
++++ b/js/inventory.js
+@@ -31,13 +31,13 @@ class BackpackManager {
+   }
+ 
+   static imageFor(item) {
+-    if (item.effect === 'health-40') return 'resources/images/medkit.png';
++    if (item.effect === 'health-40') return 'resources/images/equipment-v17/medkit.png';
+     if (item.effect === 'flashbang') return 'resources/images/flashbang.png';
+-    if (item.effect === 'oxygen-50' || /氧气/.test(item.name || '')) return 'resources/images/menu/oxygen-bottle.png';
+-    if (/样本|组织|血清|胚胎|孢子|真菌|神经|药/.test(item.name || '')) return 'resources/images/menu/item-specimen.png';
+-    if (/芯|卡|数据|驱动|硬盘|电池|密钥|录音|导航/.test(item.name || '')) return 'resources/images/menu/item-chip.png';
+-    if (/弹药/.test(item.name || '')) return 'resources/images/menu/ammo-crate.png';
+-    return item.image || 'resources/images/menu/item-alloy.png';
++    if (item.effect === 'oxygen-50' || /氧气/.test(item.name || '')) return 'resources/images/equipment-v17/oxygen.png';
++    if (/样本|组织|血清|胚胎|孢子|真菌|神经|药/.test(item.name || '')) return 'resources/images/equipment-v17/specimen.png';
++    if (/芯|卡|数据|驱动|硬盘|电池|密钥|录音|导航/.test(item.name || '')) return 'resources/images/equipment-v17/chip.png';
++    if (/弹药/.test(item.name || '')) return 'resources/images/equipment-v17/ammo.png';
++    return item.image || 'resources/images/equipment-v17/alloy.png';
+   }
+ 
+   get capacity() { return this.cols * this.rows; }
+
+diff --git a/tmp/v17-baseline/index.html b/index.html
+index 5a05d049..40095e80 100644
+--- a/tmp/v17-baseline/index.html
++++ b/index.html
+@@ -10,8 +10,8 @@
+   <link rel="preconnect" href="https://fonts.googleapis.com" />
+   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+-  <link rel="stylesheet" href="styles.css?v=13" />
+-  <link rel="stylesheet" href="menu.css?v=21" />
++  <link rel="stylesheet" href="styles.css?v=14" />
++  <link rel="stylesheet" href="menu.css?v=22" />
+ </head>
+ <body data-menu-screen="title">
+   <div class="menu-motion" data-menu-motion="prep" hidden aria-hidden="true">
+@@ -56,6 +56,7 @@
+         <div class="settings-modal-tabs" role="tablist" aria-label="配置与版本">
+           <button class="settings-section-btn active" type="button" data-settings-section="hunterSettingsContent">Hunter 设置</button>
+           <button class="settings-section-btn" type="button" data-settings-section="performanceSettingsContent">性能</button>
++          <button class="settings-section-btn" type="button" data-settings-section="personalRecordsContent">个人战绩</button>
+           <button class="settings-section-btn" type="button" data-settings-section="versionLogContent">更新日志</button>
+         </div>
+         <section class="settings-modal-content" id="hunterSettingsContent">
+@@ -87,6 +88,15 @@
+           </div>
+           <button class="reset-profile-button" id="resetHunterSettings" type="button">恢复正在编辑的难度默认值</button>
+         </section>
++        <section class="settings-modal-content" id="personalRecordsContent" hidden>
++          <p class="update-category">PERSONAL RECORDS // MISSIONS</p>
++          <h3>个人任务战绩</h3>
++          <table class="personal-records-table"><thead><tr><th>难度</th><th>成功</th><th>失败</th></tr></thead><tbody>
++            <tr><th>简单</th><td data-record="easy-success">0</td><td data-record="easy-failure">0</td></tr>
++            <tr><th>中等</th><td data-record="medium-success">0</td><td data-record="medium-failure">0</td></tr>
++            <tr><th>困难</th><td data-record="hard-success">0</td><td data-record="hard-failure">0</td></tr>
++          </tbody></table><small>按任务难度分别记录；训练不计入战绩。</small>
++        </section>
+         <section class="settings-modal-content performance-settings-content" id="performanceSettingsContent" hidden>
+           <p class="update-category">LOCAL DISPLAY // FRAME RATE</p>
+           <label for="fpsCapSelect">画面帧率上限</label>
+@@ -241,7 +251,7 @@
+ <button class="tab-btn" data-tab="loadout" type="button" onclick="switchTab('loadout')">LOADOUT</button>
+ <button class="tab-btn" data-tab="ammo" type="button" onclick="switchTab('ammo')">商店</button>
+ <button class="tab-btn" data-tab="tutorial" type="button" onclick="switchTab('tutorial')">教程</button></div>
+-          <div class="menu-utilities"><span id="moneyDisplay" class="credit-value"><img class="credit-token-image" src="resources/images/voidshift-credit-coin.png" alt=""><span>1,000</span></span><button class="settings-launch" id="hunterSettingsOpen" type="button">设置</button></div>
++          <div class="menu-utilities"><span id="moneyDisplay" class="credit-value"><img class="credit-token-image" src="resources/images/equipment-v17/credit.png" alt=""><span>1,000</span></span><button class="settings-launch" id="hunterSettingsOpen" type="button">设置</button></div>
+         </nav>
+         <div class="menu-pages">
+           <div id="briefingContent" class="menu-page briefing-page">
+@@ -254,9 +264,9 @@
+             </div>
+             <div class="brief-side">
+               <div class="brief-settings"><button class="menu-card" id="briefScaleButton" type="button" aria-haspopup="dialog"><span>设施规模 · 查看地图</span><strong id="briefScaleLabel">小型 · 16 舱</strong></button><div class="menu-card brief-difficulty"><span>本局难度：<strong id="briefDifficultyLabel">中等</strong></span><div class="mission-difficulty-choices" role="group" aria-label="选择本局难度"><button type="button" data-select-mission-difficulty="easy">简单</button><button type="button" data-select-mission-difficulty="medium">中等</button><button type="button" data-select-mission-difficulty="hard">困难</button></div></div></div>
+-              <div class="menu-card brief-quota"><span>合约目标</span><strong id="quotaValue"><span class="credit-value"><img class="credit-token-image" src="resources/images/voidshift-credit-coin.png" alt=""><span>420</span></span></strong></div>
++              <div class="menu-card brief-quota"><span>合约目标</span><strong id="quotaValue"><span class="credit-value"><img class="credit-token-image" src="resources/images/equipment-v17/credit.png" alt=""><span>420</span></span></strong></div>
+               <div class="menu-card brief-terminals"><h2>终端</h2><div id="terminalsStatus" class="terminal-icon-strip" role="group" aria-label="本设施终端"></div><p>全部启动后可呼叫撤离</p></div>
+-              <div class="menu-card brief-prepared"><h2>下潜准备</h2><div class="menu-media-frame brief-supply-art-frame"><img class="brief-supply-art" src="resources/images/menu/oxygen-bottle.png" alt="备用氧气瓶" draggable="false"></div><div><p id="briefPackCount">背包 0 / 40 格</p><p id="briefWeapon">副武器：手枪</p><p id="briefOxygenCount">备用氧气瓶 ×0</p></div></div>
++              <div class="menu-card brief-prepared"><h2>下潜准备</h2><div class="menu-media-frame brief-supply-art-frame"><img class="brief-supply-art" src="resources/images/equipment-v17/oxygen.png" alt="备用氧气瓶" draggable="false"></div><div><p id="briefPackCount">背包 0 / 40 格</p><p id="briefWeapon">副武器：手枪</p><p id="briefOxygenCount">备用氧气瓶 ×0</p></div></div>
+               <div class="menu-card brief-risk"><h2>任务失败时</h2><ul><li>携带物资丢失</li><li id="briefAmmoRisk">携带弹药损失一半</li><li>仓库与弹药库库存不受影响</li></ul></div>
+               <span id="lootValue" hidden></span><span id="lootCount" hidden></span>
+             </div>
+@@ -298,19 +308,17 @@
+                   <button class="weapon-action organize" id="storagePackButton" type="button" onclick="game.packStorage()">整理仓库</button>
+                   <button class="weapon-action purchase" id="sellSelectedStorageButton" type="button" onclick="game.sellSelectedStorage()" disabled>出售仓库选中</button>
+                   <button class="weapon-action purchase" id="sellSelectedPackButton" type="button" onclick="game.sellSelectedPreparedBackpack()" disabled>出售背包选中</button>
+-                  <button class="weapon-action purchase bulk" type="button" onclick="game.sellStorage()">出售仓库全部</button>
+-                  <button class="weapon-action purchase bulk" type="button" onclick="game.sellAllPreparedBackpack()">出售背包全部</button>
+                 </div>
+                 <div class="prep-equipment-bar" id="prepEquipmentBar" role="group" aria-label="下潜装备栏">
+                   <h3>装备栏</h3>
+-                  <div class="equipment-slot"><b>1</b><img id="prepPrimaryImage" src="resources/images/menu/weapon-smg.png" alt=""><span id="prepPrimaryName">主武器：未装备</span></div>
+-                  <div class="equipment-slot"><b>2</b><img id="prepSidearmImage" src="resources/images/menu/weapon-pistol.png" alt=""><span id="prepSidearmName">副武器：手枪</span></div>
+-                  <div id="quickUseSlot" class="quick-use-slot equipment-slot" data-auto-supply="true" aria-label="背包中的氧气瓶，任务中按 C 自动使用"><b>C</b><img id="quickUseImage" src="resources/images/menu/oxygen-bottle.png" alt=""><span>氧气瓶</span><small id="quickUseLabel">×0 · 按 C 自动使用</small></div>
++                  <div class="equipment-slot"><b>1</b><img id="prepPrimaryImage" src="resources/images/equipment-v17/smg.png" alt=""><span id="prepPrimaryName">主武器：未装备</span></div>
++                  <div class="equipment-slot"><b>2</b><img id="prepSidearmImage" src="resources/images/equipment-v17/pistol.png" alt=""><span id="prepSidearmName">副武器：手枪</span></div>
++                  <div id="quickUseSlot" class="quick-use-slot equipment-slot" data-auto-supply="true" aria-label="背包中的氧气瓶，任务中按 C 自动使用"><b>C</b><img id="quickUseImage" src="resources/images/equipment-v17/oxygen.png" alt=""><span>氧气瓶</span><small id="quickUseLabel">×0 · 按 C 自动使用</small></div>
+                 </div>
+               </section>
+               <section class="prep-backpack-panel">
+                 <div class="storage-grid-panel"><div class="storage-stats"><h2>下一潜背包</h2><strong id="prepBackpackStats">0 / 40 格 · 0 件</strong></div><div class="prep-grid-row"><div class="pack-grid-viewport"><div class="storage-grid" id="prepBackpackGrid" role="grid" aria-label="下一潜背包网格"></div></div></div></div>
+-                <div class="menu-card selected-item-detail" id="menuItemDetail"><img id="menuItemImage" src="resources/images/menu/oxygen-bottle.png" alt=""><div><h2 id="menuItemName">选择一件物资</h2><p id="menuItemShape">查看占格与物资详情</p><p id="menuItemEffect"></p><p id="menuItemValue"></p><small>拖拽整理 · 右键 / R 旋转</small></div></div>
++                <div class="menu-card selected-item-detail" id="menuItemDetail"><img id="menuItemImage" src="resources/images/equipment-v17/oxygen.png" alt=""><div><h2 id="menuItemName">选择一件物资</h2><p id="menuItemShape">查看占格与物资详情</p><p id="menuItemEffect"></p><p id="menuItemValue"></p><small>拖拽整理 · 右键 / R 旋转</small></div></div>
+               </section>
+             </div>
+           </div>
+@@ -322,8 +330,8 @@
+             </div>
+             <p id="loadoutLockNote" class="loadout-lock-note" role="status">每次下潜可装备 1 个主动技能和 1 个被动 · 购买后请手动装备</p>
+             <div class="loadout-catalog-scroll">
+-            <div id="loadoutSectionWeapons" role="tabpanel" aria-labelledby="loadoutTabWeapons"><div class="loadout-slot-grid"><section class="loadout-slot" aria-labelledby="primarySlotTitle"><h2 id="primarySlotTitle">主武器 · 按 1 切换</h2><div class="loadout-grid"><article class="loadout-card" id="loadoutSmg"><div class="menu-media-frame weapon-icon-frame"><img class="weapon-icon" src="resources/images/menu/weapon-smg.png" alt="冲锋枪" draggable="false"></div><div class="weapon-copy"><h3>冲锋枪</h3><p data-weapon-ammo="smg">弹匣 24 / 首购备弹 240</p><p>自动射击 · 间隔 0.10 秒</p><p>换弹 1.8 秒</p><div class="weapon-card-actions"><p class="weapon-price"><span class="credit-value"><img class="credit-token-image" src="resources/images/voidshift-credit-coin.png" alt=""><span>4,250</span></span></p><button id="purchaseSmg" class="weapon-action purchase" type="button" onclick="menu.openShop('weapons')">前往商店</button><button id="equipSmg" class="weapon-action equip" type="button" onclick="game.equipWeapon('primary','smg')">装备</button></div></div></article><article class="loadout-card" id="loadoutShotgun"><div class="menu-media-frame weapon-icon-frame"><img class="weapon-icon" src="resources/images/menu/weapon-shotgun.png" alt="散弹枪" draggable="false"></div><div class="weapon-copy"><h3>散弹枪</h3><p data-weapon-ammo="shotgun">弹匣 8 / 首购备弹 80</p><p>每枪 4 弹丸 · 间隔 0.8 秒</p><p>逐发装填 0.5 秒</p><div class="weapon-card-actions"><p class="weapon-price"><span class="credit-value"><img class="credit-token-image" src="resources/images/voidshift-credit-coin.png" alt=""><span>15,250</span></span></p><button id="purchaseShotgun" class="weapon-action purchase" type="button" onclick="menu.openShop('weapons')">前往商店</button><button id="equipShotgun" class="weapon-action equip" type="button" onclick="game.equipWeapon('primary','shotgun')">装备</button></div></div></article></div></section>
+-<section class="loadout-slot" aria-labelledby="sidearmSlotTitle"><h2 id="sidearmSlotTitle">副武器 · 按 2 切换</h2><div class="loadout-grid"><article class="loadout-card" id="loadoutPistol"><div class="menu-media-frame weapon-icon-frame"><img class="weapon-icon" src="resources/images/menu/weapon-pistol.png" alt="手枪" draggable="false"></div><div class="weapon-copy"><h3>手枪</h3><p data-weapon-ammo="pistol">弹匣 6 / 首购备弹 120</p><p>间隔 0.4 秒 · 换弹 1.2 秒</p><p>初始拥有</p><div class="weapon-card-actions"><button id="equipPistol" class="weapon-action equip" type="button" onclick="game.equipWeapon('sidearm','pistol')">装备</button></div></div></article><article class="loadout-card" id="loadoutRevolver"><div class="menu-media-frame weapon-icon-frame"><img class="weapon-icon" src="resources/images/menu/weapon-revolver.png" alt="左轮" draggable="false"></div><div class="weapon-copy"><h3>左轮</h3><p data-weapon-ammo="revolver">弹匣 4 / 首购备弹 24</p><p>最多命中 3 个敌人 · 间隔 1.2 秒</p><p>逐发装填 1 秒</p><div class="weapon-card-actions"><p class="weapon-price"><span class="credit-value"><img class="credit-token-image" src="resources/images/voidshift-credit-coin.png" alt=""><span>5,500</span></span></p><button id="purchaseRevolver" class="weapon-action purchase" type="button" onclick="menu.openShop('weapons')">前往商店</button><button id="equipRevolver" class="weapon-action equip" type="button" onclick="game.equipWeapon('sidearm','revolver')">装备</button></div></div></article></div></section></div></div>
++            <div id="loadoutSectionWeapons" role="tabpanel" aria-labelledby="loadoutTabWeapons"><div class="loadout-slot-grid"><section class="loadout-slot" aria-labelledby="primarySlotTitle"><h2 id="primarySlotTitle">主武器 · 按 1 切换</h2><div class="loadout-grid"><article class="loadout-card" id="loadoutSmg"><div class="menu-media-frame weapon-icon-frame"><img class="weapon-icon" src="resources/images/equipment-v17/smg.png" alt="冲锋枪" draggable="false"></div><div class="weapon-copy"><h3>冲锋枪</h3><p data-weapon-ammo="smg">弹匣 24 / 首购备弹 240</p><p>自动射击 · 间隔 0.10 秒</p><p>换弹 1.8 秒</p><div class="weapon-card-actions"><p class="weapon-price"><span class="credit-value"><img class="credit-token-image" src="resources/images/equipment-v17/credit.png" alt=""><span>4,250</span></span></p><button id="purchaseSmg" class="weapon-action purchase" type="button" onclick="menu.openShop('weapons')">前往商店</button><button id="equipSmg" class="weapon-action equip" type="button" onclick="game.equipWeapon('primary','smg')">装备</button></div></div></article><article class="loadout-card" id="loadoutShotgun"><div class="menu-media-frame weapon-icon-frame"><img class="weapon-icon" src="resources/images/equipment-v17/shotgun.png" alt="散弹枪" draggable="false"></div><div class="weapon-copy"><h3>散弹枪</h3><p data-weapon-ammo="shotgun">弹匣 8 / 首购备弹 80</p><p>每枪 4 弹丸 · 间隔 0.8 秒</p><p>逐发装填 0.5 秒</p><div class="weapon-card-actions"><p class="weapon-price"><span class="credit-value"><img class="credit-token-image" src="resources/images/equipment-v17/credit.png" alt=""><span>15,250</span></span></p><button id="purchaseShotgun" class="weapon-action purchase" type="button" onclick="menu.openShop('weapons')">前往商店</button><button id="equipShotgun" class="weapon-action equip" type="button" onclick="game.equipWeapon('primary','shotgun')">装备</button></div></div></article></div></section>
++<section class="loadout-slot" aria-labelledby="sidearmSlotTitle"><h2 id="sidearmSlotTitle">副武器 · 按 2 切换</h2><div class="loadout-grid"><article class="loadout-card" id="loadoutPistol"><div class="menu-media-frame weapon-icon-frame"><img class="weapon-icon" src="resources/images/equipment-v17/pistol.png" alt="手枪" draggable="false"></div><div class="weapon-copy"><h3>手枪</h3><p data-weapon-ammo="pistol">弹匣 6 / 首购备弹 120</p><p>间隔 0.4 秒 · 换弹 1.2 秒</p><p>初始拥有</p><div class="weapon-card-actions"><button id="equipPistol" class="weapon-action equip" type="button" onclick="game.equipWeapon('sidearm','pistol')">装备</button></div></div></article><article class="loadout-card" id="loadoutRevolver"><div class="menu-media-frame weapon-icon-frame"><img class="weapon-icon" src="resources/images/equipment-v17/revolver.png" alt="左轮" draggable="false"></div><div class="weapon-copy"><h3>左轮</h3><p data-weapon-ammo="revolver">弹匣 4 / 首购备弹 24</p><p>最多命中 3 个敌人 · 间隔 1.2 秒</p><p>逐发装填 1 秒</p><div class="weapon-card-actions"><p class="weapon-price"><span class="credit-value"><img class="credit-token-image" src="resources/images/equipment-v17/credit.png" alt=""><span>5,500</span></span></p><button id="purchaseRevolver" class="weapon-action purchase" type="button" onclick="menu.openShop('weapons')">前往商店</button><button id="equipRevolver" class="weapon-action equip" type="button" onclick="game.equipWeapon('sidearm','revolver')">装备</button></div></div></article></div></section></div></div>
+               <section id="loadoutSectionSkills" role="tabpanel" aria-labelledby="loadoutTabSkills" hidden><div id="skillCatalog" class="ability-catalog"></div></section>
+               <section id="loadoutSectionPassives" role="tabpanel" aria-labelledby="loadoutTabPassives" hidden><div id="passiveCatalog" class="ability-catalog"></div></section>
+             </div>
+@@ -342,16 +350,17 @@
+             <div class="ammo-section-nav" data-shop-panel="ammo" role="tablist" aria-label="弹药操作"><button type="button" data-ammo-section="purchase" role="tab" aria-selected="true">购买弹药</button><button type="button" data-ammo-section="transfer" role="tab" aria-selected="false">备弹转换</button></div>
+             <div class="ammo-depot-grid">
+               <div class="ammo-section" id="ammoSectionPurchase" role="tabpanel">
+-              <section class="ammo-depot-panel"><div class="depot-heading"><h2>标准弹药</h2><strong>库存 <span id="standardAmmoBalance">0</span> 单位</strong></div><img class="ammo-crate-art" src="resources/images/menu/ammo-crate.png" alt="标准弹药箱" draggable="false"><label for="ammoPurchaseAmount">购买数量</label><div class="ammo-presets"><button type="button" data-ammo-preset="100">100</button><button type="button" data-ammo-preset="200">200</button><button type="button" data-ammo-preset="500">500</button><input id="ammoPurchaseAmount" type="number" min="100" step="1" value="100" oninput="game.updateAmmoDepotUI()" aria-label="购买标准弹药单位"></div><div class="ammo-purchase-row"><span>花费 <strong id="ammoPurchaseCost"><span class="credit-value"><img class="credit-token-image" src="resources/images/voidshift-credit-coin.png" alt=""><span>200</span></span></strong></span><button id="ammoPurchaseButton" class="action-button" type="button" onclick="game.purchaseAmmoFromUI()">购买弹药</button></div><small>最低 100 单位 · 100 单位 200 信用点</small><h3>当前个人弹药库存（弹匣 / 备弹）</h3><div class="ammo-stock-grid" id="ammoStockGrid"></div></section>
++              <section class="weapon-ammo-catalog" id="weaponAmmoCatalog" aria-label="专用弹药购买"></section>
++              <section class="ammo-depot-panel"><div class="depot-heading"><h2>标准弹药</h2><strong>库存 <span id="standardAmmoBalance">0</span> 单位</strong></div><img class="ammo-crate-art" src="resources/images/equipment-v17/ammo.png" alt="标准弹药箱" draggable="false"><label for="ammoPurchaseAmount">购买数量</label><div class="ammo-presets"><button type="button" data-ammo-preset="100">100</button><button type="button" data-ammo-preset="200">200</button><button type="button" data-ammo-preset="500">500</button><input id="ammoPurchaseAmount" type="number" min="100" step="1" value="100" oninput="game.updateAmmoDepotUI()" aria-label="购买标准弹药单位"></div><div class="ammo-purchase-row"><span>花费 <strong id="ammoPurchaseCost"><span class="credit-value"><img class="credit-token-image" src="resources/images/equipment-v17/credit.png" alt=""><span>200</span></span></strong></span><button id="ammoPurchaseButton" class="action-button" type="button" onclick="game.purchaseAmmoFromUI()">购买弹药</button></div><small>最低 100 单位 · 100 单位 200 信用点</small><h3>当前个人弹药库存（弹匣 / 备弹）</h3><div class="ammo-stock-grid" id="ammoStockGrid"></div></section>
+               </div><div class="ammo-section" id="ammoSectionTransfer" role="tabpanel" hidden>
+               <section class="ammo-depot-panel ammo-transfer-panel"><h2>备弹转换</h2><div><span class="ammo-choice-label">来源：选择现有库存</span><div id="ammoTransferSources" class="ammo-choice-grid" role="group" aria-label="弹药转换来源"></div></div><div class="ammo-transfer-arrow" aria-hidden="true">↓</div><div><span class="ammo-choice-label">目标：选择要补充的库存</span><div id="ammoTransferTargets" class="ammo-choice-grid" role="group" aria-label="弹药转换目标"></div></div><div class="ammo-transfer-input"><label id="ammoTransferAmountLabel" for="ammoTransferAmount">转换数量</label><input id="ammoTransferAmount" type="number" min="1" step="1" value="100" oninput="game.updateAmmoDepotUI()"></div><output id="ammoTransferPreview" class="ammo-transfer-preview" aria-live="polite"></output><button id="ammoTransferButton" class="action-button" type="button" onclick="game.transferAmmoFromUI()">确认转换</button><small>仅转换备弹，不影响弹匣<br>手枪/冲锋枪 1:1 · 左轮 2:1 · 散弹枪 4:1</small></section>
+               </div><div class="ammo-section" id="ammoSectionOxygen" data-shop-panel="supplies" role="tabpanel" hidden>
+-              <section class="consumable-shop-card ammo-depot-panel" aria-labelledby="oxygenCanisterTitle"><h2>补给</h2><div class="consumable-product"><div class="menu-media-frame consumable-shop-art-frame"><img class="consumable-shop-art" src="resources/images/menu/oxygen-bottle.png" alt="备用氧气瓶" draggable="false"></div><div class="consumable-shop-copy"><h3 id="oxygenCanisterTitle">备用氧气瓶</h3><p>恢复 50 点氧气</p><p>占用 1×2 格</p><p>优先放入背包，放不下则入仓</p><p id="shopPackCount">背包 0 / 40 格</p><div class="consumable-price">价格 <strong>300 信用点</strong></div><button class="action-button" id="purchaseOxygenCanisterButton" type="button" onclick="game.purchaseOxygenCanister()">购买氧气瓶</button><p class="consumable-resale">出售回收 150 信用点</p><small id="oxygenCanisterShopNote">背包和仓库都满时拒购，不扣款。</small></div></div></section><section class="consumable-shop-card ammo-depot-panel" aria-labelledby="medkitTitle"><div class="consumable-product"><div class="menu-media-frame consumable-shop-art-frame"><img class="consumable-shop-art" src="resources/images/medkit.png" alt="急救包" draggable="false"></div><div class="consumable-shop-copy"><h3 id="medkitTitle">急救包</h3><p>恢复 40 生命值 · 最高 100</p><p>占用 1×2 格 · 背包内按 H 使用</p><p>优先放入背包，放不下则入仓</p><div class="consumable-price">价格 <strong>300 信用点</strong></div><button class="action-button" id="purchaseMedkitButton" type="button" onclick="game.purchaseMedkit()">购买急救包</button><p class="consumable-resale">出售回收 150 信用点</p><small>满血、倒地或晕眩时不消耗。</small></div></div></section>
++              <section class="consumable-shop-card ammo-depot-panel" aria-labelledby="oxygenCanisterTitle"><h2>补给</h2><div class="consumable-product"><div class="menu-media-frame consumable-shop-art-frame"><img class="consumable-shop-art" src="resources/images/equipment-v17/oxygen.png" alt="备用氧气瓶" draggable="false"></div><div class="consumable-shop-copy"><h3 id="oxygenCanisterTitle">备用氧气瓶</h3><p>使用 2 秒后恢复 50 点氧气</p><p>占用 1×2 格</p><p>优先放入背包，放不下则入仓</p><p id="shopPackCount">背包 0 / 40 格</p><div class="consumable-price">价格 <strong>300 信用点</strong></div><button class="action-button" id="purchaseOxygenCanisterButton" type="button" onclick="game.purchaseOxygenCanister()">购买氧气瓶</button><p class="consumable-resale">出售回收 150 信用点</p><small id="oxygenCanisterShopNote">背包和仓库都满时拒购，不扣款。</small></div></div></section><section class="consumable-shop-card ammo-depot-panel" aria-labelledby="medkitTitle"><div class="consumable-product"><div class="menu-media-frame consumable-shop-art-frame"><img class="consumable-shop-art" src="resources/images/equipment-v17/medkit.png" alt="急救包" draggable="false"></div><div class="consumable-shop-copy"><h3 id="medkitTitle">急救包</h3><p>使用 2 秒后恢复 40 生命值 · 最高 100</p><p>占用 1×2 格 · 背包内按 H 使用</p><p>优先放入背包，放不下则入仓</p><div class="consumable-price">价格 <strong>300 信用点</strong></div><button class="action-button" id="purchaseMedkitButton" type="button" onclick="game.purchaseMedkit()">购买急救包</button><p class="consumable-resale">出售回收 150 信用点</p><small>满血、倒地或晕眩时不消耗。</small></div></div></section>
+               </div>
+             </div>
+           </div>
+           <div id="tutorialContent" class="menu-page tutorial-page" style="display:none">
+-            <div class="tutorial-menu"><section class="tutorial-lessons"><h2>训练舰 · 六个区域</h2><button type="button" data-lesson="0" class="active" aria-pressed="true">01　入口舱<span>›</span></button><button type="button" data-lesson="1" aria-pressed="false">02　补给舱<span>›</span></button><button type="button" data-lesson="2" aria-pressed="false">03　Hunter 舱<span>›</span></button><button type="button" data-lesson="3" aria-pressed="false">04　Nightmare 舱<span>›</span></button><button type="button" data-lesson="4" aria-pressed="false">05　Heavy 舱<span>›</span></button><button type="button" data-lesson="5" aria-pressed="false">06　撤离舱<span>›</span></button></section><section class="tutorial-preview"><h2 id="lessonTitle">01　入口舱</h2><p id="lessonDescription">从出生点学习移动、冲刺、手电与开门。</p><div class="tutorial-art training-ship-art"><img src="resources/images/menu/tutorial-corridor-clean.png" alt="训练舰舱内景象" draggable="false"><canvas id="trainingShipPreview" class="training-ship-preview" aria-label="独立训练舰固定结构：入口舱、补给舱、Hunter 舱、Nightmare 舱、Heavy 舱、撤离舱及两个终端"></canvas><div class="tutorial-key-hint"><strong id="lessonKeys">W A S D　/　Shift</strong><span id="lessonHint">先移动到标记，再开启通往补给舱的舱门</span></div></div><div class="tutorial-rules"><p>阅读教学卡时暂停<br><small>练习失误可重试当前课程，保留已完成进度。</small></p><p>独立训练 · 临时物资<br><small>不会消耗真实装备、弹药或氧气，也不产生任务奖励。</small></p></div><div class="tutorial-launch-card"><div><h3>固定训练舰与借用装备</h3><p id="tutorialSetup">训练借用：冲锋枪 / 手枪 · 闪光弹 · 翻滚</p><small>仓库、背包与信用点会在退出时恢复。</small></div><div><button class="action-button" id="startTutorialButton" type="button" onclick="game.startTutorial()">开始训练　›</button><small id="tutorialAvailabilityNote">仅限单人 · 联机大厅中不可启动</small><small>可随时退出训练，返回安全屋。</small></div></div></section></div>
++            <div class="tutorial-menu"><section class="tutorial-lessons"><h2>训练舰 · 六个区域</h2><button type="button" data-lesson="0" class="active" aria-pressed="true">01　入口舱<span>›</span></button><button type="button" data-lesson="1" aria-pressed="false">02　补给舱<span>›</span></button><button type="button" data-lesson="2" aria-pressed="false">03　Hunter 舱<span>›</span></button><button type="button" data-lesson="3" aria-pressed="false">04　Nightmare 舱<span>›</span></button><button type="button" data-lesson="4" aria-pressed="false">05　Heavy 舱<span>›</span></button><button type="button" data-lesson="5" aria-pressed="false">06　撤离舱<span>›</span></button></section><section class="tutorial-preview"><h2 id="lessonTitle">01　入口舱</h2><p id="lessonDescription">从出生点学习移动、冲刺、手电与开门。</p><div class="tutorial-art training-ship-art"><img src="resources/images/menu/tutorial-corridor-clean.png" alt="训练舰舱内景象" draggable="false"><canvas id="trainingShipPreview" class="training-ship-preview" aria-label="独立训练舰固定结构：入口舱、补给舱、Hunter 舱、Nightmare 舱、Heavy 舱、撤离舱及两个终端"></canvas><div class="tutorial-key-hint"><strong id="lessonKeys">W A S D　/　Shift</strong><span id="lessonHint">先移动到标记，再开启通往补给舱的舱门</span></div></div><div class="tutorial-rules"><p>阅读教学卡时暂停<br><small>练习失误可重试当前课程，保留已完成进度。</small></p><p>独立训练 · 临时物资<br><small>不会消耗真实装备、弹药或氧气，也不产生任务奖励。</small></p></div><div class="tutorial-launch-card"><div><h3>固定训练舰与借用装备</h3><p id="tutorialSetup">训练借用：冲锋枪 / 手枪 · 闪光弹 · 翻滚</p><small>仓库、背包与信用点会在退出时恢复。</small><p class="equipment-help">正式任务有手枪、冲锋枪、左轮、散弹枪、机枪和迷你散弹枪。氧气瓶 C／急救包 H 使用 2 秒；应急护盾自动生效 3 秒、冷却 50 秒。隔离栅：T 打开蓝图，R 旋转，左键放置，Esc 取消；按住 E 3 秒拆除。</p></div><div><button class="action-button" id="startTutorialButton" type="button" onclick="game.startTutorial()">开始训练　›</button><small id="tutorialAvailabilityNote">仅限单人 · 联机大厅中不可启动</small><small>可随时退出训练，返回安全屋。</small></div></div></section></div>
+           </div>
+         </div>
+       </aside>
+@@ -375,7 +384,7 @@
+                 <small>点击物品后取放，也可拖到另一侧；空间不足时物品留在原处。</small>
+               </section>
+               <aside class="inventory-side">
+-                <div class="inventory-equipment-bar" id="inventoryEquipmentBar" role="group" aria-label="当前装备栏"><h3>装备栏</h3><div class="equipment-slot"><b>1</b><img id="inventoryPrimaryImage" src="resources/images/menu/weapon-smg.png" alt=""><span id="inventoryPrimaryName">未装备</span></div><div class="equipment-slot"><b>2</b><img id="inventorySidearmImage" src="resources/images/menu/weapon-pistol.png" alt=""><span id="inventorySidearmName">手枪</span></div><div class="equipment-slot"><b>C</b><img id="inventoryQuickImage" src="resources/images/menu/oxygen-bottle.png" alt=""><span id="inventoryQuickName">氧气瓶 ×0 [C]</span></div></div>
++                <div class="inventory-equipment-bar" id="inventoryEquipmentBar" role="group" aria-label="当前装备栏"><h3>装备栏</h3><div class="equipment-slot"><b>1</b><img id="inventoryPrimaryImage" src="resources/images/equipment-v17/smg.png" alt=""><span id="inventoryPrimaryName">未装备</span></div><div class="equipment-slot"><b>2</b><img id="inventorySidearmImage" src="resources/images/equipment-v17/pistol.png" alt=""><span id="inventorySidearmName">手枪</span></div><div class="equipment-slot"><b>C</b><img id="inventoryQuickImage" src="resources/images/equipment-v17/oxygen.png" alt=""><span id="inventoryQuickName">氧气瓶 ×0 [C]</span></div></div>
+                 <div id="itemDesc" class="item-desc">点击物资查看详情 · 拖拽自由摆放 · 右键或 [R] 旋转 · 深色格为空格</div>
+                 <div class="inventory-actions">
+                   <button class="action-button" id="rotateItemBtn" type="button" onclick="game.rotateItem()" disabled>旋转 [R]</button>
+@@ -383,7 +392,6 @@
+                   <button class="action-button" id="useItemBtn" type="button" onclick="game.useSelectedInventoryItem()" disabled>使用物资</button>
+                   <button class="action-button" type="button" onclick="game.packInventory()">整理</button>
+                   <button class="action-button" type="button" onclick="game.sortInventory()">按价值排序</button>
+-                  <button class="action-button" type="button" onclick="game.sellInventory()">全部出售</button>
+                 </div>
+               </aside>
+             </div>
+@@ -409,6 +417,11 @@
+ 
+           <!-- In-game HUD -->
+           <div class="hud-overlay" id="hudOverlay" style="display:none;">
++            <div class="hud-party" id="hudParty" aria-label="队员状态" hidden></div>
++            <div class="hud-equipment-status">
++              <div id="hudSupplyProgress" class="hud-action-progress" hidden><strong id="hudSupplyProgressLabel"></strong><div class="hud-meter"><i id="hudSupplyProgressBar"></i></div></div>
++              <div id="hudShield" class="hud-shield" hidden><img src="resources/images/equipment-v17/shield.png" alt=""><span id="hudShieldStatus"></span><div class="hud-meter"><i id="hudShieldBar"></i></div></div>
++            </div>
+             <div class="hud-vitals-cluster">
+               <div class="hud-vitals" aria-label="玩家状态">
+                 <div class="hud-vital-row"><span>HP</span><div class="hud-meter" id="hudHealthMeter" role="meter" aria-label="生命值" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i id="hudHealthBar"></i></div></div>
+@@ -422,7 +435,7 @@
+               <span><small>撤离舱</small><strong id="hudExtractStatus">等待呼叫</strong></span>
+               <strong id="hudNetworkStatus" class="warning" role="status" hidden>连接不稳，等待同步</strong>
+             </div>
+-            <div class="hud-ammo"><span>弹药</span><strong id="hudAmmo">6 / 24</strong><span class="hud-supply hud-skill"><img id="hudSkillImage" alt="" hidden><span><span id="hudSkillName">主动技能未装备</span> <strong id="hudSkillStatus"></strong>　[T]</span></span><span class="hud-supply"><img src="resources/images/menu/oxygen-bottle.png" alt=""><span>氧气瓶 <strong id="hudOxygenCount">0</strong>　[C]</span></span><span class="hud-supply"><img src="resources/images/medkit.png" alt=""><span>急救包 <strong id="hudMedkitCount">0</strong>　[H]</span></span><strong id="hudFlashStun" class="hud-flash-stun" hidden>晕眩中</strong></div>
++            <div class="hud-ammo"><span>弹药</span><strong id="hudAmmo">6 / 24</strong><span class="hud-supply hud-skill"><img id="hudSkillImage" alt="" hidden><span><span id="hudSkillName">主动技能未装备</span> <strong id="hudSkillStatus"></strong>　[T]</span></span><span class="hud-supply"><img src="resources/images/equipment-v17/oxygen.png" alt=""><span>氧气瓶 <strong id="hudOxygenCount">0</strong>　[C]</span></span><span class="hud-supply"><img src="resources/images/equipment-v17/medkit.png" alt=""><span>急救包 <strong id="hudMedkitCount">0</strong>　[H]</span></span><strong id="hudFlashStun" class="hud-flash-stun" hidden>晕眩中</strong></div>
+             <div class="hud-terminal-tracker"><span>终端</span><div id="hudTerminals" class="terminal-icon-strip" role="group" aria-label="终端破解状态"></div></div>
+             <div class="coop-revive-prompt" id="coopRevivePrompt" role="status" aria-live="polite" hidden></div>
+           </div>
+@@ -500,7 +513,7 @@
+             </div>
+           </div>
+ 
+-          <div class="center-prompt" id="centerPrompt"><span class="prompt-mark">△</span><strong>点击开始任务</strong><small>WASD 移动 · Shift 冲刺 · Space 翻滚（需装备被动） · V 近战 · T 主动技能 · F 手电筒 · C 氧气瓶 · 1/2 切枪 · 左键开火 · R 换弹 · E 交互／远端逃生舱呼叫 · M 地图</small></div>
++          <div class="center-prompt" id="centerPrompt"><span class="prompt-mark">△</span><strong>点击开始任务</strong><small>WASD 移动 · Shift 冲刺 · Space 翻滚（需装备被动） · V 近战 · T 主动技能／隔离栅蓝图 · R 蓝图旋转 · 按住 E 3 秒拆除 · F 手电筒 · C 氧气瓶（2 秒） · H 急救包（2 秒） · 1/2 切枪 · 左键开火 · R 换弹 · E 交互／远端逃生舱呼叫 · M 地图</small></div>
+           <div class="damage-flash" id="damageFlash"></div>
+           <div class="game-toast" id="gameToast"></div>
+           <div class="tutorial-overlay" id="tutorialOverlay" hidden>
+@@ -516,7 +529,7 @@
+             </aside>
+           </div>
+         </div>
+-        <div class="game-footer"><span><b class="key">WASD</b> 移动</span><span><b class="key">Shift</b> 冲刺</span><span><b class="key">Space</b> 翻滚（需装备）</span><span><b class="key">V</b> 近战</span><span><b class="key">C</b> 氧气瓶</span><span><b class="key">1/2</b> 切枪</span><span><b class="key">左键</b> 开火</span><span><b class="key">R</b> 换弹</span><span><b class="key">E</b> 交互/门/终端</span><span><b class="key">M</b> 战术地图</span><span><b class="key">X</b> 呼叫撤离</span><span><b class="key">T</b> 主动技能</span><span><b class="key">F</b> 手电筒</span><span><b class="key">B</b> 背包</span><span class="signal"><i></i> SIGNAL 92%</span></div>
++        <div class="game-footer"><span><b class="key">WASD</b> 移动</span><span><b class="key">Shift</b> 冲刺</span><span><b class="key">Space</b> 翻滚（需装备）</span><span><b class="key">V</b> 近战</span><span><b class="key">C / H</b> 补给 2 秒</span><span><b class="key">1/2</b> 切枪</span><span><b class="key">左键</b> 开火</span><span><b class="key">R</b> 换弹</span><span><b class="key">E</b> 交互/门/终端</span><span><b class="key">M</b> 战术地图</span><span><b class="key">X</b> 呼叫撤离</span><span><b class="key">T</b> 技能/蓝图</span><span><b class="key">R / E</b> 蓝图旋转/按住拆除 3 秒</span><span><b class="key">F</b> 手电筒</span><span><b class="key">B</b> 背包</span><span class="signal"><i></i> SIGNAL 92%</span></div>
+       </section>
+ 
+       <aside class="status-panel panel">
+@@ -531,23 +544,24 @@
+       </aside>
+     </section>
+ 
+-    <section class="result-strip panel"><div><p class="kicker">CONTRACT OUTCOME</p><h2 id="resultTitle">今晚的账单还没写完</h2></div><div class="result-metric"><span>预测结算</span><strong id="predictedValue"><span class="credit-value" aria-label="0 信用点"><img class="credit-token-image" src="resources/images/voidshift-credit-coin.png" alt="" aria-hidden="true"><span>0</span></span></strong></div><div class="result-metric"><span>航程状态</span><strong id="missionState">未开始</strong></div></section>
++    <section class="result-strip panel"><div><p class="kicker">CONTRACT OUTCOME</p><h2 id="resultTitle">今晚的账单还没写完</h2></div><div class="result-metric"><span>预测结算</span><strong id="predictedValue"><span class="credit-value" aria-label="0 信用点"><img class="credit-token-image" src="resources/images/equipment-v17/credit.png" alt="" aria-hidden="true"><span>0</span></span></strong></div><div class="result-metric"><span>航程状态</span><strong id="missionState">未开始</strong></div></section>
+     <footer><span>VOID SHIFT <b>•</b> RECOVERY OPERATIONS DIVISION</span><span>DEMO BUILD 0.7</span></footer>
+   </main>
+   <script src="js/config.js?v=7"></script>
+   <script src="js/audio.js?v=2"></script>
+-  <script src="js/ui.js?v=22"></script>
++  <script src="js/ui.js?v=23"></script>
+   <script src="js/entities.js?v=7"></script>
+   <script src="js/map.js?v=8"></script>
+   <script src="js/training.js?v=2"></script>
+   <script src="js/renderer.js?v=11"></script>
+-  <script src="js/network.js?v=13"></script>
+-  <script src="js/inventory.js?v=3"></script>
++  <script src="js/network.js?v=17"></script>
++  <script src="js/inventory.js?v=4"></script>
+   <script src="js/rewards.js?v=1"></script>
+   <script src="js/reward-client.js?v=1"></script>
+   <script src="js/loot.js?v=1"></script>
+-  <script src="js/game.js?v=23"></script>
+-  <script src="js/menu.js?v=16"></script>
++  <script src="js/equipment.js?v=1"></script>
++  <script src="js/game.js?v=24"></script>
++  <script src="js/menu.js?v=17"></script>
+ </body>
+ </html>
+ 
+
+diff --git a/tmp/v17-baseline/styles.css b/styles.css
+index ac20bb77..8b358d79 100644
+--- a/tmp/v17-baseline/styles.css
++++ b/styles.css
+@@ -2234,6 +2234,31 @@ body.in-dive .game-frame .hud-overlay {
+   gap: 10px;
+ }
+ 
++.hud-party { position: absolute; top: 122px; left: 18px; display: grid; gap: 6px; width: min(320px, 30vw); }
++.hud-party[hidden], .hud-action-progress[hidden], .hud-shield[hidden] { display: none; }
++.hud-party-card { display: grid; gap: 3px; padding: 7px 10px; border: 1px solid #447589; background: #04121be0; font-size: 11px; }
++.hud-party-card strong { color: #d7f1fa; }
++.hud-party-card small { color: #9fced9; }
++.hud-party-card.downed { border-color: #d57b65; }
++.hud-party-card.downed small { color: #ffc09f; }
++.hud-party-card.offline { opacity: .5; }
++.hud-equipment-status { position: absolute; bottom: 184px; left: 18px; width: min(285px, 36vw); display: grid; gap: 7px; }
++.hud-action-progress, .hud-shield { display: grid; gap: 5px; padding: 8px 10px; border: 1px solid #447589; background: #04121be0; font-size: 12px; }
++.hud-action-progress .hud-meter > i { background: var(--acid); }
++.hud-shield { grid-template-columns: 25px minmax(0, 1fr); align-items: center; }
++.hud-shield img { width: 25px; height: 25px; object-fit: contain; }
++.hud-shield .hud-meter { grid-column: 1/-1; }
++.hud-shield .hud-meter > i { background: var(--cyan); }
++.personal-records-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
++.personal-records-table th, .personal-records-table td { padding: 15px; border: 1px solid var(--line); text-align: center; }
++.personal-records-table td { color: var(--acid); font-weight: 600; }
++@media (max-width: 700px) {
++  .hud-party { top: 110px; left: 10px; width: min(210px, 42vw); gap: 4px; }
++  .hud-party-card { padding: 5px 7px; font-size: 10px; }
++  .hud-equipment-status { bottom: 160px; left: 10px; width: min(220px, 55vw); }
++  .hud-action-progress, .hud-shield { font-size: 10px; padding: 6px 8px; }
++}
++
+ .hud-vitals {
+   display: grid;
+   width: min(250px, 28vw);
+@@ -2347,12 +2372,11 @@ body.in-dive .game-frame .hud-overlay {
+   transition: color .18s, opacity .18s, filter .18s;
+ }
+ 
+-.terminal-pixel-icon svg {
++.terminal-pixel-icon img {
+   display: block;
+   width: 100%;
+   height: 100%;
+-  fill: currentColor;
+-  shape-rendering: crispEdges;
++  object-fit: contain;
+ }
+ 
+ .terminal-pixel-icon .terminal-pixel-screen { fill: #07121a; }
+
+warning: in the working copy of 'tmp/v17-baseline/menu.css', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'menu.css', LF will be replaced by CRLF the next time Git touches it
+diff --git a/tmp/v17-baseline/menu.css b/menu.css
+index a3e6ef12..45bccebe 100644
+--- a/tmp/v17-baseline/menu.css
++++ b/menu.css
+@@ -132,10 +132,7 @@ body.in-dive #preparationScreen { display: none; }
+ #preparationScreen .brief-terminals h2 { grid-column: 1/-1; }
+ #preparationScreen .brief-terminals p { max-width: 8em; font-size: clamp(14px,1.15vw,22px); }
+ #preparationScreen .brief-terminals .terminal-icon-strip { gap: 24px; }
+-#preparationScreen .brief-terminals .terminal-pixel-icon { width: clamp(60px,6vw,115px); height: clamp(60px,6vw,115px); background: url('resources/images/menu/terminal-1.png') center/contain no-repeat; filter: none; }
+-#preparationScreen .brief-terminals .terminal-pixel-icon:nth-child(2) { background-image: url('resources/images/menu/terminal-2.png'); }
+-#preparationScreen .brief-terminals .terminal-pixel-icon:nth-child(3) { background-image: url('resources/images/menu/terminal-3.png'); }
+-#preparationScreen .brief-terminals .terminal-pixel-icon svg { display: none; }
++#preparationScreen .brief-terminals .terminal-pixel-icon { width: clamp(60px,6vw,115px); height: clamp(60px,6vw,115px); background: none; filter: none; }
+ #preparationScreen .brief-terminals .terminal-icon-strip:has(:nth-child(4)) { gap: 8px; }
+ #preparationScreen .brief-terminals .terminal-icon-strip:has(:nth-child(4)) .terminal-pixel-icon { width: clamp(40px,5vw,92px); }
+ #preparationScreen .brief-prepared { padding: 14px 22px; display: grid; grid-template-columns: 28% minmax(0,1fr); grid-template-rows: auto minmax(min-content,1fr); gap: 8px 18px; min-height: min-content; }
+@@ -796,7 +793,7 @@ body[data-menu-screen="prep"] .title-settings-icon, body.in-dive .title-settings
+ #preparationScreen .map-enemies, #preparationScreen .brief-enemies { display: flex; align-items: center; flex-wrap: wrap; gap: 7px 12px; color: #cfeefa; font-size: 12px; }
+ #preparationScreen .map-enemies > strong, #preparationScreen .brief-enemies > strong { width: 100%; color: #e9f698; font-size: 12px; }
+ #preparationScreen .map-enemy { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+-#preparationScreen .map-enemy img { width: 30px; height: 30px; object-fit: contain; }
++#preparationScreen .map-enemy img { width: 45px; height: 45px; object-fit: contain; }
+ #preparationScreen .brief-enemies { padding: 7px 10px; border: 1px solid var(--menu-line); border-radius: 5px; }
+ #preparationScreen .coop-map-summary .brief-enemies { flex: none; padding: 8px 0 0; border: 0; border-top: 1px solid var(--menu-line); border-radius: 0; }
+ #preparationScreen .loadout-slot-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+@@ -807,6 +804,13 @@ body[data-menu-screen="prep"] .title-settings-icon, body.in-dive .title-settings
+ #preparationScreen .loadout-lock-note { flex: none; color: #bde0eb; font-size: 12px; }
+ #preparationScreen .loadout-catalog-scroll { flex: 1 1 0; min-height: 90px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 3px; }
+ #preparationScreen .loadout-catalog-scroll .loadout-slot-grid { min-height: 0; }
++#preparationScreen .loadout-catalog-scroll .loadout-grid { grid-template-rows: none; grid-auto-rows: minmax(min-content, 1fr); }
++#preparationScreen .weapon-ammo-catalog { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,280px),1fr)); gap: 12px; margin-bottom: 14px; }
++#preparationScreen .weapon-ammo-card { display: grid; gap: 9px; padding: 16px; border: 1px solid var(--menu-line); border-radius: 6px; background: #061822f2; }
++#preparationScreen .weapon-ammo-card img { width: 100%; height: 105px; object-fit: contain; }
++#preparationScreen .weapon-ammo-card p { font-size: 13px; color: #bde0eb; }
++#preparationScreen .equipment-help { margin-top: 10px; color: #bde0eb; font-size: 12px; line-height: 1.5; }
++#preparationScreen .crew-loadout > span { white-space: normal; overflow-wrap: anywhere; }
+ #preparationScreen .ability-catalog { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,340px),1fr)); gap: 14px; align-items: start; }
+ #preparationScreen .ability-card { display: grid; grid-template-columns: minmax(100px,35%) minmax(0,1fr); gap: 14px; min-width: 0; padding: 16px; border: 1px solid #48b7cb; border-radius: 7px; background: #061822f2; }
+ #preparationScreen .ability-card.active { border-color: #d9f572; box-shadow: inset 0 0 0 1px #d9f572; }
+

@@ -1,0 +1,58 @@
+[
+  {
+    "page": "任务简报",
+    "targets": [
+      {
+        "inside": true,
+        "selector": ".mission-steps article:last-child p"
+      },
+      {
+        "inside": true,
+        "selector": ".brief-prepared p:last-child"
+      },
+      {
+        "inside": true,
+        "selector": ".brief-risk li:last-child"
+      }
+    ]
+  },
+  {
+    "page": "LOADOUT",
+    "targets": [
+      {
+        "inside": true,
+        "selector": "#purchaseRevolver"
+      }
+    ]
+  },
+  {
+    "page": "弹药库",
+    "targets": [
+      {
+        "inside": true,
+        "selector": "#ammoStockGrid > :last-child"
+      },
+      {
+        "inside": true,
+        "selector": "#ammoTransferButton"
+      },
+      {
+        "inside": true,
+        "selector": "#oxygenCanisterShopNote"
+      }
+    ]
+  },
+  {
+    "page": "教程",
+    "targets": [
+      {
+        "inside": true,
+        "selector": "[data-lesson=\"8\"]"
+      },
+      {
+        "inside": true,
+        "selector": "#startTutorialButton"
+      }
+    ]
+  }
+]

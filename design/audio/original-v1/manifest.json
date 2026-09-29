@@ -1,0 +1,998 @@
+{
+  "version": "original-v1",
+  "source": "original-local-procedural",
+  "stage": "audition-awaiting-approval",
+  "downloads": [],
+  "recording_inputs": [],
+  "rate": 48000,
+  "encoding": "MP3 libmp3lame 192 kbps mono",
+  "script": "scripts/create-original-audio-v1.py",
+  "clips": [
+    {
+      "id": "hunter-step-01",
+      "file": "mp3/hunter-step-01.mp3",
+      "duration": 0.88,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "bcd8416ba77aa81f5da09d600a0982b13b69e30c246d24d1347dbd3675ade46a",
+      "cue": "hunter-step",
+      "group": "hunter",
+      "seed": 1429784179,
+      "description_zh": "重爪慢走：承重冲击、短促钢板刮擦和克制共鸣；无吼叫或呼吸。",
+      "trigger": "single action"
+    },
+    {
+      "id": "hunter-step-02",
+      "file": "mp3/hunter-step-02.mp3",
+      "duration": 0.88,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "5384321b46bd1c85bb231278c37870b06c8103b870855e6643504408b9dc7469",
+      "cue": "hunter-step",
+      "group": "hunter",
+      "seed": 3425802185,
+      "description_zh": "重爪慢走：承重冲击、短促钢板刮擦和克制共鸣；无吼叫或呼吸。",
+      "trigger": "single action"
+    },
+    {
+      "id": "hunter-step-03",
+      "file": "mp3/hunter-step-03.mp3",
+      "duration": 0.88,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "a3994405255e6aa87e63370b776bf0ed4c348e86cdf8d9e82278ed14de89dbfd",
+      "cue": "hunter-step",
+      "group": "hunter",
+      "seed": 3140921183,
+      "description_zh": "重爪慢走：承重冲击、短促钢板刮擦和克制共鸣；无吼叫或呼吸。",
+      "trigger": "single action"
+    },
+    {
+      "id": "hunter-step-04",
+      "file": "mp3/hunter-step-04.mp3",
+      "duration": 0.88,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "a6b0f845915d0604675cc2484c6cd47c6aaddee58fa9de89e10e95c7c9b3215c",
+      "cue": "hunter-step",
+      "group": "hunter",
+      "seed": 626143996,
+      "description_zh": "重爪慢走：承重冲击、短促钢板刮擦和克制共鸣；无吼叫或呼吸。",
+      "trigger": "single action"
+    },
+    {
+      "id": "hunter-step-05",
+      "file": "mp3/hunter-step-05.mp3",
+      "duration": 0.88,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "fd8e58ab66cb947e5d4aead6c42d795bebece781d54bb9872bf39fae2c073141",
+      "cue": "hunter-step",
+      "group": "hunter",
+      "seed": 1381302890,
+      "description_zh": "重爪慢走：承重冲击、短促钢板刮擦和克制共鸣；无吼叫或呼吸。",
+      "trigger": "single action"
+    },
+    {
+      "id": "hunter-step-06",
+      "file": "mp3/hunter-step-06.mp3",
+      "duration": 0.88,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "8d5ceea03f0a4af6974426b50d556a63bbcc895e8df17d920d15b6a9d81f37eb",
+      "cue": "hunter-step",
+      "group": "hunter",
+      "seed": 3411825616,
+      "description_zh": "重爪慢走：承重冲击、短促钢板刮擦和克制共鸣；无吼叫或呼吸。",
+      "trigger": "single action"
+    },
+    {
+      "id": "monster-step-01",
+      "file": "mp3/monster-step-01.mp3",
+      "duration": 0.64,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "aaaeff81caf0b2a6d3246343935abd41ac6e9ccc9b46c84e8116cf9feee5e765",
+      "cue": "monster-step",
+      "group": "monster",
+      "seed": 1238684695,
+      "description_zh": "异形多点爪触与滑动摩擦；比 Hunter 更轻、更不规则。",
+      "trigger": "single action"
+    },
+    {
+      "id": "monster-step-02",
+      "file": "mp3/monster-step-02.mp3",
+      "duration": 0.64,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "0a31a5f19c5017312c4ba51bb95f5c8c7a12fd001669ee4d6c6c45ca84efdb0f",
+      "cue": "monster-step",
+      "group": "monster",
+      "seed": 3504178605,
+      "description_zh": "异形多点爪触与滑动摩擦；比 Hunter 更轻、更不规则。",
+      "trigger": "single action"
+    },
+    {
+      "id": "monster-step-03",
+      "file": "mp3/monster-step-03.mp3",
+      "duration": 0.64,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "c99bf65bd01759562f7eba7702cbd2053c4ac27769f37d793293371f6d4d00e7",
+      "cue": "monster-step",
+      "group": "monster",
+      "seed": 2816128315,
+      "description_zh": "异形多点爪触与滑动摩擦；比 Hunter 更轻、更不规则。",
+      "trigger": "single action"
+    },
+    {
+      "id": "monster-step-04",
+      "file": "mp3/monster-step-04.mp3",
+      "duration": 0.64,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "a104493d41909ec3bbdc1b19ee521a56fbd0a36d86f1f3a53181dad3e079b8d9",
+      "cue": "monster-step",
+      "group": "monster",
+      "seed": 968761496,
+      "description_zh": "异形多点爪触与滑动摩擦；比 Hunter 更轻、更不规则。",
+      "trigger": "single action"
+    },
+    {
+      "id": "monster-hit-01",
+      "file": "mp3/monster-hit-01.mp3",
+      "duration": 0.49,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "9515b8ef8199497a4f06faf871543d8461c407375b6c5a25f209441bf0916c54",
+      "cue": "monster-hit",
+      "group": "monster",
+      "seed": 3076485945,
+      "description_zh": "短促组织受击与硬壳碎响，不是永久死亡声。",
+      "trigger": "single action"
+    },
+    {
+      "id": "monster-hit-02",
+      "file": "mp3/monster-hit-02.mp3",
+      "duration": 0.49,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "d8b0cce475070bdf4e5cd4e6490be2af13fb0cc24d157ef492b06040c618dffe",
+      "cue": "monster-hit",
+      "group": "monster",
+      "seed": 777396867,
+      "description_zh": "短促组织受击与硬壳碎响，不是永久死亡声。",
+      "trigger": "single action"
+    },
+    {
+      "id": "monster-hit-03",
+      "file": "mp3/monster-hit-03.mp3",
+      "duration": 0.49,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "6de9692399a37f3ca7a92a9a2c6418ec53fd1bdb7b0fcfcd6a2d30004cf9817b",
+      "cue": "monster-hit",
+      "group": "monster",
+      "seed": 1498485269,
+      "description_zh": "短促组织受击与硬壳碎响，不是永久死亡声。",
+      "trigger": "single action"
+    },
+    {
+      "id": "heavy-step-01",
+      "file": "mp3/heavy-step-01.mp3",
+      "duration": 1.03,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "6f1516b36102524f324c01fe3f8e19c3fabd52db85da3282c3cef8f3cc4f50d8",
+      "cue": "heavy-step",
+      "group": "heavy",
+      "seed": 665306684,
+      "description_zh": "低沉装甲落脚、甲板承重及短零件震颤。",
+      "trigger": "single action"
+    },
+    {
+      "id": "heavy-step-02",
+      "file": "mp3/heavy-step-02.mp3",
+      "duration": 1.03,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "6ddeb7c96ef63d19dd319414186879302438d7e36c4cbdc3144c36eae44b081d",
+      "cue": "heavy-step",
+      "group": "heavy",
+      "seed": 3199113094,
+      "description_zh": "低沉装甲落脚、甲板承重及短零件震颤。",
+      "trigger": "single action"
+    },
+    {
+      "id": "heavy-step-03",
+      "file": "mp3/heavy-step-03.mp3",
+      "duration": 1.03,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "1e1da7a15fbb7406f4c8c6e9f09121d3ee560c5975080b6da0c9761f9e80211f",
+      "cue": "heavy-step",
+      "group": "heavy",
+      "seed": 3383338768,
+      "description_zh": "低沉装甲落脚、甲板承重及短零件震颤。",
+      "trigger": "single action"
+    },
+    {
+      "id": "heavy-step-04",
+      "file": "mp3/heavy-step-04.mp3",
+      "duration": 1.03,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "6d2400839473819caa1b4565643d942278fc0975a65bf09e2648718ed9692bd5",
+      "cue": "heavy-step",
+      "group": "heavy",
+      "seed": 1473065651,
+      "description_zh": "低沉装甲落脚、甲板承重及短零件震颤。",
+      "trigger": "single action"
+    },
+    {
+      "id": "heavy-windup-01",
+      "file": "mp3/heavy-windup-01.mp3",
+      "duration": 2.0,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "249a737f27d37a9c33a6f6f4c7df32aa0a54823c3dbe7fb337393caaa4104fb9",
+      "cue": "heavy-windup",
+      "group": "heavy",
+      "seed": 3543267646,
+      "description_zh": "2 秒身体下压、装甲紧绷、抓地蓄力；不包含最后撞击。",
+      "trigger": "single action"
+    },
+    {
+      "id": "heavy-wall-impact-01",
+      "file": "mp3/heavy-wall-impact-01.mp3",
+      "duration": 1.42,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "ce5acac5b7f937abb11bfc920f911c6e93e0c72e941bf3c65fc1e6e7f307ac5f",
+      "cue": "heavy-wall-impact",
+      "group": "heavy",
+      "seed": 2237836831,
+      "description_zh": "重装身体撞击钢壁，接短装甲与结构振动；不是爆炸。",
+      "trigger": "single action"
+    },
+    {
+      "id": "heavy-wall-impact-02",
+      "file": "mp3/heavy-wall-impact-02.mp3",
+      "duration": 1.42,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "38e606fdec18f9dca63129c2d34c28b001171e9039ac2a14cfd71aa6b5c8fb95",
+      "cue": "heavy-wall-impact",
+      "group": "heavy",
+      "seed": 476839845,
+      "description_zh": "重装身体撞击钢壁，接短装甲与结构振动；不是爆炸。",
+      "trigger": "single action"
+    },
+    {
+      "id": "pistol-shot-01",
+      "file": "mp3/pistol-shot-01.mp3",
+      "duration": 0.46,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "ba542d4b40590f2107fba2c3b18be52aa7185f1095a72489c535ed2f3d9a811e",
+      "cue": "pistol-shot",
+      "group": "weapons",
+      "seed": 2118079270,
+      "description_zh": "手枪单次开火；单声部，供之后空间音频使用。",
+      "trigger": "single action"
+    },
+    {
+      "id": "pistol-shot-02",
+      "file": "mp3/pistol-shot-02.mp3",
+      "duration": 0.46,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "ef59f1d294b044784c1787f0a7ec3254786d6e12ef9281987c9601dcbe242782",
+      "cue": "pistol-shot",
+      "group": "weapons",
+      "seed": 3879076508,
+      "description_zh": "手枪单次开火；单声部，供之后空间音频使用。",
+      "trigger": "single action"
+    },
+    {
+      "id": "pistol-shot-03",
+      "file": "mp3/pistol-shot-03.mp3",
+      "duration": 0.46,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "6a1f60c7527f0b4c6fa57237dd8d54e96a7a1ffc2511a3584ce4d2b5567d38af",
+      "cue": "pistol-shot",
+      "group": "weapons",
+      "seed": 2419143178,
+      "description_zh": "手枪单次开火；单声部，供之后空间音频使用。",
+      "trigger": "single action"
+    },
+    {
+      "id": "smg-shot-01",
+      "file": "mp3/smg-shot-01.mp3",
+      "duration": 0.27,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "ce3ac566d8b06577c3d0c551da9e3f14011d034067c589b2c16d7388d6c377bd",
+      "cue": "smg-shot",
+      "group": "weapons",
+      "seed": 1531310233,
+      "description_zh": "冲锋枪单次开火；单声部，供之后空间音频使用。",
+      "trigger": "single action"
+    },
+    {
+      "id": "smg-shot-02",
+      "file": "mp3/smg-shot-02.mp3",
+      "duration": 0.27,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "e05235f6a7738ee23d65a9c32073d1424718bd9cde93c032d2b4d5fd162efadf",
+      "cue": "smg-shot",
+      "group": "weapons",
+      "seed": 3259801891,
+      "description_zh": "冲锋枪单次开火；单声部，供之后空间音频使用。",
+      "trigger": "single action"
+    },
+    {
+      "id": "smg-shot-03",
+      "file": "mp3/smg-shot-03.mp3",
+      "duration": 0.27,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "fd216f5db57a664e580e621a43f9883720c91fbdeb672cebf0d292659ba3750a",
+      "cue": "smg-shot",
+      "group": "weapons",
+      "seed": 3041628597,
+      "description_zh": "冲锋枪单次开火；单声部，供之后空间音频使用。",
+      "trigger": "single action"
+    },
+    {
+      "id": "shotgun-shot-01",
+      "file": "mp3/shotgun-shot-01.mp3",
+      "duration": 0.73,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "3ff5c5a0bc9e991003998b560d94661f9fdddcf6f81924fdcfe24210b79000bf",
+      "cue": "shotgun-shot",
+      "group": "weapons",
+      "seed": 3347977910,
+      "description_zh": "散弹枪单次开火；单声部，供之后空间音频使用。",
+      "trigger": "single action"
+    },
+    {
+      "id": "shotgun-shot-02",
+      "file": "mp3/shotgun-shot-02.mp3",
+      "duration": 0.73,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "793bc50caf2e88d154d30ed590f23e3e2c0ec0e6f47eab8b77aec2fcb6121c3a",
+      "cue": "shotgun-shot",
+      "group": "weapons",
+      "seed": 1585923852,
+      "description_zh": "散弹枪单次开火；单声部，供之后空间音频使用。",
+      "trigger": "single action"
+    },
+    {
+      "id": "shotgun-shot-03",
+      "file": "mp3/shotgun-shot-03.mp3",
+      "duration": 0.73,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "ac228d1bf0f60965b39202dae465ec8c4de00cd14937d55a5a12ffd55a46be38",
+      "cue": "shotgun-shot",
+      "group": "weapons",
+      "seed": 696285082,
+      "description_zh": "散弹枪单次开火；单声部，供之后空间音频使用。",
+      "trigger": "single action"
+    },
+    {
+      "id": "revolver-shot-01",
+      "file": "mp3/revolver-shot-01.mp3",
+      "duration": 0.62,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "2c15734dc81f4a7629bd7974059757ff17e118f3156a0036347905983f31b404",
+      "cue": "revolver-shot",
+      "group": "weapons",
+      "seed": 1739020971,
+      "description_zh": "左轮单次开火；单声部，供之后空间音频使用。",
+      "trigger": "single action"
+    },
+    {
+      "id": "revolver-shot-02",
+      "file": "mp3/revolver-shot-02.mp3",
+      "duration": 0.62,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "6c1a5306b4290cf7b3803fc3cc60ca34bdba22164b2effc824a5e3bf8bd23556",
+      "cue": "revolver-shot",
+      "group": "weapons",
+      "seed": 4272818961,
+      "description_zh": "左轮单次开火；单声部，供之后空间音频使用。",
+      "trigger": "single action"
+    },
+    {
+      "id": "revolver-shot-03",
+      "file": "mp3/revolver-shot-03.mp3",
+      "duration": 0.62,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "b92f978826eeea865947901de10d938532f00d22c04607e9e2bc4a3447d8c88e",
+      "cue": "revolver-shot",
+      "group": "weapons",
+      "seed": 2309569415,
+      "description_zh": "左轮单次开火；单声部，供之后空间音频使用。",
+      "trigger": "single action"
+    },
+    {
+      "id": "ui-click-01",
+      "file": "mp3/ui-click-01.mp3",
+      "duration": 0.12,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "5ac3ea5010de243e4ae434a7edc6a60d29a17cde6203a5b106d3dab1a355a98f",
+      "cue": "ui-click",
+      "group": "ui",
+      "seed": 1525700268,
+      "description_zh": "轻量机械电子界面反馈：点击。",
+      "trigger": "single action"
+    },
+    {
+      "id": "ui-click-02",
+      "file": "mp3/ui-click-02.mp3",
+      "duration": 0.12,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "bb7f968eb65c3cd10e03b92f1a4d8cfbe4c5a3e0bbc3882cf611766eccb7d8e2",
+      "cue": "ui-click",
+      "group": "ui",
+      "seed": 3287877398,
+      "description_zh": "轻量机械电子界面反馈：点击。",
+      "trigger": "single action"
+    },
+    {
+      "id": "ui-click-03",
+      "file": "mp3/ui-click-03.mp3",
+      "duration": 0.12,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "53c14e47727c1a25649c7950ebfa137c04f6a97df7409ae69f3968c53698413f",
+      "cue": "ui-click",
+      "group": "ui",
+      "seed": 3036559232,
+      "description_zh": "轻量机械电子界面反馈：点击。",
+      "trigger": "single action"
+    },
+    {
+      "id": "ui-confirm-01",
+      "file": "mp3/ui-confirm-01.mp3",
+      "duration": 0.28,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "fb704cd1ed26a6740bfd4977cebbb29a4447e0bf162d7feccbe3b7dcf99c8ef6",
+      "cue": "ui-confirm",
+      "group": "ui",
+      "seed": 1317409940,
+      "description_zh": "轻量机械电子界面反馈：确认。",
+      "trigger": "single action"
+    },
+    {
+      "id": "ui-cancel-01",
+      "file": "mp3/ui-cancel-01.mp3",
+      "duration": 0.24,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "aec1bdb6ecf8fe0616c90ce8f9e062dd69321f8c9e46be6fd459fb5d1f40b68f",
+      "cue": "ui-cancel",
+      "group": "ui",
+      "seed": 3037726371,
+      "description_zh": "轻量机械电子界面反馈：取消。",
+      "trigger": "single action"
+    },
+    {
+      "id": "ui-error-01",
+      "file": "mp3/ui-error-01.mp3",
+      "duration": 0.28,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "8689e30a0e8391ee9deedfb3b66f06a93dd6ff42f291610f8466ce43afef1ac3",
+      "cue": "ui-error",
+      "group": "ui",
+      "seed": 713998324,
+      "description_zh": "轻量机械电子界面反馈：错误。",
+      "trigger": "single action"
+    },
+    {
+      "id": "terminal-key-01",
+      "file": "mp3/terminal-key-01.mp3",
+      "duration": 0.17,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "771f0959732aff2eb24a6d54a5ed6372691df3ca204a16f403a8f865f5462dbf",
+      "cue": "terminal-key",
+      "group": "terminal",
+      "seed": 1945961661,
+      "description_zh": "终端独立反馈：正确输入；可与其他状态分别触发。",
+      "trigger": "single action"
+    },
+    {
+      "id": "terminal-key-02",
+      "file": "mp3/terminal-key-02.mp3",
+      "duration": 0.17,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "3cab2e0b2c727db8037c2be892b7f993e1004e3498697a902ffa6928611cd7b5",
+      "cue": "terminal-key",
+      "group": "terminal",
+      "seed": 3941881095,
+      "description_zh": "终端独立反馈：正确输入；可与其他状态分别触发。",
+      "trigger": "single action"
+    },
+    {
+      "id": "terminal-key-03",
+      "file": "mp3/terminal-key-03.mp3",
+      "duration": 0.17,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "069949603951a61cc6562c0e4c16c0bf9a14df37238e59e46edb01a130362a81",
+      "cue": "terminal-key",
+      "group": "terminal",
+      "seed": 2649974161,
+      "description_zh": "终端独立反馈：正确输入；可与其他状态分别触发。",
+      "trigger": "single action"
+    },
+    {
+      "id": "terminal-error-01",
+      "file": "mp3/terminal-error-01.mp3",
+      "duration": 0.3,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "8076b9d8fa173e4798a6fade716dd4b5ba4f2065c48945263f5e1fa7c8eeccb7",
+      "cue": "terminal-error",
+      "group": "terminal",
+      "seed": 4189897066,
+      "description_zh": "终端独立反馈：错误输入；可与其他状态分别触发。",
+      "trigger": "single action"
+    },
+    {
+      "id": "terminal-error-02",
+      "file": "mp3/terminal-error-02.mp3",
+      "duration": 0.3,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "cb1e3f97bee6f1547dfe868d90b75c393f9476dceb80fc7b877a5de2bdb1ee67",
+      "cue": "terminal-error",
+      "group": "terminal",
+      "seed": 1622511824,
+      "description_zh": "终端独立反馈：错误输入；可与其他状态分别触发。",
+      "trigger": "single action"
+    },
+    {
+      "id": "terminal-success-01",
+      "file": "mp3/terminal-success-01.mp3",
+      "duration": 0.82,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "1c47171b8c95fc3aac0699be72caf0c33596635e3e9f85c7dd5223931fa464d6",
+      "cue": "terminal-success",
+      "group": "terminal",
+      "seed": 1004570143,
+      "description_zh": "终端独立反馈：启动成功；可与其他状态分别触发。",
+      "trigger": "single action"
+    },
+    {
+      "id": "terminal-shock-01",
+      "file": "mp3/terminal-shock-01.mp3",
+      "duration": 0.62,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "995ce222c1f0bd1bb7c12b97b74fddfb427043479089d835ca7f4d08a3b02bb5",
+      "cue": "terminal-shock",
+      "group": "terminal",
+      "seed": 3614432791,
+      "description_zh": "终端独立反馈：电击；可与其他状态分别触发。",
+      "trigger": "single action"
+    },
+    {
+      "id": "terminal-shock-02",
+      "file": "mp3/terminal-shock-02.mp3",
+      "duration": 0.62,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "2e350c8efc199c547a91876b66e72224668b6de8a7a6e9af9f59ea2442afbb08",
+      "cue": "terminal-shock",
+      "group": "terminal",
+      "seed": 1315344301,
+      "description_zh": "终端独立反馈：电击；可与其他状态分别触发。",
+      "trigger": "single action"
+    }
+  ],
+  "auditions": [
+    {
+      "id": "01-hunter-stalking",
+      "file": "auditions/01-hunter-stalking.mp3",
+      "duration": 10.29,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "d9ed88e22b783062252fa656a93915ee9503488b57ecd5d06893cfb9c9472368",
+      "group": "hunter",
+      "events": [
+        {
+          "at": 0.25,
+          "clip": "hunter-step-01"
+        },
+        {
+          "at": 1.27,
+          "clip": "hunter-step-02"
+        },
+        {
+          "at": 2.24,
+          "clip": "hunter-step-03"
+        },
+        {
+          "at": 3.3,
+          "clip": "hunter-step-04"
+        },
+        {
+          "at": 4.24,
+          "clip": "hunter-step-05"
+        },
+        {
+          "at": 5.25,
+          "clip": "hunter-step-06"
+        },
+        {
+          "at": 6.23,
+          "clip": "hunter-step-01"
+        },
+        {
+          "at": 7.27,
+          "clip": "hunter-step-02"
+        },
+        {
+          "at": 8.23,
+          "clip": "hunter-step-03"
+        },
+        {
+          "at": 9.26,
+          "clip": "hunter-step-04"
+        }
+      ],
+      "description_zh": "连续慢走：每步间隔 0.94–1.06 秒，六种爪步变体。",
+      "trigger": "audition only, not a game asset"
+    },
+    {
+      "id": "02-monster-crawl-hit",
+      "file": "auditions/02-monster-crawl-hit.mp3",
+      "duration": 9.14,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "e5af0f3631371e754ee4c8984fab2afc29743984e44428d56087a6dc2144e5ce",
+      "group": "monster",
+      "events": [
+        {
+          "at": 0.25,
+          "clip": "monster-step-01"
+        },
+        {
+          "at": 0.95,
+          "clip": "monster-step-02"
+        },
+        {
+          "at": 1.65,
+          "clip": "monster-step-03"
+        },
+        {
+          "at": 2.35,
+          "clip": "monster-step-04"
+        },
+        {
+          "at": 3.05,
+          "clip": "monster-step-01"
+        },
+        {
+          "at": 3.75,
+          "clip": "monster-step-02"
+        },
+        {
+          "at": 4.45,
+          "clip": "monster-step-03"
+        },
+        {
+          "at": 5.15,
+          "clip": "monster-step-04"
+        },
+        {
+          "at": 6.8,
+          "clip": "monster-hit-01"
+        },
+        {
+          "at": 7.65,
+          "clip": "monster-hit-02"
+        },
+        {
+          "at": 8.5,
+          "clip": "monster-hit-03"
+        }
+      ],
+      "description_zh": "先爬行，再三次独立受击。",
+      "trigger": "audition only, not a game asset"
+    },
+    {
+      "id": "03-heavy-step-charge-impact",
+      "file": "auditions/03-heavy-step-charge-impact.mp3",
+      "duration": 10.72,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "bf3eaa6fba1422821619f8e63f49c0054c2a3dd02f0e08eeadaaab690c178765",
+      "group": "heavy",
+      "events": [
+        {
+          "at": 0.25,
+          "clip": "heavy-step-01"
+        },
+        {
+          "at": 1.18,
+          "clip": "heavy-step-02"
+        },
+        {
+          "at": 2.11,
+          "clip": "heavy-step-03"
+        },
+        {
+          "at": 3.04,
+          "clip": "heavy-step-04"
+        },
+        {
+          "at": 3.97,
+          "clip": "heavy-step-01"
+        },
+        {
+          "at": 5.6,
+          "clip": "heavy-windup-01"
+        },
+        {
+          "at": 7.7,
+          "clip": "heavy-step-01"
+        },
+        {
+          "at": 8.0,
+          "clip": "heavy-step-02"
+        },
+        {
+          "at": 8.3,
+          "clip": "heavy-step-03"
+        },
+        {
+          "at": 8.6,
+          "clip": "heavy-step-04"
+        },
+        {
+          "at": 9.15,
+          "clip": "heavy-wall-impact-01"
+        }
+      ],
+      "description_zh": "五步行走 → 2 秒蓄力 → 加速脚步 → 撞墙。",
+      "trigger": "audition only, not a game asset"
+    },
+    {
+      "id": "04-four-weapons",
+      "file": "auditions/04-four-weapons.mp3",
+      "duration": 11.57,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "7623fb7550bc79896926cb85aac767d2e00eb0a10d035116241cf9a508e7f3e1",
+      "group": "weapons",
+      "events": [
+        {
+          "at": 0.25,
+          "clip": "pistol-shot-01"
+        },
+        {
+          "at": 0.95,
+          "clip": "pistol-shot-02"
+        },
+        {
+          "at": 1.65,
+          "clip": "pistol-shot-03"
+        },
+        {
+          "at": 3.0,
+          "clip": "smg-shot-01"
+        },
+        {
+          "at": 3.1,
+          "clip": "smg-shot-02"
+        },
+        {
+          "at": 3.2,
+          "clip": "smg-shot-03"
+        },
+        {
+          "at": 3.3,
+          "clip": "smg-shot-01"
+        },
+        {
+          "at": 3.4,
+          "clip": "smg-shot-02"
+        },
+        {
+          "at": 3.5,
+          "clip": "smg-shot-03"
+        },
+        {
+          "at": 3.6,
+          "clip": "smg-shot-01"
+        },
+        {
+          "at": 3.7,
+          "clip": "smg-shot-02"
+        },
+        {
+          "at": 3.8,
+          "clip": "smg-shot-03"
+        },
+        {
+          "at": 5.2,
+          "clip": "shotgun-shot-01"
+        },
+        {
+          "at": 6.0,
+          "clip": "shotgun-shot-02"
+        },
+        {
+          "at": 6.8,
+          "clip": "shotgun-shot-03"
+        },
+        {
+          "at": 8.4,
+          "clip": "revolver-shot-01"
+        },
+        {
+          "at": 9.6,
+          "clip": "revolver-shot-02"
+        },
+        {
+          "at": 10.8,
+          "clip": "revolver-shot-03"
+        }
+      ],
+      "description_zh": "依次手枪 → 冲锋枪短连射 → 散弹枪 → 左轮。",
+      "trigger": "audition only, not a game asset"
+    },
+    {
+      "id": "05-interface",
+      "file": "auditions/05-interface.mp3",
+      "duration": 4.68,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "ad94b45686880478d22cbdea829fb84d11eb76370303f3aed1b325463fba6c15",
+      "group": "ui",
+      "events": [
+        {
+          "at": 0.25,
+          "clip": "ui-click-01"
+        },
+        {
+          "at": 0.8,
+          "clip": "ui-click-02"
+        },
+        {
+          "at": 1.35,
+          "clip": "ui-click-03"
+        },
+        {
+          "at": 2.25,
+          "clip": "ui-confirm-01"
+        },
+        {
+          "at": 3.25,
+          "clip": "ui-cancel-01"
+        },
+        {
+          "at": 4.25,
+          "clip": "ui-error-01"
+        }
+      ],
+      "description_zh": "三次点击 → 确认 → 取消 → 错误，音量刻意较低。",
+      "trigger": "audition only, not a game asset"
+    },
+    {
+      "id": "06-terminal",
+      "file": "auditions/06-terminal.mp3",
+      "duration": 7.17,
+      "sample_rate": 48000,
+      "channels": 1,
+      "loop": false,
+      "pcm_sha256": "6c22c60cd5dea504146d6433b5abf278c6b7b62c9eb793f8d9d5b4240f26c036",
+      "group": "terminal",
+      "events": [
+        {
+          "at": 0.25,
+          "clip": "terminal-key-01"
+        },
+        {
+          "at": 0.65,
+          "clip": "terminal-key-02"
+        },
+        {
+          "at": 1.05,
+          "clip": "terminal-key-03"
+        },
+        {
+          "at": 1.9,
+          "clip": "terminal-error-01"
+        },
+        {
+          "at": 2.6,
+          "clip": "terminal-error-02"
+        },
+        {
+          "at": 3.7,
+          "clip": "terminal-success-01"
+        },
+        {
+          "at": 5.2,
+          "clip": "terminal-shock-01"
+        },
+        {
+          "at": 6.4,
+          "clip": "terminal-shock-02"
+        }
+      ],
+      "description_zh": "三次正确输入 → 两次错误 → 启动成功 → 两种电击。",
+      "trigger": "audition only, not a game asset"
+    }
+  ]
+}

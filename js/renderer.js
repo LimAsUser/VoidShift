@@ -9,6 +9,440 @@ class Renderer {
     this.renderDpr = 1;
     this.cameraOffsetX = 0;
     this.cameraOffsetY = 0;
+    this.sprites = {};
+    this.hitMasks = {};
+    this.roomCaches = new WeakMap();
+    this.motionQuery = typeof window !== 'undefined' ? window.matchMedia?.('(prefers-reduced-motion: reduce)') : null;
+  }
+
+  sprite(name) {
+    if (!this.sprites[name]) {
+      const image = new Image();
+      image.src = `resources/images/${name}${['monster', 'hunter', 'heavy'].includes(name) ? '-topdown' : ''}.png`;
+      this.sprites[name] = image;
+    }
+    return this.sprites[name];
+  }
+
+  drawEnemyBody(ctx, name, width, hitFlash = false) {
+    const image = this.sprite(name);
+    if (!image.complete || !image.naturalWidth) return false;
+    const height = width * image.naturalHeight / image.naturalWidth;
+    ctx.drawImage(image, -width / 2, -height / 2, width, height);
+    if (hitFlash) {
+      if (!this.hitMasks[name]) {
+        const mask = document.createElement('canvas');
+        mask.width = Math.min(512, image.naturalWidth);
+        mask.height = Math.max(1, Math.round(mask.width * image.naturalHeight / image.naturalWidth));
+        const maskCtx = mask.getContext('2d');
+        maskCtx.drawImage(image, 0, 0, mask.width, mask.height);
+        maskCtx.globalCompositeOperation = 'source-in';
+        maskCtx.fillStyle = '#fff';
+        maskCtx.fillRect(0, 0, mask.width, mask.height);
+        this.hitMasks[name] = mask;
+      }
+      ctx.drawImage(this.hitMasks[name], -width / 2, -height / 2, width, height);
+    }
+    return true;
+  }
+
+  visibleWorldPoint(point, player, mapManager, state) {
+    if (!this.inViewport({ x: point.x - 12, y: point.y - 12, w: 24, h: 24 }, state)) return false;
+    return isPointVisibleToPlayer(point.x, point.y, player, mapManager, this.roomLightLevel(state) > 0);
+  }
+
+  drawDiscovery(ctx, actor, width, player, mapManager, state) {
+    if (!(actor.discoveryTimer > 0) || actor.dead || !this.visibleWorldPoint(actor, player, mapManager, state)) return;
+    ctx.save();
+    ctx.fillStyle = '#ffe8ba';
+    ctx.font = 'bold 21px monospace';
+    ctx.textAlign = 'center';
+    ctx.shadowBlur = 0;
+    ctx.fillText('!', actor.x, actor.y - width / 2 - 12);
+    ctx.restore();
+  }
+
+  drawDamageNumbers(ctx, player, mapManager, state) {
+    for (const number of state.damageNumbers || []) {
+      const age = Math.max(0, state.elapsed - number.born);
+      if (age >= 0.9 || !this.visibleWorldPoint(number, player, mapManager, state)) continue;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 1 - age / 0.9);
+      ctx.fillStyle = '#fff1dc';
+      ctx.font = 'bold 16px monospace';
+      ctx.textAlign = 'center';
+      ctx.shadowBlur = 0;
+      const rise = this.motionQuery?.matches ? 0 : age / 0.9 * 24;
+      ctx.fillText(String(Math.round(number.amount)), number.x, number.y - (number.radius || 20) - 14 - rise);
+      ctx.restore();
+    }
+  }
+
+  drawShield(ctx, actor, state) {
+    if (!(actor.shieldUntil > state.elapsed)) return;
+    ctx.save();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(101,221,235,.08)';
+    ctx.strokeStyle = 'rgba(101,221,235,.38)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(actor.x, actor.y, (actor.radius || 10) + 13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  drawGroundDebris(ctx, player, mapManager, state) {
+    const draw = (debris, magazine) => {
+      const age = Math.max(0, state.elapsed - debris.born);
+      if ((!magazine && age >= 10) || !this.visibleWorldPoint(debris, player, mapManager, state)) return;
+      ctx.save();
+      ctx.globalAlpha = magazine || age <= 8 ? 1 : (10 - age) / 2;
+      const bounce = !this.motionQuery?.matches && age < 0.3 ? Math.sin(age / 0.3 * Math.PI) * 3 : 0;
+      ctx.translate(debris.x, debris.y - bounce);
+      ctx.rotate(debris.angle || 0);
+      ctx.fillStyle = magazine ? '#7c8d97' : '#bea271';
+      ctx.fillRect(magazine ? -3 : -2, magazine ? -6 : -1, magazine ? 6 : 4, magazine ? 12 : 2);
+      ctx.fillStyle = magazine ? '#394953' : '#e7c99c';
+      ctx.fillRect(magazine ? -2 : -1.5, magazine ? -5 : -1, magazine ? 1 : 1, magazine ? 9 : 2);
+      ctx.restore();
+    };
+    for (const casing of state.casings || []) draw(casing, false);
+    for (const magazine of state.magazines || []) draw(magazine, true);
+  }
+
+  drawBarriers(ctx, player, mapManager, state) {
+    const image = this.sprite('equipment-v17/barrier');
+    const draw = (barrier, blueprint) => {
+      if (!this.inViewport(barrier, state)) return;
+      const center = { x: barrier.x + barrier.w / 2, y: barrier.y + barrier.h / 2 };
+      if (!blueprint && !this.visibleWorldPoint(center, player, mapManager, state)) return;
+      ctx.save();
+      ctx.translate(center.x, center.y);
+      const vertical = barrier.vertical ?? barrier.h > barrier.w;
+      const width = vertical ? barrier.h : barrier.w, height = vertical ? barrier.w : barrier.h;
+      if (vertical) ctx.rotate(Math.PI / 2);
+      ctx.globalAlpha = blueprint ? 0.4 : 1;
+      if (image.complete && image.naturalWidth) ctx.drawImage(image, -width / 2, -height / 2, width, height);
+      ctx.strokeStyle = blueprint ? (barrier.valid ? '#65ddeb' : '#ff615f') : '#7b9eab';
+      ctx.lineWidth = blueprint ? 2 : 1;
+      ctx.strokeRect(-width / 2, -height / 2, width, height);
+      if (blueprint) {
+        ctx.fillStyle = barrier.valid ? 'rgba(101,221,235,.25)' : 'rgba(255,97,95,.25)';
+        ctx.fillRect(-width / 2, -height / 2, width, height);
+      }
+      ctx.restore();
+      if (!blueprint) {
+        ctx.save();
+        ctx.fillStyle = '#d9edf1';
+        ctx.font = 'bold 10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${Math.max(0, Math.round(barrier.hp))} / 20`, center.x, barrier.y - 8);
+        ctx.restore();
+      }
+    };
+    for (const barrier of state.barriers || []) draw(barrier, false);
+    if (state.barrierBlueprint) draw(state.barrierBlueprint, true);
+  }
+
+  drawCorpseFragments(ctx, corpse, player, mapManager, state) {
+    this.corpseLayouts ||= new Map();
+    let layout=this.corpseLayouts.get(corpse.id);
+    if(!layout){
+      const random=CorpseEffects.random(corpse.seed^0x72be31);
+      const stains=Array.from({length:11},(_,i)=>{
+        const angle=random()*Math.PI*2,distance=i?random()*corpse.width*.48:0;
+        const radius=i?2+random()*corpse.width*.075:corpse.width*.2;
+        const reach=mapManager.rayWallDistance?.(corpse.x,corpse.y,Math.cos(angle),Math.sin(angle),distance)??distance;
+        let d=Math.max(0,Math.min(distance,reach-radius-9));
+        while(d>0&&mapManager.blocked?.(corpse.x+Math.cos(angle)*d,corpse.y+Math.sin(angle)*d,radius))d=Math.max(0,d-2);
+        return {x:corpse.x+Math.cos(angle)*d,y:corpse.y+Math.sin(angle)*d,r:radius};
+      });
+      const spray=Array.from({length:corpse.kind==='heavy'?18:12},()=>({angle:random()*Math.PI*2,speed:40+random()*90,r:1+random()*2.4}));
+      layout={parts:CorpseEffects.geometry(corpse.seed,corpse.fragments.length),stains,spray};this.corpseLayouts.set(corpse.id,layout);
+    }
+    const fade=corpse.fadeRemaining==null?1:Math.max(0,Math.min(1,corpse.fadeRemaining));
+    ctx.save();ctx.globalAlpha=fade*.64;ctx.fillStyle='#701c2b';ctx.beginPath();
+    for(const stain of layout.stains)if(this.visibleWorldPoint(stain,player,mapManager,state)){ctx.moveTo(stain.x+stain.r,stain.y);ctx.arc(stain.x,stain.y,stain.r,0,Math.PI*2);}
+    ctx.fill();ctx.restore();
+    const width=corpse.width,height=width*corpse.aspect;
+    corpse.fragments.forEach((part,i)=>{
+      if(!this.visibleWorldPoint(part,player,mapManager,state))return;
+      const shape=layout.parts[i];ctx.save();ctx.globalAlpha=fade;ctx.translate(part.x,part.y);
+      ctx.rotate(this.motionQuery?.matches?corpse.angle:part.angle);
+      ctx.scale(part.scale || 1,part.scale || 1);
+      ctx.translate(-shape.cx*width,-shape.cy*height);ctx.beginPath();
+      shape.polygon.forEach((p,j)=>{if(j)ctx.lineTo(p.x*width,p.y*height);else ctx.moveTo(p.x*width,p.y*height);});ctx.closePath();ctx.clip();
+      this.drawEnemyBody(ctx,corpse.kind,width,corpse.hitFlashUntil>state.elapsed);ctx.restore();
+    });
+    const age=Math.max(0,state.elapsed-(corpse.burstAt??corpse.born));
+    if(!this.motionQuery?.matches&&!corpse.suppressBurst&&age<.45){
+      ctx.save();ctx.globalAlpha=fade*(1-age/.45);ctx.fillStyle='#b33447';ctx.beginPath();
+      for(const particle of layout.spray){
+        const distance=particle.speed*age;
+        const reach=mapManager.rayWallDistance?.(corpse.x,corpse.y,Math.cos(particle.angle),Math.sin(particle.angle),distance)??distance;
+        const d=Math.max(0,Math.min(distance,reach-particle.r-9));const x=corpse.x+Math.cos(particle.angle)*d,y=corpse.y+Math.sin(particle.angle)*d;
+        if(!this.visibleWorldPoint({x,y},player,mapManager,state))continue;
+        ctx.moveTo(x+particle.r,y);ctx.arc(x,y,particle.r,0,Math.PI*2);
+      }
+      ctx.fill();ctx.restore();
+    }
+  }
+
+  drawEnemyRing(ctx, bodyWidth, originalWidth = bodyWidth) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(0, 0, bodyWidth / 2 + 4 * bodyWidth / originalWidth, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(239,68,68,0.12)';
+    ctx.fill();
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  drawEvacBeacon(ctx, point, state, worldScale) {
+    ctx.save();
+    ctx.translate(point.x, point.y);
+    const inverse = 1 / Math.max(0.001, worldScale);
+    ctx.scale(inverse, inverse);
+    ctx.fillStyle = '#d7f36b';
+    ctx.beginPath();
+    ctx.arc(0, 0, 7, 0, Math.PI * 2);
+    ctx.fill();
+    for (let index = 0; index < 2; index++) {
+      const phase = this.motionQuery?.matches ? index * 0.5 : ((Number(state?.elapsed) || 0) / 2.4 + index * 0.5) % 1;
+      ctx.globalAlpha = this.motionQuery?.matches ? 0.8 : 0.8 * (1 - phase);
+      ctx.strokeStyle = '#d7f36b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, 14 + phase * 34, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#041923ee';
+    ctx.fillRect(-87, -70, 174, 26);
+    ctx.fillStyle = '#eaff90';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(state?.rescueArrived ? '撤离点 · 救援已抵达' : state?.extractionCalled ? '撤离点 · 救援途中'
+      : state?.hideInteractionHints && state?.missionMode !== 'training' ? '撤离点 · 已解锁' : '撤离点 · 按 E 呼叫', 0, -52);
+    ctx.restore();
+  }
+
+  drawTerminalBeacon(ctx, terminal, index, state, worldScale) {
+    ctx.save();
+    ctx.translate(terminal.x, terminal.y);
+    const inverse = 1 / Math.max(0.001, worldScale);
+    ctx.scale(inverse, inverse);
+    if (!terminal.solved) {
+      for (let ring = 0; ring < 2; ring++) {
+        const phase = this.motionQuery?.matches ? ring * 0.5 : ((Number(state?.elapsed) || 0) / 2.4 + ring * 0.5) % 1;
+        ctx.globalAlpha = this.motionQuery?.matches ? 0.65 : 0.7 * (1 - phase);
+        ctx.strokeStyle = '#65ddeb';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, 12 + phase * 25, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+    const image = this.sprite('equipment-v17/terminal');
+    if (image.complete && image.naturalWidth) ctx.drawImage(image, -10, -10, 20, 20);
+    ctx.fillStyle = terminal.solved ? '#50e3c2' : '#65ddeb';
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`T-${index + 1} · ${terminal.solved ? 'OK' : '待破解'}`, 0, -15);
+    ctx.restore();
+  }
+
+  roomLightLevel(state) {
+    if (state?.powerLossStartedAt == null) return 1;
+    const elapsed = Math.max(0, (Number(state.elapsed) || 0) - state.powerLossStartedAt);
+    if (elapsed >= 2) return 0;
+    if (this.motionQuery?.matches) return 1 - elapsed / 2;
+    return elapsed % 0.5 < 0.12 ? 1 : 0.08;
+  }
+
+  stripLightLevel(strip, state) {
+    if (strip.state === 'off') return 0;
+    if (strip.state !== 'flicker') return 1;
+    if (this.motionQuery?.matches) return 0.5;
+    const time = (Number(state?.elapsed) || 0) + (strip.phase || 0) * 31;
+    return 0.5 + 0.28 * Math.sin(time * 1.13) + 0.17 * Math.sin(time * 0.47 + 2.4);
+  }
+
+  traceRoom(ctx, room) {
+    const points = room.vertices?.length ? room.vertices : [
+      { x: room.x, y: room.y }, { x: room.x + room.w, y: room.y },
+      { x: room.x + room.w, y: room.y + room.h }, { x: room.x, y: room.y + room.h }
+    ];
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let index = 1; index < points.length; index++) ctx.lineTo(points[index].x, points[index].y);
+    ctx.closePath();
+  }
+
+  traceMapRoomWalls(ctx, room) {
+    if (!room.wallSegments) return this.traceRoom(ctx, room);
+    ctx.beginPath();
+    for (const wall of room.wallSegments) {
+      ctx.moveTo(wall.x1, wall.y1);
+      ctx.lineTo(wall.x2, wall.y2);
+    }
+  }
+
+  roomCache(room) {
+    let cached = this.roomCaches.get(room);
+    if (!cached) {
+      const points = room.vertices?.length ? room.vertices : [{ x: room.x, y: room.y }, { x: room.x + room.w, y: room.y + room.h }];
+      const x = Math.min(...points.map(point => point.x)), y = Math.min(...points.map(point => point.y));
+      cached = { x, y, w: Math.max(1, Math.max(...points.map(point => point.x)) - x),
+        h: Math.max(1, Math.max(...points.map(point => point.y)) - y) };
+      this.roomCaches.set(room, cached);
+    }
+    return cached;
+  }
+
+  inViewport(bounds, state, margin = 32) {
+    const zoom = Math.max(0.1, state?.cameraZoom || 1);
+    const centerX = Config.VIEW_W / 2 - this.cameraOffsetX;
+    const centerY = Config.VIEW_H / 2 - this.cameraOffsetY;
+    return bounds.x + bounds.w >= centerX - Config.VIEW_W / zoom / 2 - margin &&
+      bounds.x <= centerX + Config.VIEW_W / zoom / 2 + margin &&
+      bounds.y + bounds.h >= centerY - Config.VIEW_H / zoom / 2 - margin &&
+      bounds.y <= centerY + Config.VIEW_H / zoom / 2 + margin;
+  }
+
+  stripLightStrength(strip, x, y) {
+    const dx = strip.x2 - strip.x1, dy = strip.y2 - strip.y1;
+    const lengthSquared = dx * dx + dy * dy;
+    const t = lengthSquared ? Math.max(0, Math.min(1, ((x - strip.x1) * dx + (y - strip.y1) * dy) / lengthSquared)) : 0;
+    const distance = Math.hypot(x - strip.x1 - dx * t, y - strip.y1 - dy * t);
+    return 0.72 * Math.pow(Math.max(0, 1 - distance / Math.max(1, strip.range || 500)), 6);
+  }
+
+  roomLightField(room, state) {
+    const cached = this.roomCache(room);
+    if (!cached.lightField) {
+      const scale = Math.min(1 / 8, 128 / Math.max(cached.w, cached.h));
+      const width = Math.max(1, Math.ceil(cached.w * scale)), height = Math.max(1, Math.ceil(cached.h * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      const normal = new Float32Array(width * height);
+      const faults = (room.lights || []).filter(strip => strip.state === 'flicker').map(strip => ({ strip, values: new Float32Array(width * height) }));
+      const active = (room.lights || []).filter(strip => !['flicker', 'off'].includes(strip.state));
+      for (let row = 0; row < height; row++) {
+        for (let col = 0; col < width; col++) {
+          const x = cached.x + (col + 0.5) / width * cached.w, y = cached.y + (row + 0.5) / height * cached.h;
+          if (room.vertices?.length && !pointInPolygon(x, y, room.vertices)) continue;
+          const index = row * width + col;
+          for (const strip of active) normal[index] = Math.max(normal[index], this.stripLightStrength(strip, x, y));
+          for (const fault of faults) fault.values[index] = this.stripLightStrength(fault.strip, x, y);
+        }
+      }
+      cached.lightField = { canvas, ctx, width, height, normal, faults, values: new Float32Array(normal.length),
+        pixels: ctx.createImageData?.(width, height), levels: null };
+    }
+    const field = cached.lightField;
+    const levels = field.faults.map(fault => this.stripLightLevel(fault.strip, state));
+    if (field.levels && levels.every((level, index) => level === field.levels[index])) return field;
+    field.levels = levels;
+    for (let index = 0; index < field.values.length; index++) {
+      let strength = field.normal[index];
+      for (let fault = 0; fault < field.faults.length; fault++) strength = Math.max(strength, field.faults[fault].values[index] * levels[fault]);
+      field.values[index] = strength;
+      if (field.pixels) field.pixels.data[index * 4 + 3] = Math.round(strength * 255);
+    }
+    if (field.pixels && field.ctx.putImageData) field.ctx.putImageData(field.pixels, 0, 0);
+    else {
+      field.ctx.clearRect(0, 0, field.width, field.height);
+      for (let index = 0; index < field.values.length; index++) {
+        field.ctx.fillStyle = `rgba(0,0,0,${field.values[index]})`;
+        field.ctx.fillRect(index % field.width, Math.floor(index / field.width), 1, 1);
+      }
+    }
+    return field;
+  }
+
+  roomBuffer(room, kind) {
+    const cached = this.roomCache(room);
+    const deck = kind === 'floor' ? this.sprite('starship/floor-deck') : null;
+    const ready = !!(deck?.complete && deck.naturalWidth);
+    if (cached[kind] && (kind !== 'floor' || cached.floorReady === ready)) return cached;
+    const canvas = document.createElement('canvas');
+    const scale = Math.min(1, (kind === 'floor' ? 640 : 320) / Math.max(cached.w, cached.h));
+    canvas.width = Math.max(1, Math.ceil(cached.w * scale));
+    canvas.height = Math.max(1, Math.ceil(cached.h * scale));
+    const ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+    ctx.translate(-cached.x, -cached.y);
+    this.traceRoom(ctx, room);
+    ctx.clip();
+    if (kind === 'floor') {
+      ctx.fillStyle = '#17232d';
+      ctx.fillRect(cached.x, cached.y, cached.w, cached.h);
+      if (ready) {
+        for (let y = cached.y; y < cached.y + cached.h; y += 192) {
+          for (let x = cached.x; x < cached.x + cached.w; x += 192) ctx.drawImage(deck, x, y, 192, 192);
+        }
+      }
+      ctx.globalAlpha = room.kind === 'corridor' ? 0.08 : 0.12;
+      ctx.fillStyle = room.accent || '#65ddeb';
+      ctx.fillRect(cached.x, cached.y, cached.w, cached.h);
+      ctx.globalAlpha = 0.35;
+      ctx.strokeStyle = '#506c79';
+      ctx.lineWidth = 14;
+      this.traceRoom(ctx, room);
+      ctx.stroke();
+      cached.floorReady = ready;
+    }
+    cached[kind] = canvas;
+    return cached;
+  }
+
+  forwardVisibilityPolygon(player, mapManager, range, steps = 80) {
+    const points = [{ x: player.x, y: player.y }];
+    const spread = Config.player.flashlightSpread;
+    for (let index = 0; index <= steps; index++) {
+      const angle = player.angle - spread + index / steps * spread * 2;
+      const distance = mapManager.rayVisionDistance(player.x, player.y, Math.cos(angle), Math.sin(angle), range, 0);
+      points.push({ x: player.x + Math.cos(angle) * distance, y: player.y + Math.sin(angle) * distance });
+    }
+    return points;
+  }
+
+  heavyChargeDistance(heavy, mapManager) {
+    const angle = heavy.chargeAngle ?? heavy.angle ?? 0;
+    const dx = Math.cos(angle), dy = Math.sin(angle);
+    const radius = heavy.radius || Config.heavy?.radius || 44;
+    const worldDiagonal = Math.hypot(mapManager.worldW || Config.WORLD_W || 1000,
+      mapManager.worldH || Config.WORLD_H || 1000) + radius;
+    const limit = Math.max(0, mapManager.rayWallDistance(heavy.x, heavy.y, dx, dy, worldDiagonal) - radius);
+    let safe = 0;
+    for (let distance = 8; distance <= limit; distance += 8) {
+      if (mapManager.blocked(heavy.x + dx * distance, heavy.y + dy * distance, radius)) return safe;
+      safe = distance;
+    }
+    return limit > safe && mapManager.blocked(heavy.x + dx * limit, heavy.y + dy * limit, radius) ? safe : limit;
+  }
+
+  flashBurstDistance(origin, mapManager, angle) {
+    const radius = Config.flashbang.blastRadius;
+    return Math.max(0, Math.min(radius, mapManager.rayWallDistance(origin.x, origin.y, Math.cos(angle), Math.sin(angle), radius)));
+  }
+
+  traceFlashRadius(ctx, origin, mapManager) {
+    ctx.beginPath();
+    for (let i = 0; i <= 32; i++) {
+      const angle = i * Math.PI / 16;
+      const distance = this.flashBurstDistance(origin, mapManager, angle);
+      const x = origin.x + Math.cos(angle) * distance;
+      const y = origin.y + Math.sin(angle) * distance;
+      if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+    }
+    ctx.closePath();
   }
 
   /**
@@ -29,15 +463,14 @@ class Renderer {
     const baseScaleX = canvas.clientWidth / Config.VIEW_W;
     const baseScaleY = canvas.clientHeight / Config.VIEW_H;
     
-    const aimZoom = gameState.stabilized ? 1.1 : 1;
-    const lookX = gameState.stabilized ? gameState.cameraLookX : 0;
-    const lookY = gameState.stabilized ? gameState.cameraLookY : 0;
+    const lookX = gameState.cameraLookX || 0;
+    const lookY = gameState.cameraLookY || 0;
 
-    gameState.cameraZoom = aimZoom;
+    gameState.cameraZoom ??= Config.camera.baseZoom * (gameState.stabilized ? Config.camera.aimMultiplier : 1);
     
     // Total virtual offsets (in logical game design pixels)
-    const totalOffsetX = lookX + (gameState.recoilX || 0);
-    const totalOffsetY = lookY + (gameState.recoilY || 0);
+    const totalOffsetX = lookX + (gameState.recoilX || 0) + (gameState.shakeX || 0);
+    const totalOffsetY = lookY + (gameState.recoilY || 0) + (gameState.shakeY || 0);
 
     // Set the cameraOffset fields strictly in game logical units.
     // Notice how lookX and lookY are already in logical design pixels, no scaling must occur here.
@@ -84,6 +517,7 @@ class Renderer {
     const ctx = this.ui.ctx;
     const w = this.ui.canvas.clientWidth;
     const h = this.ui.canvas.clientHeight;
+    if (!(w > 0 && h > 0)) return;
     const scaleX = w / Config.VIEW_W;
     const scaleY = h / Config.VIEW_H;
 
@@ -93,103 +527,36 @@ class Renderer {
     // Background
     const worldW = mapManager.worldW || Config.WORLD_W;
     const worldH = mapManager.worldH || Config.WORLD_H;
-    ctx.fillStyle = '#070f19';
+    ctx.fillStyle = '#03070d';
     ctx.fillRect(0, 0, worldW, worldH);
-    ctx.fillStyle = '#0b1722';
-    ctx.fillRect(22, 22, worldW - 44, worldH - 44);
-
-    // Sector gridlines
-    ctx.strokeStyle = 'rgba(101,221,235,.045)';
-    ctx.lineWidth = 1;
-    for (let x = 40; x < worldW; x += 40) {
-      ctx.beginPath();
-      ctx.moveTo(x, 22);
-      ctx.lineTo(x, worldH - 22);
+    if (mapManager.shipHull?.length) {
+      this.traceRoom(ctx, { vertices: mapManager.shipHull });
+      ctx.fillStyle = '#15212b';
+      ctx.fill();
+      ctx.lineWidth = 22;
+      ctx.strokeStyle = '#31424f';
       ctx.stroke();
-    }
-    for (let y = 40; y < worldH; y += 40) {
-      ctx.beginPath();
-      ctx.moveTo(22, y);
-      ctx.lineTo(worldW - 22, y);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#69808b';
       ctx.stroke();
     }
 
-    // Draw polygon room floor slabs with sector tinting
-    mapManager.worldRooms.forEach(room => {
-      ctx.save();
-      if (room.vertices && room.vertices.length) {
-        ctx.beginPath();
-        ctx.moveTo(room.vertices[0].x, room.vertices[0].y);
-        for (let i = 1; i < room.vertices.length; i++) {
-          ctx.lineTo(room.vertices[i].x, room.vertices[i].y);
-        }
-        ctx.closePath();
-        ctx.fillStyle = '#0d1924';
-        ctx.fill();
-        ctx.fillStyle = room.accent || '#75ddd0';
-        ctx.globalAlpha = 0.035;
-        ctx.fill();
-        ctx.globalAlpha = 0.18;
-        ctx.strokeStyle = room.accent || '#75ddd0';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        // Subtle room-specific floor markings stay clipped to the existing room polygon.
-        ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(room.vertices[0].x, room.vertices[0].y);
-        for (let i = 1; i < room.vertices.length; i++) {
-          ctx.lineTo(room.vertices[i].x, room.vertices[i].y);
-        }
-        ctx.closePath();
-        ctx.clip();
-        const bounds = room.vertices.reduce((box, point) => ({
-          minX: Math.min(box.minX, point.x), minY: Math.min(box.minY, point.y),
-          maxX: Math.max(box.maxX, point.x), maxY: Math.max(box.maxY, point.y)
-        }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
-        const center = room.center || { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 };
-        ctx.globalAlpha = 0.11;
-        ctx.strokeStyle = '#65ddeb';
-        ctx.lineWidth = 2;
-
-        if (room.type === 'reactor' || room.type === 'reactor_aux' || room.type === 'centrifuge') {
-          [22, 34].forEach(radius => {
-            ctx.beginPath();
-            ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
-            ctx.stroke();
-          });
-          ctx.beginPath();
-          ctx.moveTo(center.x - 42, center.y);
-          ctx.lineTo(center.x + 42, center.y);
-          ctx.moveTo(center.x, center.y - 42);
-          ctx.lineTo(center.x, center.y + 42);
-          ctx.stroke();
-        } else if (room.type === 'cargo' || room.type === 'hangar_bay' || room.type === 'foundry') {
-          for (let x = bounds.minX + 42; x < bounds.maxX; x += 72) {
-            ctx.beginPath();
-            ctx.moveTo(x, bounds.minY);
-            ctx.lineTo(x, bounds.maxY);
-            ctx.stroke();
-          }
-        } else {
-          ctx.strokeRect(center.x - 24, center.y - 24, 48, 48);
-          ctx.beginPath();
-          ctx.moveTo(center.x - 36, center.y);
-          ctx.lineTo(center.x - 28, center.y);
-          ctx.moveTo(center.x + 28, center.y);
-          ctx.lineTo(center.x + 36, center.y);
-          ctx.stroke();
-        }
-        ctx.restore();
-      } else {
-        ctx.fillStyle = '#0d1924';
-        ctx.fillRect(room.x, room.y, room.w, room.h);
-      }
-      ctx.restore();
-    });
+    // Raster floor panels are composed once per compartment, then drawn only near the camera.
+    const visibleRooms = mapManager.worldRooms.filter(room => this.inViewport(this.roomCache(room), gameState));
+    for (const room of visibleRooms) {
+      const cached = this.roomBuffer(room, 'floor');
+      ctx.drawImage(cached.floor, cached.x, cached.y, cached.w, cached.h);
+    }
+    const deck = this.sprite('starship/floor-deck');
+    if (!this.bulkheadPattern && deck.complete && deck.naturalWidth && ctx.createPattern) {
+      this.bulkheadPattern = ctx.createPattern(deck, 'repeat');
+    }
 
     // Draw solid walls and obstacles with metallic bulkhead detailing
     mapManager.walls.forEach(wall => {
+      const bounds = wall.x1 !== undefined ? { x: Math.min(wall.x1, wall.x2), y: Math.min(wall.y1, wall.y2),
+        w: Math.abs(wall.x2 - wall.x1), h: Math.abs(wall.y2 - wall.y1) } : wall;
+      if (!this.inViewport(bounds, gameState)) return;
       if (wall.x1 !== undefined) {
         // Line segment bulkhead wall
         ctx.save();
@@ -204,7 +571,7 @@ class Renderer {
 
         // Inner metallic plate
         ctx.lineWidth = 8;
-        ctx.strokeStyle = '#203545';
+        ctx.strokeStyle = this.bulkheadPattern || '#203545';
         ctx.beginPath();
         ctx.moveTo(wall.x1, wall.y1);
         ctx.lineTo(wall.x2, wall.y2);
@@ -299,12 +666,44 @@ class Renderer {
           ctx.lineTo(wall.x + 1, wall.y + wall.h - 1);
           ctx.stroke();
         }
+        if (wall.isProp || wall.isBox) {
+          const module = this.sprite('starship/room-module');
+          if (module.complete && module.naturalWidth) {
+            // Crop actual machinery from the room artwork onto its collision footprint.
+            const crop = wall.isBox ? [0.72, 0.05, 0.08, 0.09] :
+              wall.subType === 'reactor_core' ? [0.25, 0.025, 0.10, 0.11] :
+              wall.subType === 'server_rack' ? [0.09, 0.05, 0.055, 0.09] : [0.60, 0.05, 0.08, 0.09];
+            ctx.drawImage(module, crop[0] * module.naturalWidth, crop[1] * module.naturalHeight,
+              crop[2] * module.naturalWidth, crop[3] * module.naturalHeight,
+              wall.x + 2, wall.y + 2, Math.max(1, wall.w - 4), Math.max(1, wall.h - 4));
+          }
+        }
         ctx.restore();
       }
     });
 
-    // Extraction visual markers (Primary Airlock & Emergency Evac Pod)
-    const drawExtractionMarker = (pt, label) => {
+    const lampPower = this.roomLightLevel(gameState);
+    for (const room of visibleRooms) {
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineWidth = 3;
+      ctx.shadowColor = '#8fdae5';
+      for (const strip of room.lights || []) {
+        const intensity = lampPower * this.stripLightLevel(strip, gameState);
+        ctx.strokeStyle = intensity ? '#c5eff4' : '#253540';
+        ctx.globalAlpha = intensity || 0.5;
+        ctx.shadowBlur = intensity * 9;
+        ctx.beginPath();
+        ctx.moveTo(strip.x1, strip.y1);
+        ctx.lineTo(strip.x2, strip.y2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // Airlock is the spawn; only the far evac pod becomes the rescue beacon.
+    const evacUnlocked = !!mapManager.terminals?.length && mapManager.terminals.every(term => term.solved);
+    const drawExtractionMarker = (pt, label, spawn = false) => {
       if (!pt) return;
       ctx.save();
       const ex = pt.x;
@@ -313,25 +712,25 @@ class Renderer {
 
       ctx.fillStyle = 'rgba(14,31,43,0.82)';
       ctx.fillRect(ex - r, ey - r, r * 2, r * 2);
-      ctx.strokeStyle = gameState.extractionCalled ? '#d7f36b' : '#477184';
+      ctx.strokeStyle = spawn ? '#3b82f6' : evacUnlocked ? '#d7f36b' : '#477184';
       ctx.lineWidth = 2;
       ctx.strokeRect(ex - r, ey - r, r * 2, r * 2);
 
       // Inner pad circle
-      ctx.strokeStyle = gameState.extractionCalled ? '#d7f36b' : '#65ddeb';
+      ctx.strokeStyle = spawn ? '#60a5fa' : evacUnlocked ? '#d7f36b' : '#65ddeb';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.arc(ex, ey, 22, 0, Math.PI * 2);
       ctx.stroke();
 
-      ctx.fillStyle = gameState.extractionCalled ? '#d7f36b' : '#78905d';
+      ctx.fillStyle = spawn ? '#60a5fa' : evacUnlocked ? '#d7f36b' : '#78905d';
       ctx.font = '10px Space Mono';
       ctx.textAlign = 'center';
       ctx.fillText(label, ex, ey + 4);
       ctx.restore();
     };
 
-    drawExtractionMarker(mapManager.extractionPoint, 'AIRLOCK');
+    drawExtractionMarker(mapManager.extractionPoint, 'SPAWN', true);
     drawExtractionMarker(mapManager.exitExtractionPoint, 'EVAC POD');
 
     // 3 Security Override QTE Terminals
@@ -340,34 +739,18 @@ class Renderer {
         ctx.save();
         ctx.translate(term.x, term.y);
 
-        // Terminal pedestal base
-        ctx.fillStyle = '#18221e';
-        ctx.strokeStyle = term.solved ? '#50e3c2' : '#f5a623';
-        ctx.lineWidth = 2;
-        ctx.fillRect(-18, -18, 36, 36);
-        ctx.strokeRect(-18, -18, 36, 36);
-
-        // Inner glowing CRT terminal screen
-        const screenGlow = term.solved ? '#50e3c2' : '#f5a623';
-        ctx.shadowColor = screenGlow;
-        ctx.shadowBlur = term.solved ? 8 : (10 + Math.sin(gameState.elapsed * 4) * 4);
-        ctx.fillStyle = term.solved ? 'rgba(80, 227, 194, 0.4)' : 'rgba(245, 166, 35, 0.4)';
-        ctx.fillRect(-12, -12, 24, 24);
-        ctx.shadowBlur = 0;
-
-        // Terminal symbol
+        const terminalImage = this.sprite('equipment-v17/terminal');
+        if (terminalImage.complete && terminalImage.naturalWidth) ctx.drawImage(terminalImage, -22, -22, 44, 44);
         ctx.fillStyle = term.solved ? '#50e3c2' : '#f5a623';
-        ctx.font = 'bold 12px Space Mono';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(term.solved ? '✓' : '!', 0, 0);
 
         // Proximity text prompt
         const dist = Math.hypot(term.x - player.x, term.y - player.y);
         if (dist < 55 && !term.solved) {
           ctx.fillStyle = '#f5a623';
           ctx.font = 'bold 10px Space Mono';
-          ctx.fillText('[E] OVERRIDE', 0, -25);
+          if (!gameState.hideInteractionHints || gameState.missionMode === 'training') ctx.fillText('[E] OVERRIDE', 0, -25);
         } else if (dist < 55 && term.solved) {
           ctx.fillStyle = '#50e3c2';
           ctx.font = '9px Space Mono';
@@ -378,22 +761,29 @@ class Renderer {
       });
     }
 
-    // Scrap collectibles
+    // Searchable salvage uses a dedicated sprite; fog is applied later as usual.
+    const crateImage = this.sprite('equipment-v17/crate');
+    if (crateImage.complete && crateImage.naturalWidth) {
+      for (const box of mapManager.containers || []) {
+        const width = box.w || 44, height = box.h || 32;
+        ctx.drawImage(crateImage, box.x - width / 2, box.y - height / 2, width, height);
+      }
+    }
+
+    // Training/legacy collectibles (formal maps now use containers).
     mapManager.scrap.forEach(s => {
       if (s.found) return;
         ctx.save();
         ctx.translate(s.x, s.y);
-        ctx.rotate(Math.PI / 4);
         const legendary = s.rarity === 'legendary';
         const glowColor = legendary ? '#fff0a6' : s.rarity === 'rare' ? '#f5a623' : s.rarity === 'uncommon' ? '#50e3c2' : '#d7f36b';
-        ctx.fillStyle = glowColor;
-        ctx.shadowColor = glowColor;
-        ctx.shadowBlur = legendary ? 24 : 12;
-        const size = legendary ? 20 : 16;
-        ctx.fillRect(-size / 2, -size / 2, size, size);
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = legendary ? '#fff8dc' : '#1c2420';
-        ctx.fillRect(-4, -4, 8, 8);
+        const size = legendary ? 28 : 24;
+        const path = BackpackManager.imageFor(s).replace(/^resources\/images\//, '').replace(/\.png$/, '');
+        const image = this.sprite(path);
+        if (image.complete && image.naturalWidth) ctx.drawImage(image, -size / 2, -size / 2, size, size);
+        ctx.strokeStyle = glowColor;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-size / 2, -size / 2, size, size);
         if (legendary) {
           ctx.strokeStyle = '#fff8dc';
           ctx.lineWidth = 2;
@@ -402,44 +792,135 @@ class Renderer {
         ctx.restore();
     });
 
-    // Monster entity
-    if (monster.active) {
+    for (const flash of gameState.flashbangs || []) {
+      ctx.save();
+      const grenade = flash.skillId === 'grenade';
+      if (flash.landed && flash.fuse > 0) {
+        this.traceFlashRadius(ctx, flash, mapManager);
+        ctx.strokeStyle = grenade ? 'rgba(255,136,65,.6)' : 'rgba(255,227,150,.34)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+      const image = this.sprite(grenade ? 'equipment-v17/grenade' : 'flashbang');
+      const lift = flash.landed ? 0 : Math.min(12, Math.max(0, flash.remainingDistance || 0) * .08);
+      if (image.complete && image.naturalWidth) ctx.drawImage(image, flash.x - 9, flash.y - 9 - lift, 18, 18);
+      else { ctx.fillStyle = grenade ? '#ff8841' : '#ffe1a1'; ctx.fillRect(flash.x - 3, flash.y - 3 - lift, 6, 6); }
+      ctx.restore();
+    }
+    for (const burst of gameState.flashBursts || []) {
+      ctx.save();
+      this.traceFlashRadius(ctx, burst, mapManager);
+      const strength = Math.max(0, Math.min(.55, (burst.lifetime || 0) / .35 * .55));
+      ctx.fillStyle = burst.skillId === 'grenade' ? `rgba(255,112,40,${strength})` : `rgba(255,247,211,${strength})`;
+      ctx.fill();
+      if (burst.skillId === 'grenade') {
+        ctx.strokeStyle = `rgba(255,184,73,${strength})`;
+        ctx.lineWidth = 4;
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    this.drawGroundDebris(ctx, player, mapManager, gameState);
+    this.drawBarriers(ctx, player, mapManager, gameState);
+
+    const hasCorpseRegistry = Array.isArray(gameState.corpses);
+    if (this.corpseLayouts) {
+      const retained=new Set((gameState.corpses||[]).map(corpse=>corpse.id));
+      for(const id of this.corpseLayouts.keys())if(!retained.has(id))this.corpseLayouts.delete(id);
+    }
+    for (const corpse of gameState.corpses || []) {
+      if(corpse.fragments?.length){this.drawCorpseFragments(ctx,corpse,player,mapManager,gameState);continue;}
+      const width = corpse.width;
+      const image = this.sprite(`${corpse.kind}-down`);
+      const height = image.naturalWidth ? width * image.naturalHeight / image.naturalWidth : width;
+      const extent = Math.hypot(width, height) / 2;
+      if (!this.inViewport({ x: corpse.x - extent, y: corpse.y - extent, w: extent * 2, h: extent * 2 }, gameState)) continue;
+      ctx.save();
+      ctx.globalAlpha = corpse.fadeRemaining == null ? 1 : Math.max(0, Math.min(1, corpse.fadeRemaining));
+      ctx.translate(corpse.x, corpse.y);
+      ctx.rotate(corpse.angle || 0);
+      this.drawEnemyBody(ctx, `${corpse.kind}-down`, width,
+        corpse.hitFlashUntil > gameState.elapsed && this.visibleWorldPoint(corpse, player, mapManager, gameState));
+      ctx.restore();
+    }
+
+    const heavies = Array.isArray(gameState.heavies) ? gameState.heavies : [gameState.heavy];
+    const heavyWidth = Config.heavy?.spriteWidth || 112;
+    for (const heavy of heavies) {
+      if (!heavy || (heavy.dead ? hasCorpseRegistry || !(heavy.corpseTime > 0) : !heavy.active)) continue;
+      if (!heavy.dead && gameState.selectedDifficulty !== 'hard' && (heavy.phase === 'windup' || heavy.phase === 'charge')) {
+        const angle = heavy.chargeAngle ?? heavy.angle;
+        const dx = Math.cos(angle), dy = Math.sin(angle);
+        const distance = this.heavyChargeDistance(heavy, mapManager);
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(heavy.x, heavy.y);
+        ctx.lineTo(heavy.x + dx * distance, heavy.y + dy * distance);
+        ctx.lineWidth = (heavy.radius || Config.heavy?.radius || 44) * 2;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = heavy.phase === 'windup' ? 'rgba(255,102,58,.25)' : 'rgba(255,102,58,.42)';
+        ctx.stroke();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#ff9b58';
+        ctx.stroke();
+        ctx.restore();
+      }
+      ctx.save();
+      if (heavy.dead) ctx.globalAlpha = Math.min(1, heavy.corpseTime);
+      ctx.translate(heavy.x, heavy.y);
+      ctx.rotate(heavy.angle || 0);
+      if (!heavy.dead && gameState.selectedDifficulty === 'easy') this.drawEnemyRing(ctx, heavyWidth, 56);
+      this.drawEnemyBody(ctx, heavy.dead ? 'heavy-down' : 'heavy', heavyWidth,
+        heavy.hitFlashUntil > gameState.elapsed && this.visibleWorldPoint(heavy, player, mapManager, gameState));
+      ctx.restore();
+      this.drawDiscovery(ctx, heavy, heavyWidth, player, mapManager, gameState);
+      if (!heavy.dead && (heavy.phase === 'stunned' || heavy.stunTimer > 0)) {
+        ctx.save();
+        ctx.fillStyle = '#b5f6ff';
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('装甲失效', heavy.x, heavy.y - 35 * heavyWidth / 56);
+        ctx.restore();
+      }
+    }
+
+    // Nightmare entities share sprites, but each has independent sleep state.
+    const nightmares = gameState.nightmares || [monster];
+    for (const monster of nightmares) {
+      if (!monster?.active) continue;
+      const monsterWidth = Config.monster?.spriteWidth || 72;
       ctx.save();
       ctx.translate(monster.x, monster.y);
       ctx.rotate(monster.angle);
-      ctx.fillStyle = 'rgba(232,117,78,.18)';
-      ctx.beginPath();
-      ctx.arc(0, 0, 31, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#c6563e';
-      ctx.beginPath();
-      ctx.moveTo(17, 0);
-      ctx.lineTo(-12, -11);
-      ctx.lineTo(-8, 0);
-      ctx.lineTo(-12, 11);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = '#f3b29a';
-      ctx.fillRect(7, -3, 4, 3);
+      if (!(monster.recoverTimer > 0) && gameState.selectedDifficulty === 'easy') this.drawEnemyRing(ctx, monsterWidth, 48);
+      if (!this.drawEnemyBody(ctx, monster.recoverTimer > 0 ? 'monster-down' : 'monster', monsterWidth,
+        monster.hitFlashUntil > gameState.elapsed && this.visibleWorldPoint(monster, player, mapManager, gameState))) {
+        ctx.scale(monsterWidth / 48, monsterWidth / 48);
+        ctx.fillStyle = '#c6563e';
+        ctx.beginPath();
+        ctx.moveTo(17, 0);
+        ctx.lineTo(-12, -11);
+        ctx.lineTo(-8, 0);
+        ctx.lineTo(-12, 11);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#f3b29a';
+        ctx.fillRect(7, -3, 4, 3);
+      }
       ctx.restore();
+      this.drawDiscovery(ctx, monster, monsterWidth, player, mapManager, gameState);
 
       // Stunned / 10s recovery visual indicator
       if (monster.recoverTimer > 0) {
         ctx.save();
         ctx.translate(monster.x, monster.y);
-        const pulse = Math.sin(Date.now() / 140) * 4;
-        ctx.strokeStyle = '#f5a623';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(0, 0, 36 + pulse, 0, Math.PI * 2);
-        ctx.stroke();
-
         ctx.fillStyle = '#f5a623';
         ctx.shadowColor = '#f5a623';
         ctx.shadowBlur = 6;
         ctx.font = 'bold 12px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText(`⚡休眠瘫痪 ${monster.recoverTimer.toFixed(1)}s⚡`, 0, -42);
+        ctx.fillText(`⚡休眠瘫痪 ${monster.recoverTimer.toFixed(1)}s⚡`, 0, -42 * monsterWidth / 48);
         ctx.restore();
       }
     }
@@ -448,39 +929,42 @@ class Renderer {
     if (hunters && Array.isArray(hunters)) {
       hunters.forEach(hunter => {
         if (!hunter) return;
-        const fadingDeath = hunter.dead && hunter.deathFade > 0;
-        if (!hunter.active && !fadingDeath) return;
+        if (hunter.dead ? hasCorpseRegistry || !(hunter.corpseTime > 0) : !hunter.active) return;
+        const hunterWidth = Config.hunter?.spriteWidth || 63;
         ctx.save();
-        if (fadingDeath) ctx.globalAlpha = hunter.deathFade;
+        if (hunter.dead) ctx.globalAlpha = Math.min(1, hunter.corpseTime);
         ctx.translate(hunter.x, hunter.y);
         ctx.rotate(hunter.angle);
-        // Teal aura
-        ctx.fillStyle = 'rgba(78,205,196,.18)';
-        ctx.beginPath();
-        ctx.arc(0, 0, 31, 0, Math.PI * 2);
-        ctx.fill();
+        if (!hunter.dead && gameState.selectedDifficulty === 'easy') this.drawEnemyRing(ctx, hunterWidth, 42);
         // Arrow body (teal)
-        ctx.fillStyle = '#2db8b0';
-        ctx.beginPath();
-        ctx.moveTo(17, 0);
-        ctx.lineTo(-12, -11);
-        ctx.lineTo(-8, 0);
-        ctx.lineTo(-12, 11);
-        ctx.closePath();
-        ctx.fill();
-        // Eye
-        ctx.fillStyle = '#a0f0eb';
-        ctx.fillRect(7, -3, 4, 3);
+        if (!this.drawEnemyBody(ctx, hunter.dead ? 'hunter-down' : 'hunter', hunterWidth,
+          hunter.hitFlashUntil > gameState.elapsed && this.visibleWorldPoint(hunter, player, mapManager, gameState))) {
+          ctx.scale(hunterWidth / 42, hunterWidth / 42);
+          ctx.fillStyle = '#2db8b0';
+          ctx.beginPath();
+          ctx.moveTo(17, 0);
+          ctx.lineTo(-12, -11);
+          ctx.lineTo(-8, 0);
+          ctx.lineTo(-12, 11);
+          ctx.closePath();
+          ctx.fill();
+          // Eye
+          ctx.fillStyle = '#a0f0eb';
+          ctx.fillRect(7, -3, 4, 3);
+        }
         ctx.restore();
+        this.drawDiscovery(ctx, hunter, hunterWidth, player, mapManager, gameState);
 
       });
     }
+
+    this.drawDamageNumbers(ctx, player, mapManager, gameState);
 
     // Remote co-op players
     const remoteEntries = Array.isArray(remotePlayers)
       ? remotePlayers
       : remotePlayers ? [{ player: remotePlayers, slot: 2, online: true }] : [];
-    const playerColors = ['#75ddd0', '#e875d8', '#f5a623', '#a78bfa'];
+    const playerColors = ['#75ddd0', '#75ddd0', '#75ddd0', '#75ddd0'];
     remoteEntries.forEach(entry => {
       const remotePlayer = entry.player || entry;
       const color = playerColors[(Math.max(1, entry.slot || 2) - 1) % playerColors.length];
@@ -499,6 +983,7 @@ class Renderer {
       ctx.fillStyle = '#f5a623';
       ctx.fillRect(2, -2, 8, 4);
       ctx.restore();
+      this.drawShield(ctx, remotePlayer, gameState);
       if (remotePlayer.invulnerable) {
         ctx.save();
         ctx.strokeStyle = 'rgba(117,221,208,.85)';
@@ -539,6 +1024,7 @@ class Renderer {
     ctx.fillStyle = '#d7f36b';
     ctx.fillRect(2, -2, 8, 4);
     ctx.restore();
+    this.drawShield(ctx, player, gameState);
 
     if (player.invulnerable) {
       ctx.save();
@@ -569,7 +1055,7 @@ class Renderer {
       ctx.fillStyle = '#e8754e';
       ctx.font = 'bold 11px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(`倒地 ${Math.ceil(player.bleedout || 0)}s`, player.x, player.y - 28);
+      ctx.fillText('等待救援', player.x, player.y - 28);
       ctx.restore();
     }
 
@@ -680,6 +1166,7 @@ class Renderer {
 
     // Themed sector overlays
     mapManager.worldRooms.forEach(room => {
+      if (room.kind === 'corridor' || !this.inViewport(this.roomCache(room), gameState)) return;
       ctx.save();
       const cx = room.center ? room.center.x : (room.x + room.w / 2);
       const cy = room.center ? room.center.y : (room.y + 20);
@@ -711,10 +1198,9 @@ class Renderer {
       const laserAngle = player.angle + jitter;
       const laserDistance = mapManager.rayWallDistance(player.x, player.y, Math.cos(laserAngle), Math.sin(laserAngle), 650);
 
-      ctx.strokeStyle = 'rgba(215,243,107,.95)';
-      ctx.lineWidth = 1.5;
-      ctx.shadowColor = '#d7f36b';
-      ctx.shadowBlur = 8;
+      ctx.strokeStyle = 'rgba(255,65,65,.35)';
+      ctx.lineWidth = 1 / Math.max(0.001, gameState.cameraZoom * (scaleX + scaleY) / 2);
+      ctx.shadowBlur = 0;
 
       ctx.beginPath();
       ctx.moveTo(player.x, player.y);
@@ -727,8 +1213,50 @@ class Renderer {
     ctx.restore();
   }
 
+  drawTrainingGoal(player, gameState, ctx = this.ui.ctx) {
+    const goal = gameState.trainingGoal;
+    this.ui.updateTrainingGoal?.(player, goal);
+    if (!goal || !Number.isFinite(goal.x) || !Number.isFinite(goal.y)) return;
+    const canvas = this.ui.canvas;
+    const width = canvas.clientWidth, height = canvas.clientHeight;
+    if (!(width > 0 && height > 0)) return;
+    const zoom = gameState.cameraZoom || 1;
+    const x = (Config.VIEW_W / 2 + (goal.x + this.cameraOffsetX - Config.VIEW_W / 2) * zoom) * width / Config.VIEW_W;
+    const y = (Config.VIEW_H / 2 + (goal.y + this.cameraOffsetY - Config.VIEW_H / 2) * zoom) * height / Config.VIEW_H;
+    ctx.save();
+    ctx.setTransform(this.renderDpr, 0, 0, this.renderDpr, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = '#dcfa65';
+    ctx.fillStyle = '#dcfa65';
+    ctx.lineWidth = 2;
+    if (x >= 18 && x <= width - 18 && y >= 18 && y <= height - 18) {
+      const pulse = this.motionQuery?.matches ? 0 : Math.sin((gameState.elapsed || 0) * 3) * 3;
+      ctx.beginPath();
+      ctx.arc(x, y, 16 + pulse, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      const dx = x - width / 2, dy = y - height / 2;
+      const insetX = Math.max(1, width / 2 - 24), insetY = Math.max(1, height / 2 - 24);
+      const ratio = Math.min(insetX / Math.max(1, Math.abs(dx)), insetY / Math.max(1, Math.abs(dy)));
+      ctx.translate(width / 2 + dx * ratio, height / 2 + dy * ratio);
+      ctx.rotate(Math.atan2(dy, dx));
+      ctx.beginPath();
+      ctx.moveTo(10, 0);
+      ctx.lineTo(-7, -7);
+      ctx.lineTo(-3, 0);
+      ctx.lineTo(-7, 7);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   /**
-   * Renders directional doors (Closed: Opaque sealed panel; Open: Swung 90° against wall)
+   * Renders two door leaves sliding out of the doorway.
    */
   drawDoors(ctx, mapManager) {
     mapManager.doors.forEach(door => {
@@ -751,66 +1279,59 @@ class Renderer {
         return;
       }
 
-      const cx = (p1.x + p2.x) / 2;
-      const cy = (p1.y + p2.y) / 2;
       const dx = p2.x - p1.x;
       const dy = p2.y - p1.y;
       const len = Math.hypot(dx, dy);
-      const norm = door.normal || { x: 0, y: 1 };
-      const dir = door.openDir || 1;
-      const startAngle = Math.atan2(dy, dx);
-      const endAngle = Math.atan2(norm.y * dir, norm.x * dir);
-      const angleDelta = Math.atan2(Math.sin(endAngle - startAngle), Math.cos(endAngle - startAngle));
-      const angle = startAngle + angleDelta * eased;
-      const slabLen = len * (1 - 0.1 * eased);
-      const slabEndX = p1.x + Math.cos(angle) * slabLen;
-      const slabEndY = p1.y + Math.sin(angle) * slabLen;
-      const amberCyan = [233, 169, 80].map((value, index) =>
-        Math.round(value + ([117, 221, 208][index] - value) * eased));
-      const panelRgb = [30, 38, 33].map((value, index) =>
-        Math.round(value + ([40, 68, 84][index] - value) * eased));
-      const trimColor = `rgb(${amberCyan.join(',')})`;
-      const panelColor = `rgb(${panelRgb.join(',')})`;
-
+      if (!len) { ctx.restore(); return; }
+      ctx.translate(p1.x, p1.y);
+      ctx.rotate(Math.atan2(dy, dx));
+      ctx.beginPath();
+      ctx.rect(0, -9, len, 18);
+      ctx.clip();
       ctx.fillStyle = '#284454';
-      ctx.beginPath();
-      ctx.arc(p1.x, p1.y, 5, 0, Math.PI * 2);
-      ctx.arc(p2.x, p2.y, 5, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.lineCap = eased < 0.5 ? 'butt' : 'round';
-      ctx.lineWidth = 14 - 8 * eased;
-      ctx.strokeStyle = panelColor;
-      ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(slabEndX, slabEndY);
-      ctx.stroke();
-
-      ctx.lineWidth = 3.5 - 1.5 * eased;
-      ctx.strokeStyle = trimColor;
-      ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(slabEndX, slabEndY);
-      ctx.stroke();
-
-      ctx.globalAlpha = 1 - eased;
-      ctx.shadowColor = '#e9a950';
-      ctx.shadowBlur = 6;
-      ctx.fillStyle = '#e9a950';
-      ctx.beginPath();
-      ctx.arc(cx + (slabEndX - cx) * eased, cy + (slabEndY - cy) * eased, 3.5, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.globalAlpha = eased;
-      ctx.shadowColor = '#75ddd0';
-      ctx.shadowBlur = 5;
-      ctx.fillStyle = '#75ddd0';
-      ctx.beginPath();
-      ctx.arc(slabEndX, slabEndY, 2.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
+      ctx.fillRect(0, -9, 5, 18);
+      ctx.fillRect(len - 5, -9, 5, 18);
+      const leaf = len / 2 * (1 - eased);
+      if (leaf > 0) {
+        ctx.lineCap = 'butt';
+        for (const [from, to] of [[0, leaf], [len, len - leaf]]) {
+          ctx.lineWidth = 14;
+          ctx.strokeStyle = '#243d49';
+          ctx.beginPath();
+          ctx.moveTo(from, 0);
+          ctx.lineTo(to, 0);
+          ctx.stroke();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = '#e9a950';
+          ctx.beginPath();
+          ctx.moveTo(from, 0);
+          ctx.lineTo(to, 0);
+          ctx.stroke();
+        }
+      }
       ctx.restore();
     });
+  }
+
+  drawMapDoorLeaves(ctx, door, width) {
+    const progress = Math.max(0, Math.min(1, Number.isFinite(door.animationProgress)
+      ? door.animationProgress : (door.open ? 1 : 0)));
+    const midpoint = { x: (door.p1.x + door.p2.x) / 2, y: (door.p1.y + door.p2.y) / 2 };
+    const leaves = [door.p1, door.p2];
+    ctx.lineWidth = width;
+    ctx.strokeStyle = door.open ? '#75ddd0' : '#e8754e';
+    for (const end of leaves) {
+      const tip = { x: midpoint.x + (end.x - midpoint.x) * progress,
+        y: midpoint.y + (end.y - midpoint.y) * progress };
+      ctx.beginPath();
+      ctx.moveTo(end.x, end.y);
+      ctx.lineTo(tip.x, tip.y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(end.x, end.y, width / 2, 0, Math.PI * 2);
+      ctx.fillStyle = ctx.strokeStyle;
+      ctx.fill();
+    }
   }
 
   /**
@@ -818,7 +1339,7 @@ class Renderer {
    */
   drawCenteredVision(player, mapManager, gameState) {
     this.drawOccludedVision(player, mapManager, gameState);
-    this.clearFlashlightBeam(player, mapManager, gameState);
+    this.drawTrainingGoal(player, gameState, this.ui.visionCtx);
   }
 
   visibilityPolygon(origin, mapManager, range = 1800, steps = 96) {
@@ -840,6 +1361,8 @@ class Renderer {
     const visionCtx = this.ui.visionCtx;
     const w = this.ui.visionCanvas.clientWidth;
     const h = this.ui.visionCanvas.clientHeight;
+    // The game frame is hidden during startup and safehouse transitions.
+    if (!(w > 0 && h > 0 && this.ui.visionCanvas.width > 0 && this.ui.visionCanvas.height > 0)) return;
     const scaleX = w / Config.VIEW_W;
     const scaleY = h / Config.VIEW_H;
 
@@ -855,9 +1378,9 @@ class Renderer {
     visionCtx.fillRect(player.x - 2000, player.y - 2000, 4000, 4000);
     visionCtx.globalCompositeOperation = 'destination-out';
 
-    const observerVisibility = this.visibilityPolygon(
+    const observerVisibility = gameState.muzzleFlashes?.length ? this.visibilityPolygon(
       player, mapManager, Math.hypot(Config.VIEW_W, Config.VIEW_H) * 2, 96
-    );
+    ) : [];
     for (const flash of gameState.muzzleFlashes || []) {
       const room = mapManager.worldRooms[flash.roomIndex] || mapManager.getRoomAt(flash.x, flash.y);
       if (!room) continue;
@@ -892,79 +1415,95 @@ class Renderer {
       visionCtx.restore();
     }
 
-    // Soft ambient light circle around player - blocked by walls and closed doors like flashlight
-    const ambientRange = 74;
-    const ambientSteps = 64;
-    visionCtx.beginPath();
-    visionCtx.moveTo(player.x, player.y);
-    for (let index = 0; index <= ambientSteps; index += 1) {
-      const angle = (index / ambientSteps) * Math.PI * 2;
-      const distance = mapManager.rayVisionDistance(player.x, player.y, Math.cos(angle), Math.sin(angle), ambientRange, 12);
-      visionCtx.lineTo(player.x + Math.cos(angle) * distance, player.y + Math.sin(angle) * distance);
+    // Compose perception once so ambient/cone overlap cannot exceed half strength when off.
+    this.perceptionCanvas ||= document.createElement('canvas');
+    const perception = this.perceptionCanvas;
+    if (perception.width !== this.ui.visionCanvas.width || perception.height !== this.ui.visionCanvas.height) {
+      perception.width = this.ui.visionCanvas.width;
+      perception.height = this.ui.visionCanvas.height;
     }
-    visionCtx.closePath();
+    const lightCtx = perception.getContext('2d');
+    lightCtx.setTransform(1, 0, 0, 1, 0, 0);
+    lightCtx.clearRect(0, 0, perception.width, perception.height);
+    lightCtx.save();
+    lightCtx.setTransform(this.renderDpr, 0, 0, this.renderDpr, 0, 0);
+    this.applyCamera(lightCtx, scaleX, scaleY, gameState);
 
-    const near = visionCtx.createRadialGradient(player.x, player.y, 8, player.x, player.y, ambientRange);
-    near.addColorStop(0, 'rgba(0,0,0,1)');
-    near.addColorStop(0.85, 'rgba(0,0,0,.92)');
-    near.addColorStop(1, 'rgba(0,0,0,0)');
-    visionCtx.fillStyle = near;
-    visionCtx.fill();
-
-    // Flashlight cone casting
-    if (player.flashlight) {
-      const range = Config.player.flashlightRange;
-      const spread = Config.player.flashlightSpread;
-      const steps = 80;
-
-      visionCtx.beginPath();
-      visionCtx.moveTo(player.x, player.y);
-      for (let index = 0; index <= steps; index += 1) {
-        const angle = player.angle - spread + (index / steps) * spread * 2;
-        const distance = mapManager.rayVisionDistance(player.x, player.y, Math.cos(angle), Math.sin(angle), range, 13);
-        visionCtx.lineTo(player.x + Math.cos(angle) * distance, player.y + Math.sin(angle) * distance);
-      }
-      visionCtx.closePath();
-
-      const light = visionCtx.createRadialGradient(player.x, player.y, 12, player.x, player.y, range);
-      light.addColorStop(0, 'rgba(0,0,0,1)');
-      light.addColorStop(0.76, 'rgba(0,0,0,.98)');
-      light.addColorStop(1, 'rgba(0,0,0,0)');
-      visionCtx.fillStyle = light;
-      visionCtx.fill();
-    }
-    visionCtx.restore();
-  }
-
-  /**
-   * Cuts out flashlight geometry in mask
-   */
-  clearFlashlightBeam(player, mapManager, gameState) {
-    if (!player.flashlight) return;
-    
-    const visionCtx = this.ui.visionCtx;
-    const scaleX = this.ui.visionCanvas.clientWidth / Config.VIEW_W;
-    const scaleY = this.ui.visionCanvas.clientHeight / Config.VIEW_H;
-    const range = Config.player.flashlightRange;
+    const range = Config.player.flashlightRange * (player.flashlight ? 1 : 0.3);
     const spread = Config.player.flashlightSpread;
     const steps = 80;
-
-    visionCtx.save();
-    visionCtx.setTransform(this.renderDpr, 0, 0, this.renderDpr, 0, 0);
-    this.applyCamera(visionCtx, scaleX, scaleY, gameState);
-
-    visionCtx.globalCompositeOperation = 'destination-out';
-    visionCtx.fillStyle = '#000';
-
-    visionCtx.beginPath();
-    visionCtx.moveTo(player.x, player.y);
+    lightCtx.save();
+    lightCtx.beginPath();
+    lightCtx.moveTo(player.x, player.y);
     for (let index = 0; index <= steps; index += 1) {
       const angle = player.angle - spread + (index / steps) * spread * 2;
       const distance = mapManager.rayVisionDistance(player.x, player.y, Math.cos(angle), Math.sin(angle), range, 13);
-      visionCtx.lineTo(player.x + Math.cos(angle) * distance, player.y + Math.sin(angle) * distance);
+      lightCtx.lineTo(player.x + Math.cos(angle) * distance, player.y + Math.sin(angle) * distance);
     }
-    visionCtx.closePath();
-    visionCtx.fill();
+    lightCtx.closePath();
+    lightCtx.clip();
+    const light = lightCtx.createRadialGradient(player.x, player.y, 0, player.x, player.y, range);
+    light.addColorStop(0, 'rgba(0,0,0,1)');
+    light.addColorStop(0.7, 'rgba(0,0,0,1)');
+    light.addColorStop(1, 'rgba(0,0,0,0)');
+    lightCtx.fillStyle = light;
+    lightCtx.fill();
+
+    // Multiply the radial light by a soft angular edge inside the occluded cone.
+    const edge = lightCtx.createConicGradient(player.angle - spread, player.x, player.y);
+    edge.addColorStop(0, 'rgba(0,0,0,0)');
+    edge.addColorStop(spread * 0.2 / (Math.PI * 2), 'rgba(0,0,0,1)');
+    edge.addColorStop(spread * 1.8 / (Math.PI * 2), 'rgba(0,0,0,1)');
+    edge.addColorStop(spread * 2 / (Math.PI * 2), 'rgba(0,0,0,0)');
+    edge.addColorStop(1, 'rgba(0,0,0,0)');
+    lightCtx.globalCompositeOperation = 'destination-in';
+    lightCtx.fillStyle = edge;
+    lightCtx.fillRect(player.x - range, player.y - range, range * 2, range * 2);
+    lightCtx.restore();
+
+    const ambientRange = 74;
+    const ambientSteps = 64;
+    lightCtx.beginPath();
+    lightCtx.moveTo(player.x, player.y);
+    for (let index = 0; index <= ambientSteps; index += 1) {
+      const angle = (index / ambientSteps) * Math.PI * 2;
+      const distance = mapManager.rayVisionDistance(player.x, player.y, Math.cos(angle), Math.sin(angle), ambientRange, 12);
+      lightCtx.lineTo(player.x + Math.cos(angle) * distance, player.y + Math.sin(angle) * distance);
+    }
+    lightCtx.closePath();
+    const near = lightCtx.createRadialGradient(player.x, player.y, 0, player.x, player.y, ambientRange);
+    near.addColorStop(0, 'rgba(0,0,0,1)');
+    near.addColorStop(0.7, 'rgba(0,0,0,1)');
+    near.addColorStop(1, 'rgba(0,0,0,0)');
+    lightCtx.fillStyle = near;
+    lightCtx.fill();
+    lightCtx.restore();
+
+    visionCtx.setTransform(1, 0, 0, 1, 0, 0);
+    visionCtx.globalAlpha = player.flashlight ? 1 : 0.5;
+    visionCtx.drawImage(perception, 0, 0);
+
+    // Powered room light is independent of the torch and never changes enemy photophobia.
+    const lampPower = this.roomLightLevel(gameState);
+    const litRooms = lampPower > 0 ? mapManager.worldRooms.filter(room =>
+      room.lights?.length && this.inViewport(this.roomCache(room), gameState)) : [];
+    if (litRooms.length) {
+      visionCtx.setTransform(this.renderDpr, 0, 0, this.renderDpr, 0, 0);
+      this.applyCamera(visionCtx, scaleX, scaleY, gameState);
+      const range = Math.hypot(Config.VIEW_W, Config.VIEW_H) / (Config.camera?.baseZoom || 1);
+      const visible = this.forwardVisibilityPolygon(player, mapManager, range);
+      visionCtx.beginPath();
+      visionCtx.moveTo(visible[0].x, visible[0].y);
+      for (let index = 1; index < visible.length; index++) visionCtx.lineTo(visible[index].x, visible[index].y);
+      visionCtx.closePath();
+      visionCtx.clip();
+      for (const room of litRooms) {
+        const cached = this.roomCache(room);
+        const field = this.roomLightField(room, gameState);
+        visionCtx.globalAlpha = lampPower;
+        visionCtx.drawImage(field.canvas, cached.x, cached.y, cached.w, cached.h);
+      }
+    }
     visionCtx.restore();
   }
 
@@ -1028,13 +1567,15 @@ class Renderer {
         miniCtx.fill();
         miniCtx.strokeStyle = roomStroke;
         miniCtx.lineWidth = 2.2 / scale;
+        this.traceMapRoomWalls(miniCtx, room);
         miniCtx.stroke();
       } else {
         miniCtx.fillStyle = roomFill;
         miniCtx.fillRect(room.x, room.y, room.w, room.h);
         miniCtx.strokeStyle = roomStroke;
         miniCtx.lineWidth = 2.0 / scale;
-        miniCtx.strokeRect(room.x, room.y, room.w, room.h);
+        this.traceMapRoomWalls(miniCtx, room);
+        miniCtx.stroke();
       }
 
       // Room label in local radar (scaled down to unobtrusive 8px)
@@ -1088,12 +1629,7 @@ class Renderer {
       const isVisible = isRevealed || (door.roomA && door.roomA.discovered) || (door.roomB && door.roomB.discovered);
       if (isVisible) {
         if (door.p1 && door.p2) {
-          miniCtx.lineWidth = 4.5 / scale;
-          miniCtx.strokeStyle = door.open ? '#75ddd0' : '#e8754e';
-          miniCtx.beginPath();
-          miniCtx.moveTo(door.p1.x, door.p1.y);
-          miniCtx.lineTo(door.p2.x, door.p2.y);
-          miniCtx.stroke();
+          this.drawMapDoorLeaves(miniCtx, door, 4.5 / scale);
         } else {
           miniCtx.fillStyle = door.open ? '#75ddd0' : '#e8754e';
           miniCtx.fillRect(door.x, door.y, Math.max(10, door.w), Math.max(10, door.h));
@@ -1135,12 +1671,18 @@ class Renderer {
     if (mapManager.exitExtractionPoint) {
       const ep = mapManager.exitExtractionPoint;
       const evacRoom = mapManager.worldRooms.find(r => r.type === 'evacpod' || r.isExit);
-      const isExitDiscovered = isRevealed || (evacRoom && evacRoom.discovered);
+      const evacUnlocked = !!mapManager.terminals?.length && mapManager.terminals.every(term => term.solved);
+      const isExitDiscovered = isRevealed || (evacRoom && evacRoom.discovered) || evacUnlocked;
       if (isExitDiscovered && Math.hypot(ep.x - player.x, ep.y - player.y) < 1500) {
         miniCtx.fillStyle = '#ef4444';
         miniCtx.beginPath();
         miniCtx.arc(ep.x, ep.y, 6 / scale, 0, Math.PI * 2);
         miniCtx.fill();
+        if (evacUnlocked) {
+          miniCtx.strokeStyle = '#d7f36b';
+          miniCtx.lineWidth = 2 / scale;
+          miniCtx.stroke();
+        }
       }
     }
 
@@ -1199,8 +1741,8 @@ class Renderer {
     miniCtx.fill();
 
     // Player sharp triangle
-    miniCtx.fillStyle = '#00ffff';
-    miniCtx.shadowColor = '#00ffff';
+    miniCtx.fillStyle = '#75ddd0';
+    miniCtx.shadowColor = '#75ddd0';
     miniCtx.shadowBlur = 6;
     miniCtx.beginPath();
     miniCtx.moveTo(9, 0);
@@ -1231,39 +1773,7 @@ class Renderer {
    * Renders the Full Tactical Facility Map on #fullMapCanvas (opened with M key)
    * Scaled to show all rooms across the entire facility with telemetry and markers
    */
-  drawFullMap(player, mapManager, gameState = null) {
-    const canvas = this.ui.fullMapCanvas;
-    const ctx = this.ui.fullMapCtx;
-    if (!canvas || !ctx) return;
-
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const width = canvas.width / dpr;
-    const height = canvas.height / dpr;
-    const isRevealed = gameState && gameState.revealAllMap;
-
-    ctx.clearRect(0, 0, width, height);
-
-    // Deep high-tech tactical background
-    ctx.fillStyle = '#070c0a';
-    ctx.fillRect(0, 0, width, height);
-
-    // Subtle background grid
-    ctx.strokeStyle = 'rgba(117, 221, 208, 0.05)';
-    ctx.lineWidth = 1;
-    const gridStep = 45;
-    for (let x = 0; x < width; x += gridStep) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, height);
-      ctx.stroke();
-    }
-    for (let y = 0; y < height; y += gridStep) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(width, y);
-      ctx.stroke();
-    }
-
+  getFullMapFit(mapManager, width, height) {
     let minRX = Infinity, minRY = Infinity, maxRX = -Infinity, maxRY = -Infinity;
     mapManager.worldRooms.forEach(r => {
       if (r.vertices && r.vertices.length) {
@@ -1289,6 +1799,45 @@ class Renderer {
     const scale = Math.min(availW / roomSpanW, availH / roomSpanH);
     const offsetX = pad + (availW - roomSpanW * scale) / 2 - minRX * scale;
     const offsetY = pad + (availH - roomSpanH * scale) / 2 - minRY * scale;
+    return { scale, offsetX, offsetY };
+  }
+
+
+  drawFullMap(player, mapManager, gameState = null, remotePlayers = []) {
+    const canvas = this.ui.fullMapCanvas;
+    const ctx = this.ui.fullMapCtx;
+    if (!canvas || !ctx) return;
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const width = canvas.width / dpr;
+    const height = canvas.height / dpr;
+    if (!(width > 0 && height > 0) || !mapManager.worldRooms.length) return;
+    const isRevealed = gameState && gameState.revealAllMap;
+
+    ctx.clearRect(0, 0, width, height);
+
+    // Deep high-tech tactical background
+    ctx.fillStyle = '#070c0a';
+    ctx.fillRect(0, 0, width, height);
+
+    // Subtle background grid
+    ctx.strokeStyle = 'rgba(117, 221, 208, 0.05)';
+    ctx.lineWidth = 1;
+    const gridStep = 45;
+    for (let x = 0; x < width; x += gridStep) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+    for (let y = 0; y < height; y += gridStep) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
+
+    const { scale, offsetX, offsetY } = this.getFullMapFit(mapManager, width, height);
     const zoom = Math.max(0.5, Math.min(4, Number(gameState && gameState.fullMapZoom) || 1));
     const panX = Number(gameState && gameState.fullMapPanX) || 0;
     const panY = Number(gameState && gameState.fullMapPanY) || 0;
@@ -1312,6 +1861,7 @@ class Renderer {
           ctx.fill();
           ctx.strokeStyle = 'rgba(101, 221, 235, 0.28)';
           ctx.lineWidth = 1.5;
+          this.traceMapRoomWalls(ctx, room);
           ctx.stroke();
         }
         return;
@@ -1331,6 +1881,7 @@ class Renderer {
         ctx.fill();
         ctx.strokeStyle = isExit ? '#e9a950' : (isStart ? '#d7f36b' : (room.accent || '#65ddeb'));
         ctx.lineWidth = 3;
+        this.traceMapRoomWalls(ctx, room);
         ctx.stroke();
       } else {
         const isStart = room.isStart || room.type === 'airlock';
@@ -1339,7 +1890,8 @@ class Renderer {
         ctx.fillRect(room.x, room.y, room.w, room.h);
         ctx.strokeStyle = isExit ? '#e9a950' : (isStart ? '#d7f36b' : '#65ddeb');
         ctx.lineWidth = 2.5;
-        ctx.strokeRect(room.x, room.y, room.w, room.h);
+        this.traceMapRoomWalls(ctx, room);
+        ctx.stroke();
       }
 
       // Room Center Label
@@ -1402,12 +1954,7 @@ class Renderer {
       const isVisible = isRevealed || (door.roomA && door.roomA.discovered) || (door.roomB && door.roomB.discovered);
       if (isVisible) {
         if (door.p1 && door.p2) {
-          ctx.lineWidth = 5;
-          ctx.strokeStyle = door.open ? '#75ddd0' : '#e8754e';
-          ctx.beginPath();
-          ctx.moveTo(door.p1.x, door.p1.y);
-          ctx.lineTo(door.p2.x, door.p2.y);
-          ctx.stroke();
+          this.drawMapDoorLeaves(ctx, door, 5);
         } else {
           ctx.fillStyle = door.open ? '#75ddd0' : '#e8754e';
           ctx.fillRect(door.x, door.y, Math.max(8, door.w), Math.max(8, door.h));
@@ -1415,7 +1962,7 @@ class Renderer {
       }
     });
 
-    // 4. Extraction Points (Start blue, Exit red; Exit only shown when found)
+    // 4. Extraction Points (the far pod is pinned even through fog once unlocked)
     if (mapManager.extractionPoint) {
       const ep = mapManager.extractionPoint;
       const room = mapManager.getRoomAt(ep.x, ep.y);
@@ -1432,50 +1979,85 @@ class Renderer {
     if (mapManager.exitExtractionPoint) {
       const ep = mapManager.exitExtractionPoint;
       const room = mapManager.getRoomAt(ep.x, ep.y);
-      if (isRevealed || (room && room.discovered)) {
+      const evacUnlocked = !!mapManager.terminals?.length && mapManager.terminals.every(term => term.solved);
+      if (isRevealed || (room && room.discovered) || evacUnlocked) {
         ctx.fillStyle = '#ef4444';
         ctx.beginPath();
         ctx.arc(ep.x, ep.y, 18, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = '#f87171';
-        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = evacUnlocked ? '#d7f36b' : '#f87171';
+        ctx.lineWidth = evacUnlocked ? 4 : 2.5;
         ctx.stroke();
+        if (evacUnlocked) {
+          this.drawEvacBeacon(ctx, ep, gameState, scale * zoom);
+        }
       }
     }
 
-    // 5. Security Terminals with Status Badge
+    // 5. Terminal markers follow their roomIndex, including seeded and networked maps.
     if (mapManager.terminals) {
       mapManager.terminals.forEach((term, idx) => {
-        if (isRevealed || (term.room && term.room.discovered)) {
-          ctx.save();
-          ctx.translate(term.x, term.y);
-
-          // Glowing diamond
-          ctx.fillStyle = term.solved ? '#50e3c2' : '#f5a623';
-          ctx.shadowColor = term.solved ? '#50e3c2' : '#f5a623';
-          ctx.shadowBlur = 10;
-          ctx.beginPath();
-          ctx.moveTo(0, -16);
-          ctx.lineTo(16, 0);
-          ctx.lineTo(0, 16);
-          ctx.lineTo(-16, 0);
-          ctx.closePath();
-          ctx.fill();
-
-          // Label
-          ctx.shadowBlur = 0;
-          ctx.fillStyle = term.solved ? '#50e3c2' : '#f5a623';
-          ctx.font = 'bold 11px monospace';
-          ctx.textAlign = 'center';
-          ctx.fillText(`[T-${idx + 1} ${term.solved ? 'OK' : 'PENDING'}]`, 0, -22);
-          ctx.restore();
+        const room = mapManager.worldRooms[term.roomIndex] || term.room;
+        if (isRevealed || room?.discovered) {
+          this.drawTerminalBeacon(ctx, term, idx, gameState, scale * zoom);
         }
       });
     }
 
+    // Life scan belongs only to this operator's equipped passive; it does not discover terrain.
+    if (player.armory?.equippedPassive === 'life-scan') {
+      for (const enemy of gameState?.mapEnemies || []) {
+        if (!enemy || enemy.dead || !(enemy.active || enemy.recoverTimer > 0) ||
+            !Number.isFinite(enemy.x) || !Number.isFinite(enemy.y)) continue;
+        ctx.save();
+        ctx.translate(enemy.x, enemy.y);
+        const inverse = 1 / Math.max(0.001, scale * zoom);
+        ctx.scale(inverse, inverse);
+        ctx.fillStyle = '#ff615f';
+        ctx.shadowColor = '#ff615f';
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.arc(0, 0, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#ff9f97';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(0, 0, 7, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // Crew markers share the host-authoritative map coordinates and fog state.
+    remotePlayers.filter(member => member?.online !== false && member?.player).forEach(member => {
+      const teammate = member.player;
+      const room = mapManager.getRoomAt(teammate.x, teammate.y);
+      if (!room?.discovered && !isRevealed) return;
+      ctx.save();
+      ctx.translate(teammate.x, teammate.y);
+      ctx.rotate(teammate.angle || 0);
+      ctx.fillStyle = '#75ddd0';
+      ctx.strokeStyle = '#06121a';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(13, 0);
+      ctx.lineTo(-9, -8);
+      ctx.lineTo(-6, 0);
+      ctx.lineTo(-9, 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#75ddd0';
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`CREW ${member.slot || '?'}`, 0, -14);
+      ctx.restore();
+    });
+
     // 6. Operator Beacon (Pulsating Sonar Wave & Direction Cone)
     ctx.save();
-    const pulseTime = Date.now() / 600;
+    const pulseTime = this.motionQuery?.matches ? 0.3 : (Number(gameState?.elapsed) || 0) / 2.4;
     const pulseR = 18 + (pulseTime % 1) * 35;
     const pulseAlpha = Math.max(0, 1 - (pulseTime % 1));
 
@@ -1495,8 +2077,8 @@ class Renderer {
     ctx.fill();
 
     // Solid player dot & ring
-    ctx.fillStyle = '#00ffff';
-    ctx.shadowColor = '#00ffff';
+    ctx.fillStyle = '#75ddd0';
+    ctx.shadowColor = '#75ddd0';
     ctx.shadowBlur = 12;
     ctx.beginPath();
     ctx.arc(player.x, player.y, 10, 0, Math.PI * 2);
@@ -1504,7 +2086,7 @@ class Renderer {
 
     // Operator label
     ctx.shadowBlur = 0;
-    ctx.fillStyle = '#00ffff';
+    ctx.fillStyle = '#75ddd0';
     ctx.font = 'bold 13px monospace';
     ctx.textAlign = 'center';
     ctx.fillText('YOU [OPERATOR]', player.x, player.y - 18);

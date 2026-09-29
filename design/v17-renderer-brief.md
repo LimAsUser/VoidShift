@@ -1,0 +1,17 @@
+# V17 renderer stage
+
+Own ONLY js/renderer.js and new tests/v17-renderer.test.cjs. Preserve existing dirty V16 code. Not alone: root edits game/equipment/map, UI worker owns UI. No subagents, commits, publishing, dependencies or full suite. Apply_patch incremental, preserve CRLF/BOM. Test-first and targeted checks.
+
+Implement visual parts of user-approved V17 plan:
+- Existing laser yellow thick/glow -> red approx1 CSS pixel alpha.35, no glow; do not change ray, world-coordinate or camera transform.
+- Enemy effective hit white sprite flash80ms; actor.hitFlashUntil absolute gameState.elapsed. White must be sprite alpha mask, not white rectangle; cache same sprite mask. Enemy head damage numbers state.damageNumbers [{key,x,y,radius,amount,born,shotId}], lifetime.9, float up then fade; reduce motion static fade. Visibility/walls same as enemies, cannot expose hidden ones. Root coalesces same shot/enemy.
+- actor.discoveryTimer>0 -> ! above actor for1s, only if normal visible. No new sound. Existing easy-only enemy red rings preserved.
+- Shield player.shieldUntil>elapsed faint cyan bubble; remote too. No real light or collision. UI handles cooldown bar.
+- state.barriers [{id,x,y,w,h,hp}], blueprint {same,valid,vertical}; render new equipment/barrier sprite and visible HP, local blueprint cyan/legal red/illegal, ghost not collision. Existing root map movement blockers separate from light/shot rays.
+- Ground state.casings [{id,x,y,angle,born}] 8s remain+2s fade, state.magazines [{...,weaponId}] persistent until mission end. Draw only screen range and existing vision, below actors, no physics/collision. Cosmetic small casing/magazine drawn as simple metal shapes is fine (new equipment art does not substitute with generic icons). Add small landing bounce first .3 sec (reduce-motion no bounce). Root advances state arrays and sync.
+- Lighting ROOT CAUSE current 3 radial samples perstrip source-over fill saturates rooms. Replace with line-segment distance mask, strongest bounded combination instead of alpha-stacking. Near visibly bright, center/distant dim. Use static room normal-light cache and cached fault-strip contributions, visible region only; no every-frame entire-map per-light occlusion. Suggested finite room-local lightfield computed once at bounded resolution, nearest-strip brightness max; flicker scales its field and must compose max, then destination-out once. Keep room direction/wall/closed-door visibility, fog, flashlight unchanged, faulty5%/off1% and global power loss precedence. Reduced-motion flicker half stays. Test near/far and overlap cap numerically against real helper.
+- Generated item/fixture art in resources/images/equipment-v17: pistol/smg/shotgun/revolver/machinegun/mini-shotgun/credit/ammo/oxygen/medkit/crate/alloy/chip/specimen/terminal/grenade/roll/life-scan/shield/barrier.png. Use new terminal & crate/consumable/ability images where existing renderer draws corresponding items; preserve monster/crew/facility/ship textures/main-menu.
+
+Runtime entry is existing Renderer.draw. Do not require external caller changes if avoidable. game.render draws main world then overlay then centered fog; use same visibility helpers/order to prevent hidden feedback. World/light fixtures sometimes mocks lack getImageData; production implementation should remain real, tests may use minimal canvas fake only where necessary.
+
+Report design/v17-renderer-report.md with RED/GREEN results, APIs, visual limitations. Main menu untouched.

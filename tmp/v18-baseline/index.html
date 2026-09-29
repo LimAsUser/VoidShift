@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0b0d0d" />
+  <meta name="description" content="VOID SHIFT — 在废弃设施中回收物资、对抗猎手并安全撤离的恐怖射击游戏。" />
+  <title>VOID SHIFT // 废墟回收协议</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='8' fill='%230b0d0d'/%3E%3Cpath d='M32 6 58 32 32 58 6 32Z' fill='none' stroke='%23d7f36b' stroke-width='5'/%3E%3Cpath d='m20 24 8 20h8l8-20h-7l-5 13-5-13Z' fill='%2375ddd0'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=14" />
+  <link rel="stylesheet" href="menu.css?v=22" />
+</head>
+<body data-menu-screen="title">
+  <div class="menu-motion" data-menu-motion="prep" hidden aria-hidden="true">
+    <div class="menu-motion-plane">
+      <div class="menu-motion-look"><img class="menu-motion-exterior" data-src="resources/images/menu/prep-exterior-v1.png" alt=""><img class="menu-motion-debris" data-src="resources/images/menu/drifting-debris-v1.png" alt=""></div>
+      <img class="menu-motion-cockpit" data-src="resources/images/menu/prep-cockpit-v1.png" alt="">
+      <i class="menu-motion-lamp" style="--x:20.4%;--y:4.7%;--w:1.9%;--h:.65%"></i>
+      <i class="menu-motion-lamp" style="--x:35.4%;--y:17.8%;--w:1.15%;--h:.6%;--delay:-2s"></i>
+      <i class="menu-motion-lamp" style="--x:74.6%;--y:12.2%;--w:1.6%;--h:.65%;--angle:65deg;--delay:-4s"></i>
+      <i class="menu-motion-lamp" style="--x:12.3%;--y:59.2%;--w:2.2%;--h:.65%;--delay:-1s"></i>
+      <i class="menu-motion-screen" style="--x:2%;--y:54%;--w:9%;--h:5%;--delay:-2s"></i>
+      <i class="menu-motion-screen" style="--x:24%;--y:54%;--w:8%;--h:3%"></i>
+      <i class="menu-motion-screen" style="--x:87%;--y:57%;--w:10%;--h:5%;--delay:-4s"></i>
+    </div>
+  </div>
+  <section id="titleScreen" class="title-screen" aria-label="VOID SHIFT 主菜单">
+    <div class="menu-motion" data-menu-motion="title" hidden aria-hidden="true">
+      <div class="menu-motion-plane">
+        <div class="menu-motion-look"><img class="menu-motion-exterior" data-src="resources/images/menu/title-exterior-v1.png" alt=""><img class="menu-motion-debris" data-src="resources/images/menu/drifting-debris-v1.png" alt=""></div>
+        <img class="menu-motion-cockpit" data-src="resources/images/menu/title-cockpit-v1.png" alt="">
+        <i class="menu-motion-lamp" style="--x:22.3%;--y:6.2%;--w:1.8%;--h:.65%"></i>
+        <i class="menu-motion-lamp" style="--x:58.5%;--y:2.5%;--w:1.9%;--h:.65%;--delay:-2s"></i>
+        <i class="menu-motion-lamp" style="--x:76.2%;--y:5.9%;--w:1.9%;--h:.65%;--delay:-4s"></i>
+        <i class="menu-motion-lamp" style="--x:33.3%;--y:68.8%;--w:1.9%;--h:.65%;--delay:-1s"></i>
+      </div>
+    </div>
+    <div class="title-menu"><h1><img src="resources/images/menu/title-logo-transparent.png" alt="VOID SHIFT"></h1><button id="enterPreparationButton" type="button">开始游戏</button></div>
+    <button class="title-settings-icon title-rewards-icon" id="openRewardsButton" type="button" aria-label="奖励"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" d="M3 8h18v4H3zM5 12v9h14v-9M12 8v13M12 8C4 9 4 2 8 3c2 0 4 5 4 5Zm0 0c8 1 8-6 4-5-2 0-4 5-4 5Z"/></svg><span>奖励</span></button>
+    <button class="title-settings-icon" type="button" data-open-settings aria-label="设置"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 2h4l.6 2.3 1.6.9 2.3-.6 2 3.5-1.7 1.7v1.8l1.7 1.7-2 3.5-2.3-.6-1.6.9L14 22h-4l-.6-2.3-1.6-.9-2.3.6-2-3.5 1.7-1.7v-1.8L3.5 10.7l2-3.5 2.3.6 1.6-.9L10 2Zm2 6a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/></svg></button>
+  </section>
+  <dialog id="rewardsDialog" class="menu-confirm rewards-dialog" aria-labelledby="rewardsTitle"><header><h2 id="rewardsTitle">每日奖励</h2><button id="closeRewardsButton" type="button" aria-label="关闭奖励">×</button></header><img src="resources/images/voidshift-credit-coin.png" alt="信用点"><h3>1,000 信用点</h3><p id="dailyRewardStatus" aria-live="polite"></p><button id="claimDailyRewardButton" class="action-button" type="button">领取奖励</button><p id="dailyRewardRefresh"></p><small>按本机时间每日零点刷新 · 每份浏览器存档每天一次</small></dialog>
+  <dialog id="leaveMenuDialog" class="menu-confirm"><h2>返回主菜单？</h2><p>这会离开当前联机房间，准备物资会保留。</p><form method="dialog"><button value="cancel">留在大厅</button><button value="leave">离开并返回</button></form></dialog>
+  <main class="app-shell">
+    <span id="contractState" hidden>通讯稳定</span>
+
+    <dialog class="hunter-settings-modal" id="hunterSettingsModal" aria-labelledby="settingsModalTitle">
+      <div class="settings-modal-shell">
+        <header class="settings-modal-header">
+          <div><p class="kicker">DIFFICULTY / VERSION</p><h2 id="settingsModalTitle">配置与版本资料</h2></div>
+          <button class="settings-close" id="hunterSettingsClose" type="button" aria-label="关闭">×</button>
+        </header>
+        <div class="settings-modal-tabs" role="tablist" aria-label="配置与版本">
+          <button class="settings-section-btn active" type="button" data-settings-section="hunterSettingsContent">Hunter 设置</button>
+          <button class="settings-section-btn" type="button" data-settings-section="performanceSettingsContent">性能</button>
+          <button class="settings-section-btn" type="button" data-settings-section="personalRecordsContent">个人战绩</button>
+          <button class="settings-section-btn" type="button" data-settings-section="versionLogContent">更新日志</button>
+        </div>
+        <section class="settings-modal-content" id="hunterSettingsContent">
+          <div class="difficulty-section settings-difficulty-section">
+            <div class="difficulty-header"><span>编辑难度参数 · 不切换本局难度</span><strong id="currentDifficultyText">中等</strong></div>
+            <div class="difficulty-btn-group">
+              <button class="difficulty-btn" id="difficultyEasy" data-difficulty="easy" type="button">简单</button>
+              <button class="difficulty-btn active" id="difficultyMedium" data-difficulty="medium" type="button">中等</button>
+              <button class="difficulty-btn" id="difficultyHard" data-difficulty="hard" type="button">困难</button>
+            </div>
+            <p class="difficulty-ammo-loss" id="difficultyAmmoLossWarning" aria-live="polite"></p>
+            <small class="profile-modified" id="difficultyModified" hidden>此难度已修改</small>
+          </div>
+          <div class="profile-table-wrap">
+            <table class="hunter-profile-table">
+              <thead><tr><th>地图</th><th>开场 Hunter</th><th>Hunter HP</th><th>普通重生数</th><th>普通重生间隔(秒)</th></tr></thead>
+              <tbody>
+                <tr data-profile-scale="small"><th>小型 16舱</th><td><input type="number" min="0" max="200" step="1" data-hunter-setting="hunters" data-scale="small" aria-label="小型地图开场 Hunter 数量"></td><td><input type="number" min="1" max="100" step="1" data-hunter-setting="hunterMaxHp" data-scale="small" aria-label="小型地图 Hunter HP"></td><td><input type="number" min="0" max="200" step="1" data-hunter-setting="hunterRespawnCount" data-scale="small" aria-label="小型地图普通重生数量"></td><td><input type="number" min="1" max="120" step="1" data-hunter-setting="hunterSpawnInterval" data-scale="small" aria-label="小型地图普通重生间隔"></td></tr>
+                <tr data-profile-scale="medium"><th>中型 26舱</th><td><input type="number" min="0" max="200" step="1" data-hunter-setting="hunters" data-scale="medium" aria-label="中型地图开场 Hunter 数量"></td><td><input type="number" min="1" max="100" step="1" data-hunter-setting="hunterMaxHp" data-scale="medium" aria-label="中型地图 Hunter HP"></td><td><input type="number" min="0" max="200" step="1" data-hunter-setting="hunterRespawnCount" data-scale="medium" aria-label="中型地图普通重生数量"></td><td><input type="number" min="1" max="120" step="1" data-hunter-setting="hunterSpawnInterval" data-scale="medium" aria-label="中型地图普通重生间隔"></td></tr>
+                <tr data-profile-scale="large"><th>大型 36舱</th><td><input type="number" min="0" max="200" step="1" data-hunter-setting="hunters" data-scale="large" aria-label="大型地图开场 Hunter 数量"></td><td><input type="number" min="1" max="100" step="1" data-hunter-setting="hunterMaxHp" data-scale="large" aria-label="大型地图 Hunter HP"></td><td><input type="number" min="0" max="200" step="1" data-hunter-setting="hunterRespawnCount" data-scale="large" aria-label="大型地图普通重生数量"></td><td><input type="number" min="1" max="120" step="1" data-hunter-setting="hunterSpawnInterval" data-scale="large" aria-label="大型地图普通重生间隔"></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="final-spawn-settings">
+            <p class="update-category">FINAL TERMINAL // UNLIMITED REINFORCEMENTS</p>
+            <label>每轮新增<input id="finalTerminalSpawnCount" type="number" min="0" max="200" step="1"></label>
+            <label>增援间隔(秒)<input id="finalTerminalSpawnInterval" type="number" min="1" max="120" step="1"></label>
+            <small>完成最后终端时立即生成一轮，之后持续增援；任务结束前不设总数量上限。</small>
+          </div>
+          <button class="reset-profile-button" id="resetHunterSettings" type="button">恢复正在编辑的难度默认值</button>
+        </section>
+        <section class="settings-modal-content" id="personalRecordsContent" hidden>
+          <p class="update-category">PERSONAL RECORDS // MISSIONS</p>
+          <h3>个人任务战绩</h3>
+          <table class="personal-records-table"><thead><tr><th>难度</th><th>成功</th><th>失败</th></tr></thead><tbody>
+            <tr><th>简单</th><td data-record="easy-success">0</td><td data-record="easy-failure">0</td></tr>
+            <tr><th>中等</th><td data-record="medium-success">0</td><td data-record="medium-failure">0</td></tr>
+            <tr><th>困难</th><td data-record="hard-success">0</td><td data-record="hard-failure">0</td></tr>
+          </tbody></table><small>按任务难度分别记录；训练不计入战绩。</small>
+        </section>
+        <section class="settings-modal-content performance-settings-content" id="performanceSettingsContent" hidden>
+          <p class="update-category">LOCAL DISPLAY // FRAME RATE</p>
+          <label for="fpsCapSelect">画面帧率上限</label>
+          <select id="fpsCapSelect" aria-describedby="fpsCapHelp">
+            <option value="30">30 FPS · 省电</option>
+            <option value="60" selected>60 FPS · 推荐</option>
+            <option value="90">90 FPS</option>
+            <option value="120">120 FPS</option>
+            <option value="unlimited">无限制</option>
+          </select>
+          <small id="fpsCapHelp">限制本机更新与绘制频率；联机状态刷新也会受此设置影响。此选项仅保存在本机存档。</small>
+          <label for="corpseLimitSelect">尸体显示数量上限</label>
+          <select id="corpseLimitSelect" aria-describedby="corpseLimitHelp">
+            <option value="40">40 具 · 省性能</option>
+            <option value="100" selected>100 具 · 推荐</option>
+            <option value="200">200 具</option>
+          </select>
+          <small id="corpseLimitHelp">最多保留所选数量的静态尸体；超过时以短暂、有数量上限的淡出移除最旧尸体。此选项仅影响本机显示并保存在本机存档。</small>
+        </section>
+        <section class="settings-modal-content version-log-content" id="versionLogContent" hidden>
+          <div class="noise-update-notice" role="note" aria-label="战斗与噪音协议更新">
+            <span>SYSTEM UPDATE // HUNTER PROFILES</span>
+            <strong>猎手数量与无限增援</strong>
+            <p class="update-category">SPAWN / HP / NORMAL RESPAWN</p>
+            <ul>
+              <li>简单开场数量：12 / 16 / 25 → 2 / 4 / 6；HP：1；普通重生：1 / 1 / 2 → 1 / 1 / 1</li>
+              <li>中等开场数量：24 / 32 / 50 → 4 / 6 / 8；HP：2；普通重生：1 / 2 / 3（不变）</li>
+              <li>困难开场数量：24 / 32 / 50 → 5 / 8 / 12；HP：5 → 3；普通重生：1 / 2 / 3 → 2 / 3 / 4</li>
+              <li>普通重生间隔：10秒 → 默认30秒，仍可按难度和地图分别设置</li>
+            </ul>
+            <p class="update-category">FINAL TERMINAL</p>
+            <ul>
+              <li>原规则：普通重生数量×10，且受开场 Hunter 总数上限限制</li>
+              <li>新规则：简单/中等/困难每轮新增3 / 5 / 8只，默认每30秒，无总数上限</li>
+              <li>完成最后终端时立即生成第一轮，此后持续增援至任务结束</li>
+            </ul>
+          </div>
+          <div class="noise-update-notice" role="note" aria-label="Hunter 特性、战斗与噪音协议更新">
+            <span>SYSTEM UPDATE // BALANCE PROTOCOL</span>
+            <strong>战斗与噪音协议更新</strong>
+            <p class="update-category">PLAYER MOVEMENT</p>
+            <ul><li>普通移动：120 → 70</li><li>冲刺移动：192 → 100</li></ul>
+            <p class="update-category">MONSTER</p>
+            <ul>
+              <li>追击 / 巡逻速度：96 / 20 → 90 / 60</li>
+              <li>噪音阈值 / 脱战：&gt;48 / 4秒 → &gt;40 / 6秒</li>
+              <li>接触距离：28 → 20</li>
+              <li>接触伤害：-18 HP / -8 O₂ → -10 HP / -4 O₂</li>
+              <li>中枪硬直：0.25秒 → 1秒</li>
+              <li>瘫痪条件：10秒内3枪 → 不限时间累计5枪（瘫痪仍为10秒）</li>
+              <li>新增跨房间巡逻，并修复近距离无法重新发现玩家</li>
+            </ul>
+            <p class="update-category">HUNTER</p>
+            <ul>
+              <li>追击 / 巡逻速度：96 / 20 → 80 / 60</li>
+              <li>噪音阈值 / 脱战：&gt;48 / 4秒 → &gt;60 / 6秒</li>
+              <li>接触距离：28 → 20；接触伤害：-18 HP / -8 O₂ → -5 HP / -1 O₂</li>
+              <li>硬直 / 击退：0.25秒 / 30 → 0.5秒 / 10；死亡淡出：1.2秒 → 0.6秒</li>
+              <li>新增跨房间巡逻、自动开门，并修复门口抖动</li>
+            </ul>
+            <p class="update-category">HUNTER TRAITS</p>
+            <ul>
+              <li>每个全新 Hunter 有30%概率获得一种隐藏特性</li>
+              <li>怕光：50单位外避开手电筒；瘦体型：可穿过其他 Hunter</li>
+              <li>复活型：死亡后2秒内淡出再淡入，并以半血当场复活一次</li>
+            </ul>
+            <p class="update-category">NOISE</p>
+            <ul>
+              <li>手枪枪声：每发 +24 → +2；冲锋枪：每发 +18 → +2</li>
+              <li>静止衰减：-12/秒 → -4/秒；移动衰减：-7/秒 → -2/秒</li>
+              <li>移动上限：28 → 10；冲刺增长：+65/秒 → +4/秒（上限75）</li>
+            </ul>
+          </div>
+        </section>
+      </div>
+      <div class="hunter-adjust-popover" id="hunterAdjustPopover" role="group" aria-label="快速调整 Hunter 数值" hidden>
+        <button type="button" data-hunter-adjust="-10">−10</button>
+        <button type="button" data-hunter-adjust="-5">−5</button>
+        <button type="button" data-hunter-adjust="-1">−1</button>
+        <button type="button" data-hunter-adjust="1">+1</button>
+        <button type="button" data-hunter-adjust="5">+5</button>
+        <button type="button" data-hunter-adjust="10">+10</button>
+      </div>
+    </dialog>
+
+    <dialog class="settlement-dialog training-complete-dialog" id="trainingCompleteDialog" aria-labelledby="trainingCompleteTitle" aria-describedby="trainingCompleteNote">
+      <section class="settlement-shell">
+        <header class="settlement-header"><span class="kicker">TRAINING COMPLETE</span><span>独立训练舰</span></header>
+        <h2 id="trainingCompleteTitle">训练完成</h2>
+        <p class="settlement-subtitle" id="trainingCompleteNote">你已完成训练舰课程。真实装备、仓库与信用点已恢复。</p>
+        <div class="settlement-stats training-complete-stats">
+          <div><span>完成课程</span><strong id="trainingCompleteProgress">0 / 0</strong></div>
+          <div><span>训练用时</span><strong id="trainingCompleteDuration">00:00</strong></div>
+        </div>
+        <form method="dialog" class="settlement-actions"><button class="action-button">返回安全屋</button></form>
+      </section>
+    </dialog>
+
+    <div class="descent-transition" id="descentTransition" hidden role="status" aria-live="polite">
+      <div class="descent-transition-card">
+        <span class="kicker">AIRLOCK / DROP SEQUENCE</span>
+        <strong>舱门闭锁 · 正在下降</strong>
+        <p class="descent-tip" id="descentTip"></p>
+        <div class="descent-progress" aria-hidden="true"><i></i></div>
+      </div>
+    </div>
+
+    <dialog class="settlement-dialog" id="settlementDialog" aria-labelledby="settlementTitle">
+      <section class="settlement-shell">
+        <header class="settlement-header"><span class="kicker" id="settlementEyebrow">CONTRACT OUTCOME</span><span id="settlementDifficulty">中等难度</span></header>
+        <h2 id="settlementTitle">任务完成</h2>
+        <p class="settlement-subtitle" id="settlementSubtitle"></p>
+        <div class="settlement-stats">
+          <div><span id="settlementLootLabel">回收物资</span><strong id="settlementLootCount">0 件</strong></div>
+          <div><span id="settlementValueLabel">回收估值</span><strong id="settlementLootValue"><span class="credit-value" aria-label="0 信用点"><img class="credit-token-image" src="resources/images/voidshift-credit-coin.png" alt="" aria-hidden="true"><span>0</span></span></strong></div>
+          <div><span>任务用时</span><strong id="settlementDuration">00:00</strong></div>
+        </div>
+        <p class="settlement-ammo-note" id="settlementAmmoOutcome"></p>
+        <section class="reward-settlement"><h3>个人战绩奖励</h3><div class="reward-table-scroll"><table><thead><tr><th>队员</th><th>Hunter</th><th>Nightmare</th><th>Heavy</th><th>基础奖励</th><th>倍率</th><th>最终奖励</th></tr></thead><tbody id="rewardSettlementRows"></tbody></table></div><p id="rewardSettlementStatus" aria-live="polite">待结算</p><small>物资估值不计入现金；带回背包后可在仓库出售。</small></section>
+        <form method="dialog" class="settlement-actions"><button class="action-button" id="settlementReturnButton">返回安全屋 <b>↗</b></button></form>
+      </section>
+    </dialog>
+
+    <div class="transaction-notices" id="transactionNotices" role="status" aria-live="polite" aria-atomic="false"></div>
+    <dialog class="menu-detail-dialog" id="menuDetailDialog" aria-labelledby="menuDetailTitle" aria-describedby="menuDetailBody">
+      <section class="menu-detail-shell">
+        <header class="menu-detail-header"><h2 id="menuDetailTitle">详情</h2><button id="menuDetailClose" type="button">关闭</button></header>
+        <img id="menuDetailImage" class="menu-detail-image" alt="" hidden>
+        <div id="menuDetailBody" class="menu-detail-body"></div>
+      </section>
+    </dialog>
+
+    <dialog class="menu-confirm coop-room-error" id="coopRoomErrorDialog" aria-labelledby="coopRoomErrorTitle" aria-describedby="coopRoomErrorMessage">
+      <h2 id="coopRoomErrorTitle">无法创建联机房间</h2>
+      <p id="coopRoomErrorMessage"></p>
+      <div class="coop-room-error-actions"><button id="coopRoomErrorClose" type="button">关闭</button><button id="coopRoomErrorRetry" type="button">重试</button><button id="coopRoomErrorPreview" type="button" hidden>查看小队预览</button></div>
+    </dialog>
+
+    <dialog class="mission-menu-dialog" id="pauseMenuDialog" aria-labelledby="pauseMenuTitle">
+      <section><p class="kicker">MISSION CONTROL</p><h2 id="pauseMenuTitle">任务菜单</h2><p id="pauseMenuNote">任务已暂停</p><div class="mission-menu-actions"><button id="pauseResumeButton" type="button">继续任务</button><button id="pauseSettingsButton" type="button">设置</button><button id="pauseAbandonButton" type="button" class="danger">放弃下潜</button></div><div id="pauseCrewList" class="pause-crew-list" hidden></div><small id="pauseMenuStatus" aria-live="polite"></small></section>
+    </dialog>
+    <dialog class="mission-menu-dialog abandon-confirm-dialog" id="abandonConfirmDialog" aria-labelledby="abandonConfirmTitle">
+      <section><h2 id="abandonConfirmTitle">确认放弃下潜？</h2><p id="abandonConfirmNote">本次任务会按失败结算，携带物资将失去。</p><div class="mission-menu-actions"><button id="abandonCancelButton" type="button">返回任务</button><button id="abandonConfirmButton" type="button" class="danger">确认放弃</button></div></section>
+    </dialog>
+
+    <section class="game-layout">
+      <aside class="menu-shell" id="preparationScreen">
+        <nav class="safehouse-tabs" aria-label="任务准备菜单">
+          <button class="menu-home" id="menuHomeButton" type="button">‹ 主菜单</button>
+          <div class="menu-tab-list"><button class="tab-btn active" data-tab="briefing" type="button" onclick="switchTab('briefing')">任务 / 小队</button>
+<button class="tab-btn" data-tab="storage" type="button" onclick="switchTab('storage')">仓库</button>
+<button class="tab-btn" data-tab="loadout" type="button" onclick="switchTab('loadout')">LOADOUT</button>
+<button class="tab-btn" data-tab="ammo" type="button" onclick="switchTab('ammo')">商店</button>
+<button class="tab-btn" data-tab="tutorial" type="button" onclick="switchTab('tutorial')">教程</button></div>
+          <div class="menu-utilities"><span id="moneyDisplay" class="credit-value"><img class="credit-token-image" src="resources/images/equipment-v17/credit.png" alt=""><span>1,000</span></span><button class="settings-launch" id="hunterSettingsOpen" type="button">设置</button></div>
+        </nav>
+        <div class="menu-pages">
+          <div id="briefingContent" class="menu-page briefing-page">
+            <div class="brief-overview">
+            <div class="brief-main">
+              <div class="brief-location"><img class="brief-location-art" src="resources/images/menu/facility-briefing.png" alt="ARCADIA-9 废弃气象观测站" draggable="false"><div><h2>ARCADIA-9</h2><p>废弃气象观测站</p></div></div>
+              <section class="brief-objective menu-card"><h2>本次任务</h2><p>收集物资，启动终端，安全撤离。</p>
+              <div class="mission-steps"><article><h3><b>1</b>搜刮物资</h3><div class="menu-media-frame mission-step-art"><img class="" src="resources/images/menu/mission-salvage.png" alt="搜刮物资" draggable="false"></div><p>探索舱室，收集有价值的物资与资源。</p></article><article><h3><b>2</b>启动全部终端</h3><div class="menu-media-frame mission-step-art"><img class="" src="resources/images/menu/mission-terminal.png" alt="启动全部终端" draggable="false"></div><p>找到并启动所有终端，恢复设施数据。</p></article><article><h3><b>3</b>呼叫救援</h3><div class="menu-media-frame mission-step-art"><img class="" src="resources/images/menu/mission-extract.png" alt="呼叫救援" draggable="false"></div><p>终端全部启动后，前往地图标记的远端逃生舱按 E；救援 30 秒后抵达，全员到场才能撤离。</p></article></div>
+              </section>
+            </div>
+            <div class="brief-side">
+              <div class="brief-settings"><button class="menu-card" id="briefScaleButton" type="button" aria-haspopup="dialog"><span>设施规模 · 查看地图</span><strong id="briefScaleLabel">小型 · 16 舱</strong></button><div class="menu-card brief-difficulty"><span>本局难度：<strong id="briefDifficultyLabel">中等</strong></span><div class="mission-difficulty-choices" role="group" aria-label="选择本局难度"><button type="button" data-select-mission-difficulty="easy">简单</button><button type="button" data-select-mission-difficulty="medium">中等</button><button type="button" data-select-mission-difficulty="hard">困难</button></div></div></div>
+              <div class="menu-card brief-quota"><span>合约目标</span><strong id="quotaValue"><span class="credit-value"><img class="credit-token-image" src="resources/images/equipment-v17/credit.png" alt=""><span>420</span></span></strong></div>
+              <div class="menu-card brief-terminals"><h2>终端</h2><div id="terminalsStatus" class="terminal-icon-strip" role="group" aria-label="本设施终端"></div><p>全部启动后可呼叫撤离</p></div>
+              <div class="menu-card brief-prepared"><h2>下潜准备</h2><div class="menu-media-frame brief-supply-art-frame"><img class="brief-supply-art" src="resources/images/equipment-v17/oxygen.png" alt="备用氧气瓶" draggable="false"></div><div><p id="briefPackCount">背包 0 / 40 格</p><p id="briefWeapon">副武器：手枪</p><p id="briefOxygenCount">备用氧气瓶 ×0</p></div></div>
+              <div class="menu-card brief-risk"><h2>任务失败时</h2><ul><li>携带物资丢失</li><li id="briefAmmoRisk">携带弹药损失一半</li><li>仓库与弹药库库存不受影响</li></ul></div>
+              <span id="lootValue" hidden></span><span id="lootCount" hidden></span>
+            </div>
+            </div>
+            <section class="brief-crew-panel coop-panel" id="briefCrewPanel">
+              <div class="coop-link-header"><h2>房间 <span class="coop-code" id="coopRoomCode">------</span></h2><button class="coop-action" id="copyRoomButton" type="button">复制房间码</button><strong id="menuRoomSummary">尚未连接</strong><span class="coop-status" id="coopStatus">选择创建或加入房间</span></div>
+              <div class="coop-room-entry"><div><img class="room-entry-art" src="resources/images/menu/crew-empty.png" alt="等待出发的装备" draggable="false"><h2>集结你的回收小队</h2><p>最多四人，一起搜刮、安全撤离。</p></div><div><button class="coop-action primary" id="coopHostButton" type="button" onclick="game.hostCoopRoom()">创建四人房间</button><div class="coop-join-row"><input id="coopJoinCode" maxlength="6" autocomplete="off" placeholder="输入 6 位房间代码" aria-label="6位房间码"><button class="coop-action" id="coopJoinButton" type="button" onclick="game.joinCoopRoom()">加入房间</button></div></div></div>
+              <div class="coop-lobby" id="coopLobby" hidden>
+                <p class="coop-offline-preview" id="coopOfflinePreviewBanner" hidden>离线界面预览 · 未创建房间；只有你的装备是真实数据</p>
+                <div class="coop-map-summary"><div><strong id="lobbyScaleName">小型（16 舱）</strong><small>房主当前选择的设施结构 · 出生点已标记</small></div><canvas class="facility-map-preview" id="lobbyMapPreview" aria-label="房主当前设施结构与出生点"></canvas><div class="brief-enemies" id="briefEnemyTypes" aria-live="polite"></div></div>
+                <div class="coop-roster-grid"><div class="coop-host-seat"><h3><span id="coopHostRoleLabel">房主</span> <span id="menuHostIdentity"></span></h3><img class="crew-portrait" src="resources/images/menu/crew-host.png" alt="房主席位" draggable="false"><p>已连接<br><small>房主</small></p><div class="crew-loadout" id="coopHostLoadout"></div><small id="coopHostLatency" class="crew-latency">延迟：本机</small><strong id="coopHostReady">未准备</strong></div><div class="coop-member-list" id="coopMembersList" role="list" aria-label="队员席位"></div></div>
+                <div class="coop-lobby-options"><div class="coop-friendly-fire" id="coopFriendlyFireControl"><div><h2>房间规则</h2><label><input id="coopFriendlyFireToggle" type="checkbox" checked><span>友伤开启</span></label><small>仅房主可调整 · 开局后锁定</small></div></div><p class="coop-friendly-fire-status" id="coopFriendlyFireStatus" hidden></p><div class="coop-readiness"><strong id="menuReadyCount">0 / 1 已准备</strong><span id="coopGuestReady">0 / 3 位队友已连接</span><small class="coop-start-hint" id="coopStartHint" aria-live="polite"></small></div></div>
+              </div>
+              <div class="coop-connection-feedback" id="coopConnectionFeedback" hidden>
+                <p id="coopConnectionMessage" role="status" aria-live="polite"></p>
+                <div class="coop-connection-actions"><button class="coop-action" id="coopRetryButton" type="button" onclick="game.retryCoopConnection()" hidden>重试连接</button><button class="coop-action" id="coopCancelConnectionButton" type="button" onclick="game.leaveCoopRoom()" hidden>取消连接</button><button class="coop-action" id="coopCopyDiagnosticsButton" type="button" onclick="game.copyCoopDiagnostics()">复制诊断</button></div>
+                <textarea id="coopDiagnosticsText" aria-label="连接诊断（不含令牌或 IP 地址）" readonly hidden></textarea>
+              </div>
+              <button class="coop-action" id="coopPreviewExitButton" type="button" hidden>退出预览</button>
+            </section>
+            <div class="brief-launch"><p class="launch-ammo-loss" id="launchAmmoLossWarning" aria-live="polite">⚠　中等 · 失败损失一半携带弹药</p><strong id="currentScaleText">小型 · 16 舱</strong><button class="coop-action" id="coopReadyButton" type="button" onclick="game.toggleCoopReady()" hidden>准备</button><button class="coop-action" id="coopLeaveButton" type="button" onclick="game.leaveCoopRoom()" hidden>离开房间</button><button id="startButton" class="action-button">开始下潜 <b>›</b></button></div>
+          </div>
+          <dialog id="menuMapDialog" class="menu-map-dialog" aria-labelledby="menuMapTitle"><div class="menu-map-shell"><header><h2 id="menuMapTitle">选择设施布局</h2><p>打开后自动加载布局与怪物资料，确认后才更新下一潜。</p></header><div id="mapContent" class="menu-page map-page">
+            <div class="map-scale-cards"><article class="map-scale-wrap"><button id="scaleBtnSmall" class="scale-btn map-scale-card active" type="button" data-draft-scale="small"><strong>小型</strong><span class="facility-facts"><span>16 舱</span><span>3 个终端</span><span>紧凑舱区</span></span><img class="facility-art" src="resources/images/menu/facility-small.png" alt="小型设施" draggable="false"><span class="facility-schematic"><span data-map-preview-status="small" role="status">下一潜真实结构 · 出生点已标记</span><canvas class="facility-map-preview" data-map-preview="small" aria-label="小型设施下一潜结构与出生点"></canvas></span><span class="map-enemies" data-map-enemies="small"></span><span class="facility-select">✓ 已选择</span></button><button class="map-refresh" type="button" data-refresh-map="small" aria-label="更换小型设施布局">换一个布局 ↻</button></article>
+<article class="map-scale-wrap"><button id="scaleBtnMedium" class="scale-btn map-scale-card" type="button" data-draft-scale="medium"><strong>中型</strong><span class="facility-facts"><span>26 舱</span><span>4 个终端</span><span>多翼设施</span></span><img class="facility-art" src="resources/images/menu/facility-medium.png" alt="中型设施" draggable="false"><span class="facility-schematic"><span data-map-preview-status="medium" role="status">下一潜真实结构 · 出生点已标记</span><canvas class="facility-map-preview" data-map-preview="medium" aria-label="中型设施下一潜结构与出生点"></canvas></span><span class="map-enemies" data-map-enemies="medium"></span><span class="facility-select">选择设施</span></button><button class="map-refresh" type="button" data-refresh-map="medium" aria-label="更换中型设施布局">换一个布局 ↻</button></article>
+<article class="map-scale-wrap"><button id="scaleBtnLarge" class="scale-btn map-scale-card" type="button" data-draft-scale="large"><strong>大型</strong><span class="facility-facts"><span>36 舱</span><span>5 个终端</span><span>广域设施</span></span><img class="facility-art" src="resources/images/menu/facility-large.png" alt="大型设施" draggable="false"><span class="facility-schematic"><span data-map-preview-status="large" role="status">下一潜真实结构 · 出生点已标记</span><canvas class="facility-map-preview" data-map-preview="large" aria-label="大型设施下一潜结构与出生点"></canvas></span><span class="map-enemies" data-map-enemies="large"></span><span class="facility-select">选择设施</span></button><button class="map-refresh" type="button" data-refresh-map="large" aria-label="更换大型设施布局">换一个布局 ↻</button></article></div><p class="map-preview-note">只公开舱室结构与出生点；物资、敌人和终端位置保持未知。</p>
+          </div><footer class="menu-map-actions"><span id="menuMapReadOnly" hidden>只有房主可选择或更换布局</span><button id="menuMapCancel" type="button">关闭 / 取消</button><button id="menuMapConfirm" type="button">使用此布局</button></footer></div></dialog>
+          <div id="storageContent" class="menu-page storage-page" style="display:none">
+            <div class="storage-workspace">
+              <section class="storage-grid-panel warehouse-panel">
+                <div class="storage-stats"><h2>船舱仓库</h2><strong id="storageStats">0 / 100 格 · 0 件</strong></div>
+                <div class="storage-grid-viewport"><div class="storage-grid" id="storageGrid" role="grid" aria-label="船舱仓库网格"></div></div>
+                <details class="storage-overflow" id="storageOverflowPanel" hidden><summary>待入库 <span id="storageOverflowCount">0</span> 件</summary><div class="storage-overflow-list" id="storageOverflowGrid"></div></details>
+              </section>
+              <section class="storage-controls">
+                <div class="storage-selection-summary"><h2>已选物资</h2><p id="storageSelectionStats">未选择仓库物资</p><p id="prepBackpackSelectionStats">未选择背包物资</p></div>
+                <div class="storage-actions">
+                  <button class="weapon-action" type="button" onclick="game.storeAllBackpackItems()">全部存入仓库</button>
+                  <button class="weapon-action organize" id="storagePackButton" type="button" onclick="game.packStorage()">整理仓库</button>
+                  <button class="weapon-action purchase" id="sellSelectedStorageButton" type="button" onclick="game.sellSelectedStorage()" disabled>出售仓库选中</button>
+                  <button class="weapon-action purchase" id="sellSelectedPackButton" type="button" onclick="game.sellSelectedPreparedBackpack()" disabled>出售背包选中</button>
+                </div>
+                <div class="prep-equipment-bar" id="prepEquipmentBar" role="group" aria-label="下潜装备栏">
+                  <h3>装备栏</h3>
+                  <div class="equipment-slot"><b>1</b><img id="prepPrimaryImage" src="resources/images/equipment-v17/smg.png" alt=""><span id="prepPrimaryName">主武器：未装备</span></div>
+                  <div class="equipment-slot"><b>2</b><img id="prepSidearmImage" src="resources/images/equipment-v17/pistol.png" alt=""><span id="prepSidearmName">副武器：手枪</span></div>
+                  <div id="quickUseSlot" class="quick-use-slot equipment-slot" data-auto-supply="true" aria-label="背包中的氧气瓶，任务中按 C 自动使用"><b>C</b><img id="quickUseImage" src="resources/images/equipment-v17/oxygen.png" alt=""><span>氧气瓶</span><small id="quickUseLabel">×0 · 按 C 自动使用</small></div>
+                </div>
+              </section>
+              <section class="prep-backpack-panel">
+                <div class="storage-grid-panel"><div class="storage-stats"><h2>下一潜背包</h2><strong id="prepBackpackStats">0 / 40 格 · 0 件</strong></div><div class="prep-grid-row"><div class="pack-grid-viewport"><div class="storage-grid" id="prepBackpackGrid" role="grid" aria-label="下一潜背包网格"></div></div></div></div>
+                <div class="menu-card selected-item-detail" id="menuItemDetail"><img id="menuItemImage" src="resources/images/equipment-v17/oxygen.png" alt=""><div><h2 id="menuItemName">选择一件物资</h2><p id="menuItemShape">查看占格与物资详情</p><p id="menuItemEffect"></p><p id="menuItemValue"></p><small>拖拽整理 · 右键 / R 旋转</small></div></div>
+              </section>
+            </div>
+          </div>
+          <div id="loadoutContent" class="menu-page loadout-page" style="display:none">
+            <div class="loadout-section-nav" role="tablist" aria-label="装备分类">
+              <button id="loadoutTabWeapons" type="button" data-loadout-section="weapons" role="tab" aria-controls="loadoutSectionWeapons" aria-selected="true">武器</button>
+              <button id="loadoutTabSkills" type="button" data-loadout-section="skills" role="tab" aria-controls="loadoutSectionSkills" aria-selected="false">主动技能</button>
+              <button id="loadoutTabPassives" type="button" data-loadout-section="passives" role="tab" aria-controls="loadoutSectionPassives" aria-selected="false">被动能力</button>
+            </div>
+            <p id="loadoutLockNote" class="loadout-lock-note" role="status">每次下潜可装备 1 个主动技能和 1 个被动 · 购买后请手动装备</p>
+            <div class="loadout-catalog-scroll">
+            <div id="loadoutSectionWeapons" role="tabpanel" aria-labelledby="loadoutTabWeapons"><div class="loadout-slot-grid"><section class="loadout-slot" aria-labelledby="primarySlotTitle"><h2 id="primarySlotTitle">主武器 · 按 1 切换</h2><div class="loadout-grid"><article class="loadout-card" id="loadoutSmg"><div class="menu-media-frame weapon-icon-frame"><img class="weapon-icon" src="resources/images/equipment-v17/smg.png" alt="冲锋枪" draggable="false"></div><div class="weapon-copy"><h3>冲锋枪</h3><p data-weapon-ammo="smg">弹匣 24 / 首购备弹 240</p><p>自动射击 · 间隔 0.10 秒</p><p>换弹 1.8 秒</p><div class="weapon-card-actions"><p class="weapon-price"><span class="credit-value"><img class="credit-token-image" src="resources/images/equipment-v17/credit.png" alt=""><span>4,250</span></span></p><button id="purchaseSmg" class="weapon-action purchase" type="button" onclick="menu.openShop('weapons')">前往商店</button><button id="equipSmg" class="weapon-action equip" type="button" onclick="game.equipWeapon('primary','smg')">装备</button></div></div></article><article class="loadout-card" id="loadoutShotgun"><div class="menu-media-frame weapon-icon-frame"><img class="weapon-icon" src="resources/images/equipment-v17/shotgun.png" alt="散弹枪" draggable="false"></div><div class="weapon-copy"><h3>散弹枪</h3><p data-weapon-ammo="shotgun">弹匣 8 / 首购备弹 80</p><p>每枪 4 弹丸 · 间隔 0.8 秒</p><p>逐发装填 0.5 秒</p><div class="weapon-card-actions"><p class="weapon-price"><span class="credit-value"><img class="credit-token-image" src="resources/images/equipment-v17/credit.png" alt=""><span>15,250</span></span></p><button id="purchaseShotgun" class="weapon-action purchase" type="button" onclick="menu.openShop('weapons')">前往商店</button><button id="equipShotgun" class="weapon-action equip" type="button" onclick="game.equipWeapon('primary','shotgun')">装备</button></div></div></article></div></section>
+<section class="loadout-slot" aria-labelledby="sidearmSlotTitle"><h2 id="sidearmSlotTitle">副武器 · 按 2 切换</h2><div class="loadout-grid"><article class="loadout-card" id="loadoutPistol"><div class="menu-media-frame weapon-icon-frame"><img class="weapon-icon" src="resources/images/equipment-v17/pistol.png" alt="手枪" draggable="false"></div><div class="weapon-copy"><h3>手枪</h3><p data-weapon-ammo="pistol">弹匣 6 / 首购备弹 120</p><p>间隔 0.4 秒 · 换弹 1.2 秒</p><p>初始拥有</p><div class="weapon-card-actions"><button id="equipPistol" class="weapon-action equip" type="button" onclick="game.equipWeapon('sidearm','pistol')">装备</button></div></div></article><article class="loadout-card" id="loadoutRevolver"><div class="menu-media-frame weapon-icon-frame"><img class="weapon-icon" src="resources/images/equipment-v17/revolver.png" alt="左轮" draggable="false"></div><div class="weapon-copy"><h3>左轮</h3><p data-weapon-ammo="revolver">弹匣 4 / 首购备弹 24</p><p>最多命中 3 个敌人 · 间隔 1.2 秒</p><p>逐发装填 1 秒</p><div class="weapon-card-actions"><p class="weapon-price"><span class="credit-value"><img class="credit-token-image" src="resources/images/equipment-v17/credit.png" alt=""><span>5,500</span></span></p><button id="purchaseRevolver" class="weapon-action purchase" type="button" onclick="menu.openShop('weapons')">前往商店</button><button id="equipRevolver" class="weapon-action equip" type="button" onclick="game.equipWeapon('sidearm','revolver')">装备</button></div></div></article></div></section></div></div>
+              <section id="loadoutSectionSkills" role="tabpanel" aria-labelledby="loadoutTabSkills" hidden><div id="skillCatalog" class="ability-catalog"></div></section>
+              <section id="loadoutSectionPassives" role="tabpanel" aria-labelledby="loadoutTabPassives" hidden><div id="passiveCatalog" class="ability-catalog"></div></section>
+            </div>
+            <section class="loadout-equipment-summary" aria-label="当前装备">
+              <p class="equipped-weapon"><span>主武器 · 1</span><strong data-equipped-name="primary">未装备</strong></p>
+              <p class="equipped-weapon"><span>副武器 · 2</span><strong data-equipped-name="sidearm">手枪</strong></p>
+              <div class="equipped-ability"><img data-equipped-image="skill" alt="" hidden><p><span>主动技能 · T</span><strong data-equipped-name="skill">未装备</strong></p><button type="button" data-unequip-ability="skill" aria-label="卸下主动技能" disabled>卸下</button></div>
+              <div class="equipped-ability"><img data-equipped-image="passive" alt="" hidden><p><span>被动能力</span><strong data-equipped-name="passive">未装备</strong></p><button type="button" data-unequip-ability="passive" aria-label="卸下被动能力" disabled>卸下</button></div>
+            </section>
+          </div>
+          <div id="ammoContent" class="menu-page ammo-page" style="display:none">
+            <nav class="shop-category-nav" aria-label="商店分类"><button type="button" data-shop-category="weapons">武器</button><button type="button" data-shop-category="ammo">弹药</button><button type="button" data-shop-category="supplies">补给</button><button type="button" data-shop-category="skills">主动技能</button><button type="button" data-shop-category="passives">被动</button></nav>
+            <div id="shopWeaponsCatalog" class="shop-catalog" data-shop-panel="weapons" hidden></div>
+            <div id="shopSkillsCatalog" class="shop-catalog" data-shop-panel="skills" hidden></div>
+            <div id="shopPassivesCatalog" class="shop-catalog" data-shop-panel="passives" hidden></div>
+            <div class="ammo-section-nav" data-shop-panel="ammo" role="tablist" aria-label="弹药操作"><button type="button" data-ammo-section="purchase" role="tab" aria-selected="true">购买弹药</button><button type="button" data-ammo-section="transfer" role="tab" aria-selected="false">备弹转换</button></div>
+            <div class="ammo-depot-grid">
+              <div class="ammo-section" id="ammoSectionPurchase" role="tabpanel">
+              <section class="weapon-ammo-catalog" id="weaponAmmoCatalog" aria-label="专用弹药购买"></section>
+              <section class="ammo-depot-panel"><div class="depot-heading"><h2>标准弹药</h2><strong>库存 <span id="standardAmmoBalance">0</span> 单位</strong></div><img class="ammo-crate-art" src="resources/images/equipment-v17/ammo.png" alt="标准弹药箱" draggable="false"><label for="ammoPurchaseAmount">购买数量</label><div class="ammo-presets"><button type="button" data-ammo-preset="100">100</button><button type="button" data-ammo-preset="200">200</button><button type="button" data-ammo-preset="500">500</button><input id="ammoPurchaseAmount" type="number" min="100" step="1" value="100" oninput="game.updateAmmoDepotUI()" aria-label="购买标准弹药单位"></div><div class="ammo-purchase-row"><span>花费 <strong id="ammoPurchaseCost"><span class="credit-value"><img class="credit-token-image" src="resources/images/equipment-v17/credit.png" alt=""><span>200</span></span></strong></span><button id="ammoPurchaseButton" class="action-button" type="button" onclick="game.purchaseAmmoFromUI()">购买弹药</button></div><small>最低 100 单位 · 100 单位 200 信用点</small><h3>当前个人弹药库存（弹匣 / 备弹）</h3><div class="ammo-stock-grid" id="ammoStockGrid"></div></section>
+              </div><div class="ammo-section" id="ammoSectionTransfer" role="tabpanel" hidden>
+              <section class="ammo-depot-panel ammo-transfer-panel"><h2>备弹转换</h2><div><span class="ammo-choice-label">来源：选择现有库存</span><div id="ammoTransferSources" class="ammo-choice-grid" role="group" aria-label="弹药转换来源"></div></div><div class="ammo-transfer-arrow" aria-hidden="true">↓</div><div><span class="ammo-choice-label">目标：选择要补充的库存</span><div id="ammoTransferTargets" class="ammo-choice-grid" role="group" aria-label="弹药转换目标"></div></div><div class="ammo-transfer-input"><label id="ammoTransferAmountLabel" for="ammoTransferAmount">转换数量</label><input id="ammoTransferAmount" type="number" min="1" step="1" value="100" oninput="game.updateAmmoDepotUI()"></div><output id="ammoTransferPreview" class="ammo-transfer-preview" aria-live="polite"></output><button id="ammoTransferButton" class="action-button" type="button" onclick="game.transferAmmoFromUI()">确认转换</button><small>仅转换备弹，不影响弹匣<br>手枪/冲锋枪 1:1 · 左轮 2:1 · 散弹枪 4:1</small></section>
+              </div><div class="ammo-section" id="ammoSectionOxygen" data-shop-panel="supplies" role="tabpanel" hidden>
+              <section class="consumable-shop-card ammo-depot-panel" aria-labelledby="oxygenCanisterTitle"><h2>补给</h2><div class="consumable-product"><div class="menu-media-frame consumable-shop-art-frame"><img class="consumable-shop-art" src="resources/images/equipment-v17/oxygen.png" alt="备用氧气瓶" draggable="false"></div><div class="consumable-shop-copy"><h3 id="oxygenCanisterTitle">备用氧气瓶</h3><p>使用 2 秒后恢复 50 点氧气</p><p>占用 1×2 格</p><p>优先放入背包，放不下则入仓</p><p id="shopPackCount">背包 0 / 40 格</p><div class="consumable-price">价格 <strong>300 信用点</strong></div><button class="action-button" id="purchaseOxygenCanisterButton" type="button" onclick="game.purchaseOxygenCanister()">购买氧气瓶</button><p class="consumable-resale">出售回收 150 信用点</p><small id="oxygenCanisterShopNote">背包和仓库都满时拒购，不扣款。</small></div></div></section><section class="consumable-shop-card ammo-depot-panel" aria-labelledby="medkitTitle"><div class="consumable-product"><div class="menu-media-frame consumable-shop-art-frame"><img class="consumable-shop-art" src="resources/images/equipment-v17/medkit.png" alt="急救包" draggable="false"></div><div class="consumable-shop-copy"><h3 id="medkitTitle">急救包</h3><p>使用 2 秒后恢复 40 生命值 · 最高 100</p><p>占用 1×2 格 · 背包内按 H 使用</p><p>优先放入背包，放不下则入仓</p><div class="consumable-price">价格 <strong>300 信用点</strong></div><button class="action-button" id="purchaseMedkitButton" type="button" onclick="game.purchaseMedkit()">购买急救包</button><p class="consumable-resale">出售回收 150 信用点</p><small>满血、倒地或晕眩时不消耗。</small></div></div></section>
+              </div>
+            </div>
+          </div>
+          <div id="tutorialContent" class="menu-page tutorial-page" style="display:none">
+            <div class="tutorial-menu"><section class="tutorial-lessons"><h2>训练舰 · 六个区域</h2><button type="button" data-lesson="0" class="active" aria-pressed="true">01　入口舱<span>›</span></button><button type="button" data-lesson="1" aria-pressed="false">02　补给舱<span>›</span></button><button type="button" data-lesson="2" aria-pressed="false">03　Hunter 舱<span>›</span></button><button type="button" data-lesson="3" aria-pressed="false">04　Nightmare 舱<span>›</span></button><button type="button" data-lesson="4" aria-pressed="false">05　Heavy 舱<span>›</span></button><button type="button" data-lesson="5" aria-pressed="false">06　撤离舱<span>›</span></button></section><section class="tutorial-preview"><h2 id="lessonTitle">01　入口舱</h2><p id="lessonDescription">从出生点学习移动、冲刺、手电与开门。</p><div class="tutorial-art training-ship-art"><img src="resources/images/menu/tutorial-corridor-clean.png" alt="训练舰舱内景象" draggable="false"><canvas id="trainingShipPreview" class="training-ship-preview" aria-label="独立训练舰固定结构：入口舱、补给舱、Hunter 舱、Nightmare 舱、Heavy 舱、撤离舱及两个终端"></canvas><div class="tutorial-key-hint"><strong id="lessonKeys">W A S D　/　Shift</strong><span id="lessonHint">先移动到标记，再开启通往补给舱的舱门</span></div></div><div class="tutorial-rules"><p>阅读教学卡时暂停<br><small>练习失误可重试当前课程，保留已完成进度。</small></p><p>独立训练 · 临时物资<br><small>不会消耗真实装备、弹药或氧气，也不产生任务奖励。</small></p></div><div class="tutorial-launch-card"><div><h3>固定训练舰与借用装备</h3><p id="tutorialSetup">训练借用：冲锋枪 / 手枪 · 闪光弹 · 翻滚</p><small>仓库、背包与信用点会在退出时恢复。</small><p class="equipment-help">正式任务有手枪、冲锋枪、左轮、散弹枪、机枪和迷你散弹枪。氧气瓶 C／急救包 H 使用 2 秒；应急护盾自动生效 3 秒、冷却 50 秒。隔离栅：T 打开蓝图，R 旋转，左键放置，Esc 取消；按住 E 3 秒拆除。</p></div><div><button class="action-button" id="startTutorialButton" type="button" onclick="game.startTutorial()">开始训练　›</button><small id="tutorialAvailabilityNote">仅限单人 · 联机大厅中不可启动</small><small>可随时退出训练，返回安全屋。</small></div></div></section></div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="game-panel panel">
+        <div class="game-header"><div><p class="kicker">LIVE FEED / CAM 01</p><h2 id="missionTitle">等待下潜</h2></div><div class="coordinates"><span id="clock">00:00</span><small>LOCAL TIME</small></div></div>
+        <div class="game-frame" id="gameFrame">
+
+          <div id="inventoryOverlay" class="panel inventory-overlay" style="display:none;">
+            <div class="inventory-header">
+              <div><p class="kicker">FIELD BACKPACK</p><h2><span id="inventoryTitle">物资背包</span> <small>(B 关闭)</small></h2></div>
+              <div class="inventory-readout"><span id="inventoryCount">0 件物资</span><strong id="inventoryCapacity">0 / 40 格</strong></div>
+            </div>
+            <div class="inventory-body">
+              <div class="inventory-grid-viewport"><div class="grid-x-axis" id="inventoryXAxis" aria-hidden="true"></div><div class="grid-y-axis" id="inventoryYAxis" aria-hidden="true"></div><div class="bp-grid" id="inventoryGrid" aria-label="物资背包网格"></div></div>
+              <section id="lootContainerPanel" class="loot-container-panel" hidden>
+                <header><h3 id="lootContainerTitle">物资箱</h3><span id="lootContainerCount"></span></header>
+                <div class="loot-grid-viewport"><div id="lootContainerGrid" class="bp-grid" aria-label="共享箱子网格"></div></div>
+                <p>全队共享 · 搜刮时世界继续运行</p>
+                <div class="loot-container-actions"><button id="lootTransferButton" type="button" class="action-button" disabled>取出到背包</button><button id="lootRotateButton" type="button" class="action-button" disabled>旋转 [R]</button></div>
+                <small>点击物品后取放，也可拖到另一侧；空间不足时物品留在原处。</small>
+              </section>
+              <aside class="inventory-side">
+                <div class="inventory-equipment-bar" id="inventoryEquipmentBar" role="group" aria-label="当前装备栏"><h3>装备栏</h3><div class="equipment-slot"><b>1</b><img id="inventoryPrimaryImage" src="resources/images/equipment-v17/smg.png" alt=""><span id="inventoryPrimaryName">未装备</span></div><div class="equipment-slot"><b>2</b><img id="inventorySidearmImage" src="resources/images/equipment-v17/pistol.png" alt=""><span id="inventorySidearmName">手枪</span></div><div class="equipment-slot"><b>C</b><img id="inventoryQuickImage" src="resources/images/equipment-v17/oxygen.png" alt=""><span id="inventoryQuickName">氧气瓶 ×0 [C]</span></div></div>
+                <div id="itemDesc" class="item-desc">点击物资查看详情 · 拖拽自由摆放 · 右键或 [R] 旋转 · 深色格为空格</div>
+                <div class="inventory-actions">
+                  <button class="action-button" id="rotateItemBtn" type="button" onclick="game.rotateItem()" disabled>旋转 [R]</button>
+                  <button class="action-button" id="discardItemBtn" type="button" onclick="game.discardItem()" disabled>丢弃到地面</button>
+                  <button class="action-button" id="useItemBtn" type="button" onclick="game.useSelectedInventoryItem()" disabled>使用物资</button>
+                  <button class="action-button" type="button" onclick="game.packInventory()">整理</button>
+                  <button class="action-button" type="button" onclick="game.sortInventory()">按价值排序</button>
+                </div>
+              </aside>
+            </div>
+            <p class="inventory-hint">拖拽物资 · 右键或 [R] 旋转 · 点击空格自由编排</p>
+          </div>
+          <canvas id="gameCanvas" aria-label="废墟探索游戏区域"></canvas>
+          <div class="coop-pause-overlay" id="coopPauseOverlay" role="status" aria-live="polite" hidden><div><span class="kicker">CREW LINK PAUSED</span><strong id="coopPauseTitle">房主已切出游戏画面</strong><small id="coopPauseHint">任务已暂停；房主返回后自动继续</small></div></div>
+          <canvas id="visionCanvas" aria-hidden="true"></canvas>
+          <!-- 4x4 Mini Radar Container -->
+          <div class="mini-map-container" id="miniMapContainer" title="点击或按 [M] 展开完整大地图">
+            <div class="mini-map-header">
+              <span class="mini-map-title"><span class="radar-ping-dot"></span> 4×4 局部雷达</span>
+              <button class="mini-map-expand-btn" id="miniMapExpandBtn" title="展开全景战术大地图 (快捷键 M)">⛶ 全图 [M]</button>
+            </div>
+            <canvas id="miniMap" aria-label="4x4 局部雷达小地图"></canvas>
+            <div class="mini-map-footer" id="miniMapCoords">
+              <span id="miniMapSectorText">SECTOR: LOCAL</span>
+              <span class="mini-map-keyhint">[M] 大地图</span>
+            </div>
+          </div>
+
+          <div class="scanlines"></div>
+
+          <!-- In-game HUD -->
+          <div class="hud-overlay" id="hudOverlay" style="display:none;">
+            <div class="hud-left-column">
+              <div class="hud-vitals-cluster">
+                <div class="hud-vitals" aria-label="玩家状态">
+                  <div class="hud-vital-row"><span>HP</span><div class="hud-meter" id="hudHealthMeter" role="meter" aria-label="生命值" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i id="hudHealthBar"></i></div></div>
+                  <div class="hud-vital-row"><span>O₂</span><div class="hud-meter" id="hudOxygenMeter" role="meter" aria-label="氧气" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i id="hudOxygenBar"></i></div></div>
+                  <div class="hud-vital-row"><span>体力</span><div class="hud-meter" id="hudStaminaMeter" role="meter" aria-label="体力" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i id="hudStaminaBar"></i></div></div>
+                </div>
+                <span class="hud-noise-lamp" id="hudNoise" role="img" aria-label="噪音：安静"></span>
+              </div>
+              <div class="hud-party" id="hudParty" aria-label="队员状态" hidden></div>
+              <div class="hud-equipment-status">
+                <div id="hudSupplyProgress" class="hud-action-progress" hidden><strong id="hudSupplyProgressLabel"></strong><div class="hud-meter"><i id="hudSupplyProgressBar"></i></div></div>
+                <div id="hudShield" class="hud-shield" hidden><img src="resources/images/equipment-v17/shield.png" alt=""><span id="hudShieldStatus"></span><div class="hud-meter"><i id="hudShieldBar"></i></div></div>
+              </div>
+              <div class="hud-ammo"><span>弹药</span><strong id="hudAmmo">6 / 24</strong><span class="hud-supply hud-skill"><img id="hudSkillImage" alt="" hidden><span><span id="hudSkillName">主动技能未装备</span> <strong id="hudSkillStatus"></strong>　[T]</span></span><span class="hud-supply"><img src="resources/images/equipment-v17/oxygen.png" alt=""><span>氧气瓶 <strong id="hudOxygenCount">0</strong>　[C]</span></span><span class="hud-supply"><img src="resources/images/equipment-v17/medkit.png" alt=""><span>急救包 <strong id="hudMedkitCount">0</strong>　[H]</span></span><strong id="hudFlashStun" class="hud-flash-stun" hidden>晕眩中</strong></div>
+            </div>
+            <div class="hud-utility">
+              <span><small>武器</small><strong id="hudWeaponStatus">手枪 / 就绪</strong></span>
+              <span><small>撤离舱</small><strong id="hudExtractStatus">等待呼叫</strong></span>
+              <strong id="hudNetworkStatus" class="warning" role="status" hidden>连接不稳，等待同步</strong>
+            </div>
+            <div class="hud-terminal-tracker"><span>终端</span><div id="hudTerminals" class="terminal-icon-strip" role="group" aria-label="终端破解状态"></div></div>
+            <div class="coop-revive-prompt" id="coopRevivePrompt" role="status" aria-live="polite" hidden></div>
+          </div>
+
+          <!-- QTE Terminal Interface Overlay -->
+          <div class="qte-overlay" id="qteOverlay" style="display:none;">
+            <div class="qte-container">
+              <div class="qte-header">
+                <span class="qte-icon">⚠</span>
+                <div>
+                  <h3 id="qteTitle">终端 #1 // 紧急重写协议</h3>
+                  <p>按顺序输入 WASD 序列以激活终端</p>
+                </div>
+              </div>
+              <!-- 10s Countdown Timer Bar -->
+              <div class="qte-timer-wrap">
+              <div class="qte-timer-header">
+                  <span>终端激活时限</span>
+                  <strong id="qteTimerText">10.0s</strong>
+                </div>
+                <div class="qte-timer-bar-bg">
+                  <div class="qte-timer-bar" id="qteTimerBar"></div>
+                </div>
+              </div>
+
+              <div class="qte-sequence" id="qteSequence">
+                <!-- Step blocks populated dynamically -->
+              </div>
+              <div class="qte-status" id="qteStatus">等待操作员按键输入...</div>
+              <div class="qte-footer">
+                <span style="color:#ef4444;">⚠ 10秒超时或累计失误3次：触发高压电击 (-10 HP, 晕眩 2.5s)</span>
+                <span class="qte-key-hint">[ESC] 中断放弃</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Full Tactical Facility Map Modal (Toggled with Key M) -->
+          <div class="full-map-modal hidden" id="fullMapModal" style="display:none;">
+            <div class="full-map-container">
+              <div class="full-map-header">
+                <div class="full-map-title-group">
+                  <span class="full-map-icon">🛰</span>
+                  <div>
+                    <h3>FACILITY TACTICAL COMMAND // 全局战术地图</h3>
+                    <p id="fullMapSubTitle">ARCADIA-9 空间设施平面态势图</p>
+                  </div>
+                </div>
+                <div class="full-map-stats" id="fullMapStats">
+                  <span class="stat-tag" id="fullMapScaleTag">规模: 小型 (16 舱)</span>
+                  <span class="stat-tag" id="fullMapExploreTag">探索度: 1/12</span>
+                  <span class="stat-tag highlight terminal-stat-tag">终端 <span id="fullMapTerminals" class="terminal-icon-strip" role="group" aria-label="终端破解状态"></span></span>
+                  <span class="stat-tag" id="fullMapEvacTag">撤离舱: 锁定中</span>
+                </div>
+                <div class="full-map-actions">
+                  <button class="map-action-btn" id="fullMapZoomOutBtn" type="button" title="缩小地图">−</button>
+                  <button class="map-action-btn" id="fullMapZoomInBtn" type="button" title="放大地图">＋</button>
+                  <button class="map-action-btn" id="fullMapFitBtn" type="button" title="恢复全图适配">适配</button>
+                  <button class="map-close-btn" id="fullMapCloseBtn" title="关闭大地图 (M / ESC)">✕ 关闭 [M/ESC]</button>
+                </div>
+              </div>
+              <div class="full-map-canvas-wrap">
+                <canvas id="fullMapCanvas" aria-label="全局战术地图画布"></canvas>
+              </div>
+              <div class="full-map-footer">
+                <div class="full-map-legend">
+                  <span><i class="legend-badge airlock"></i> 起始气闸（出生点）</span>
+                  <span><i class="legend-badge terminal"></i> 安全写入终端</span>
+                  <span><i class="legend-badge evac"></i> 远端逃生舱（终端后标记）</span>
+                  <span><i class="legend-badge box"></i> 物资箱</span>
+                  <span><i class="legend-badge prop"></i> 工业设备</span>
+                  <span><i class="legend-badge player"></i> 你的位置 (OPERATOR)</span>
+                </div>
+                <div class="full-map-hint">滚轮缩放 · 拖动平移 · <b>[M]</b>/<b>[ESC]</b> 关闭</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="center-prompt" id="centerPrompt"><span class="prompt-mark">△</span><strong>点击开始任务</strong><small>WASD 移动 · Shift 冲刺 · Space 翻滚（需装备被动） · V 近战 · T 主动技能／隔离栅蓝图 · R 蓝图旋转 · 按住 E 3 秒拆除 · F 手电筒 · C 氧气瓶（2 秒） · H 急救包（2 秒） · 1/2 切枪 · 左键开火 · R 换弹 · E 交互／远端逃生舱呼叫 · M 地图</small></div>
+          <div class="damage-flash" id="damageFlash"></div>
+          <div class="game-toast" id="gameToast"></div>
+          <div class="tutorial-overlay" id="tutorialOverlay" hidden>
+            <section class="tutorial-card" id="tutorialCard" role="dialog" aria-labelledby="tutorialTitle" aria-describedby="tutorialBody">
+              <p class="kicker" id="tutorialStepLabel">TRAINING SHIP // 01</p>
+              <h2 id="tutorialTitle">移动与冲刺</h2>
+              <p id="tutorialBody"></p>
+              <div class="tutorial-card-actions"><button class="tutorial-primary" type="button" onclick="game.beginTutorialPractice()">开始练习</button><button type="button" onclick="game.retryTrainingLesson()">重试本课</button><button type="button" onclick="game.exitTraining()">退出训练</button></div>
+            </section>
+            <aside class="tutorial-practice" id="tutorialPractice" hidden>
+              <div><span class="kicker">TRAINING OBJECTIVE</span><strong id="tutorialPracticeTitle"></strong><small id="tutorialObjective"></small><small id="trainingGoal" aria-live="polite" aria-atomic="true"></small></div>
+              <div class="tutorial-practice-actions"><button type="button" onclick="game.pauseTutorial()">暂停指导</button><button type="button" onclick="game.retryTrainingLesson()">重试本课</button><button type="button" onclick="game.exitTraining()">退出训练</button></div>
+            </aside>
+          </div>
+        </div>
+        <div class="game-footer"><span><b class="key">WASD</b> 移动</span><span><b class="key">Shift</b> 冲刺</span><span><b class="key">Space</b> 翻滚（需装备）</span><span><b class="key">V</b> 近战</span><span><b class="key">C / H</b> 补给 2 秒</span><span><b class="key">1/2</b> 切枪</span><span><b class="key">左键</b> 开火</span><span><b class="key">R</b> 换弹</span><span><b class="key">E</b> 交互/门/终端</span><span><b class="key">M</b> 战术地图</span><span><b class="key">X</b> 呼叫撤离</span><span><b class="key">T</b> 技能/蓝图</span><span><b class="key">R / E</b> 蓝图旋转/按住拆除 3 秒</span><span><b class="key">F</b> 手电筒</span><span><b class="key">B</b> 背包</span><span class="signal"><i></i> SIGNAL 92%</span></div>
+      </section>
+
+      <aside class="status-panel panel">
+        <div class="panel-title"><span>02</span><div><p class="kicker">SUIT TELEMETRY</p><h2>生存状态</h2></div></div>
+        <div class="gauge-block"><div class="gauge-label"><span>氧气余量</span><strong id="oxygenText">100%</strong></div><div class="gauge"><i id="oxygenBar"></i></div></div>
+        <div class="gauge-block"><div class="gauge-label"><span>生命值</span><strong id="healthText">100%</strong></div><div class="gauge health"><i id="healthBar"></i></div></div>
+        <div class="gauge-block"><div class="gauge-label"><span>体力</span><strong id="staminaText">100%</strong></div><div class="gauge stamina"><i id="staminaBar"></i></div></div>
+        <div class="gauge-block"><div class="gauge-label"><span>噪音等级</span><strong id="noiseText">安静</strong></div><div class="gauge noise"><i id="noiseBar"></i></div></div>
+        <div class="status-list"><div><span>装备</span><strong class="ok">手电筒 / 正常</strong></div><div><span>武器</span><strong id="weaponStatus" class="ok">手枪 / 就绪</strong></div><div><span>弹药</span><strong id="ammoStatus" class="ok">6 / 24</strong></div><div><span>撤离舱</span><strong id="extractStatus">等待呼叫</strong></div><div><span>威胁</span><strong id="threatStatus" class="warning">未知</strong></div></div>
+        <div class="log-box"><p class="kicker">FIELD LOG</p><div id="logText">> 等待操作员确认...</div></div>
+        <div class="legend"><span><i class="legend-dot loot"></i> 可回收物</span><span><i class="legend-dot danger"></i> 未知生命体</span></div>
+      </aside>
+    </section>
+
+    <section class="result-strip panel"><div><p class="kicker">CONTRACT OUTCOME</p><h2 id="resultTitle">今晚的账单还没写完</h2></div><div class="result-metric"><span>预测结算</span><strong id="predictedValue"><span class="credit-value" aria-label="0 信用点"><img class="credit-token-image" src="resources/images/equipment-v17/credit.png" alt="" aria-hidden="true"><span>0</span></span></strong></div><div class="result-metric"><span>航程状态</span><strong id="missionState">未开始</strong></div></section>
+    <footer><span>VOID SHIFT <b>•</b> RECOVERY OPERATIONS DIVISION</span><span>DEMO BUILD 0.7</span></footer>
+  </main>
+  <script src="js/config.js?v=8"></script>
+  <script src="js/audio.js?v=2"></script>
+  <script src="js/ui.js?v=23"></script>
+  <script src="js/entities.js?v=8"></script>
+  <script src="js/map.js?v=9"></script>
+  <script src="js/training.js?v=3"></script>
+  <script src="js/renderer.js?v=12"></script>
+  <script src="js/network.js?v=17"></script>
+  <script src="js/inventory.js?v=4"></script>
+  <script src="js/rewards.js?v=2"></script>
+  <script src="js/reward-client.js?v=1"></script>
+  <script src="js/loot.js?v=2"></script>
+  <script src="js/equipment.js?v=1"></script>
+  <script src="js/game.js?v=24"></script>
+  <script src="js/menu.js?v=17"></script>
+</body>
+</html>
+

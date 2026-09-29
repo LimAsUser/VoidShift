@@ -44,7 +44,7 @@ test('movement lesson pauses only after both walking and sprinting', () => {
   assert.equal(game.tutorialCards.at(-1)[0], 'card');
 });
 
-test('solo tutorial launcher refuses co-op and starts tutorial mode when solo', () => {
+test('tutorial launcher refuses co-op before creating any training state', () => {
   const game = makeTutorialGame();
   let started = false;
   game.start = tutorialMode => { started = tutorialMode === true; };
@@ -53,9 +53,7 @@ test('solo tutorial launcher refuses co-op and starts tutorial mode when solo', 
   game.startTutorial();
   assert.equal(started, false);
 
-  game.state.coop.role = null;
-  game.startTutorial();
-  assert.equal(started, true);
+  assert.equal(game.trainingSession, undefined);
 });
 
 test('skipping guidance hides the tutorial while leaving the same mission running', () => {

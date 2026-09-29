@@ -30,6 +30,16 @@ class BackpackManager {
     return new BackpackManager(types[typeId] || (typeof Config !== 'undefined' && Config.backpack) || {});
   }
 
+  static imageFor(item) {
+    if (item.effect === 'health-40') return 'resources/images/equipment-v17/medkit.png';
+    if (item.effect === 'flashbang') return 'resources/images/flashbang.png';
+    if (item.effect === 'oxygen-50' || /氧气/.test(item.name || '')) return 'resources/images/equipment-v17/oxygen.png';
+    if (/样本|组织|血清|胚胎|孢子|真菌|神经|药/.test(item.name || '')) return 'resources/images/equipment-v17/specimen.png';
+    if (/芯|卡|数据|驱动|硬盘|电池|密钥|录音|导航/.test(item.name || '')) return 'resources/images/equipment-v17/chip.png';
+    if (/弹药/.test(item.name || '')) return 'resources/images/equipment-v17/ammo.png';
+    return item.image || 'resources/images/equipment-v17/alloy.png';
+  }
+
   get capacity() { return this.cols * this.rows; }
   get pitch() { return this.cellSize + this.gap; }
 
@@ -146,7 +156,7 @@ class BackpackManager {
     if (itemOrId == null) return null;
     return typeof itemOrId === 'object'
       ? (this.items.includes(itemOrId) ? itemOrId : null)
-      : this.items.find(item => item.id === itemOrId) || null;
+      : this.items.find(item => String(item.id) === String(itemOrId)) || null;
   }
 
   sizeFor(item, rotation = null) {
@@ -235,5 +245,70 @@ class BackpackManager {
     }
     if (order === 'value') this.items.splice(0, this.items.length, ...sequence);
     return { packed: sequence.length, failed: [] };
+  }
+}
+
+/** Shared crate mutations run only on the host; failed transfers are lossless. */
+class ContainerTransactions {
+  constructor(containers) {
+    this.containers = containers;
+    this.requests = new Map();
+  }
+
+  static inventory(container) {
+    const grid = new BackpackManager({ id: container.id, label: container.fixed ? '箱子' : '物资包', cols: 6, rows: 6 });
+    grid.items = container.items;
+    return grid;
+  }
+
+  transact(playerId, request, actor, backpack, canReach = () => true) {
+    if (!request || !Number.isSafeInteger(request.requestId) || request.requestId < 1) return { accepted: false, reason: 'invalid-request' };
+    let history = this.requests.get(playerId);
+    if (!history) this.requests.set(playerId, history = { latest: 0, results: new Map() });
+    if (history.results.has(request.requestId)) return history.results.get(request.requestId);
+    if (request.requestId <= history.latest) return { requestId: request.requestId, accepted: false, reason: 'stale-request' };
+    history.latest = request.requestId;
+    const container = this.containers.find(item => item.id === request.containerId);
+    const result = { requestId: request.requestId, containerId: request.containerId, accepted: false, reason: 'missing-container' };
+    if (container) {
+      result.reason = 'out-of-range';
+      if (actor && !actor.downed && !(actor.stunned > 0) && !(actor.flashStunTimer > 0) &&
+          Math.hypot(actor.x - container.x, actor.y - container.y) <= 80 && canReach(actor, container)) {
+        const grid = ContainerTransactions.inventory(container);
+        const source = request.action === 'deposit' ? backpack : grid;
+        const target = request.action === 'take' ? backpack : grid;
+        const item = source?.getItem(request.itemId);
+        result.reason = 'missing-item';
+        if (item && ['take', 'deposit', 'move'].includes(request.action)) {
+          result.reason = 'full';
+          const old = { gx: item.gx, gy: item.gy, rot: item.rot };
+          if (request.action === 'move') {
+            if (Number.isInteger(request.gx) && Number.isInteger(request.gy) && grid.moveItem(item, request.gx, request.gy, request.rot)) result.accepted = true;
+          } else if (target && !target.getItem(item.id)) {
+            const positioned = request.gx != null || request.gy != null;
+            const options = positioned ? { gx: request.gx, gy: request.gy, rot: request.rot } : { rot: item.rot };
+            if ((!positioned || (Number.isInteger(request.gx) && Number.isInteger(request.gy) &&
+                target.canPlace(target.matrixFor(item, request.rot), request.gx, request.gy))) && target.place(item, options)) {
+              source.removeItem(item);
+              if (request.action === 'take') item.foundThisRun = true;
+              result.accepted = true;
+            } else Object.assign(item, old);
+          }
+          if (result.accepted) {
+            container.revision = (container.revision || 0) + 1;
+            result.reason = null;
+            result.revision = container.revision;
+            result.itemId = item.id;
+            if (!container.fixed && !container.items.length) {
+              this.containers.splice(this.containers.indexOf(container), 1);
+              result.removed = true;
+            }
+          }
+        }
+      }
+    }
+    history.results.set(request.requestId, result);
+    while (history.results.size > 128) history.results.delete(history.results.keys().next().value);
+    return result;
   }
 }

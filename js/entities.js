@@ -15,9 +15,13 @@ class Player {
     });
     weaponAmmo.pistol = { magazine: Config.weapons.pistol.maxAmmo, reserve: 120 };
     return {
-      ownedWeapons: { pistol: true, smg: false, shotgun: false, revolver: false },
+      ownedWeapons: Object.fromEntries(Object.keys(Config.weapons).map(id => [id, id === 'pistol'])),
       loadout: { primary: null, sidearm: 'pistol' },
       activeSlot: 'sidearm',
+      ownedSkills: Object.fromEntries(Object.keys(Config.skills || {}).map(id => [id, false])),
+      ownedPassives: Object.fromEntries(Object.keys(Config.passives || {}).map(id => [id, false])),
+      equippedSkill: null,
+      equippedPassive: null,
       weaponAmmo,
       standardAmmoUnits: 0
     };
@@ -55,6 +59,8 @@ class Player {
     }
 
     const standardAmmoUnits = Number(data.standardAmmoUnits);
+    const ownedSkills = Object.fromEntries(Object.keys(Config.skills || {}).map(id => [id, data.ownedSkills?.[id] === true]));
+    const ownedPassives = Object.fromEntries(Object.keys(Config.passives || {}).map(id => [id, data.ownedPassives?.[id] === true]));
     const activeSlot = data.activeSlot === 'primary' && loadout.primary
       ? 'primary'
       : data.activeSlot === 'sidearm' ? 'sidearm' : loadout.primary ? 'primary' : 'sidearm';
@@ -62,6 +68,10 @@ class Player {
       ownedWeapons,
       loadout,
       activeSlot,
+      ownedSkills,
+      ownedPassives,
+      equippedSkill: ownedSkills[data.equippedSkill] ? data.equippedSkill : null,
+      equippedPassive: ownedPassives[data.equippedPassive] ? data.equippedPassive : null,
       weaponAmmo,
       standardAmmoUnits: Number.isFinite(standardAmmoUnits) ? Math.max(0, Math.floor(standardAmmoUnits)) : 0
     };
@@ -86,6 +96,7 @@ class Player {
     this.noise = 0;
 
     this.flashlight = true;
+    this.missionPistolAmmo = null;
     this.configureArmory(armory || this.armory || Player.createDefaultArmory(), activeSlot);
     this.weaponTimers = Object.fromEntries(Object.keys(Config.weapons).map(weaponId => [weaponId, {
       shootCooldown: 0, reloadTimer: 0, reloadMode: null
@@ -98,6 +109,12 @@ class Player {
     this.meleeCooldown = 0;
     this.meleeVisualTimer = 0;
     this.stunned = 0; // Stun duration timer in seconds
+    this.flashStunTimer = 0;
+    this.skillReadyAt = 0;
+    this.supplyUse = null;
+    this.shieldUntil = 0;
+    this.shieldReadyAt = 0;
+    this.reloadSerial = this.reloadSerial || 0;
     this.downed = false;
     this.bleedout = 0;
     this.reviveProgress = 0;
@@ -110,11 +127,28 @@ class Player {
     this.armory.activeSlot = this.activeSlot;
   }
 
+  setMissionAmmoRules(difficulty) {
+    this.missionPistolAmmo = difficulty === 'easy' ? { magazine: 6, reserve: 0 } : null;
+  }
+
+  get infiniteReserve() { return this.weaponId === 'pistol' && !!this.missionPistolAmmo; }
+
+  applyFlashStun(seconds) {
+    this.flashStunTimer = Math.max(this.flashStunTimer, seconds);
+    if (seconds > 0) this.supplyUse = null;
+    this.dodgeTimer = 0;
+    this.invulnerableThisFrame = false;
+  }
+
   exportArmory() {
     return {
       ownedWeapons: { ...this.armory.ownedWeapons },
       loadout: { ...this.armory.loadout },
       activeSlot: this.activeSlot,
+      ownedSkills: { ...this.armory.ownedSkills },
+      ownedPassives: { ...this.armory.ownedPassives },
+      equippedSkill: this.armory.equippedSkill,
+      equippedPassive: this.armory.equippedPassive,
       weaponAmmo: Object.fromEntries(Object.entries(this.armory.weaponAmmo).map(([weaponId, stock]) => [weaponId, { ...stock }])),
       standardAmmoUnits: this.armory.standardAmmoUnits
     };
@@ -129,6 +163,7 @@ class Player {
   }
 
   get weaponState() {
+    if (this.infiniteReserve) return this.missionPistolAmmo;
     return this.armory.weaponAmmo[this.weaponId];
   }
 
@@ -138,8 +173,8 @@ class Player {
 
   get ammo() { return this.weaponState.magazine; }
   set ammo(value) { this.weaponState.magazine = Math.max(0, Math.min(this.weapon.maxAmmo, Math.floor(Number(value) || 0))); }
-  get reserveAmmo() { return this.weaponState.reserve; }
-  set reserveAmmo(value) { this.weaponState.reserve = Math.max(0, Math.floor(Number(value) || 0)); }
+  get reserveAmmo() { return this.infiniteReserve ? Infinity : this.weaponState.reserve; }
+  set reserveAmmo(value) { if (!this.infiniteReserve) this.weaponState.reserve = Math.max(0, Math.floor(Number(value) || 0)); }
   get shootCooldown() { return this.weaponTimer.shootCooldown; }
   set shootCooldown(value) { this.weaponTimer.shootCooldown = Math.max(0, Number(value) || 0); }
   get reloading() { return this.weaponTimer.reloadTimer; }
@@ -193,7 +228,7 @@ class Player {
   }
 
   consumeStamina(amount) {
-    if (this.staminaLocked || this.downed || this.stunned > 0 || this.stamina < amount) return false;
+    if (this.staminaLocked || this.downed || this.stunned > 0 || this.flashStunTimer > 0 || this.stamina < amount) return false;
     this.stamina = Math.max(0, this.stamina - amount);
     this.staminaRegenDelay = Config.player.staminaRegenDelay;
     if (this.stamina === 0) this.staminaLocked = true;
@@ -201,13 +236,15 @@ class Player {
   }
 
   startRoll(dx, dy) {
+    if (this.armory.equippedPassive !== 'roll' || !this.armory.ownedPassives?.roll) return false;
     const length = Math.hypot(dx, dy);
-    if (this.dodgeTimer > 0 || this.downed || this.stunned > 0 || length === 0 ||
+    if (this.dodgeTimer > 0 || this.downed || this.stunned > 0 || this.flashStunTimer > 0 || length === 0 ||
         this.stamina <= 0 || !this.consumeStamina(Math.min(Config.player.dodgeStaminaCost, this.stamina))) return false;
     this.dodgeDirectionX = dx / length;
     this.dodgeDirectionY = dy / length;
     this.dodgeTimer = Config.player.dodgeDuration;
     this.invulnerableThisFrame = true;
+    this.supplyUse = null;
     return true;
   }
 
@@ -216,6 +253,7 @@ class Player {
         !this.consumeStamina(Config.player.meleeStaminaCost)) return false;
     this.meleeCooldown = Config.player.meleeCooldown;
     this.meleeVisualTimer = 0.22;
+    this.supplyUse = null;
     return true;
   }
 
@@ -223,6 +261,8 @@ class Player {
    * Updates player cooldowns, reloading state and movement
    */
   update(dt, keys, stabilized, mapManager, audioManager, collisionPlayers = []) {
+    const flashStunned = this.flashStunTimer > 0;
+    this.flashStunTimer = Math.max(0, this.flashStunTimer - dt);
     if (this.stamina <= 0) this.staminaLocked = true;
     else if (this.stamina >= 100) this.staminaLocked = false;
     this.staminaRegenDelay = Math.max(0, this.staminaRegenDelay - dt);
@@ -232,6 +272,7 @@ class Player {
     this.invulnerableThisFrame = false;
 
     const prevStunned = this.stunned;
+    if (this.downed || flashStunned || prevStunned > 0) this.supplyUse = null;
     if (this.stunned > 0) {
       this.stunned = Math.max(0, this.stunned - dt);
     }
@@ -240,14 +281,20 @@ class Player {
       reloaded: false,
       shellLoaded: false,
       rollFinished: false,
-      stunned: this.stunned > 0,
-      stunTimeLeft: this.stunned,
+      stunned: this.stunned > 0 || flashStunned,
+      stunTimeLeft: Math.max(this.stunned, this.flashStunTimer),
       stunRecovered: (prevStunned > 0 && this.stunned === 0)
     };
 
-    if (this.downed || this.stunned > 0) {
+    if (flashStunned || this.stunned > 0) {
       this.moveSpeed = 0;
       this.noise = Math.max(0, this.noise - Config.player.noiseDecayStill * dt);
+      return updateResult;
+    }
+
+    if (this.downed) {
+      this._updateReload(dt, updateResult);
+      this.move(dt, keys || {}, false, mapManager, audioManager, collisionPlayers, Config.player.downedSpeed);
       return updateResult;
     }
 
@@ -269,7 +316,7 @@ class Player {
     }
 
     this._updateReload(dt, updateResult);
-    this.move(dt, keys, stabilized, mapManager, audioManager, collisionPlayers);
+    this.move(dt, keys, stabilized, mapManager, audioManager, collisionPlayers, this.supplyUse ? 40 : null);
 
     return updateResult;
   }
@@ -307,12 +354,14 @@ class Player {
   /**
    * Handles user-driven translation movement and physics collisions
    */
-  move(dt, keys, stabilized, mapManager, audioManager, collisionPlayers = []) {
+  move(dt, keys, stabilized, mapManager, audioManager, collisionPlayers = [], speedOverride = null) {
     let dx = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
     let dy = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
     const moving = Boolean(dx || dy);
-    const running = moving && keys.shift && !stabilized && !this.staminaLocked && this.stamina > 1;
-    const speed = stabilized ? this.baseSpeed * 0.55 : running ? Config.player.sprintSpeed : this.baseSpeed;
+    const running = speedOverride == null && moving && keys.shift && !stabilized && !this.staminaLocked && this.stamina > 0;
+    const speed = speedOverride == null
+      ? (stabilized ? this.baseSpeed * 0.55 : running ? Config.player.sprintSpeed : this.baseSpeed)
+      : Math.max(0, Number(speedOverride) || 0);
 
     this.moveSpeed = moving ? speed : 0;
 
@@ -338,13 +387,15 @@ class Player {
         this.noise = Math.max(targetMaxNoise, this.noise - Config.player.noiseDecayMoving * dt);
       }
 
-      if (running) {
-        this.stamina = Math.max(0, this.stamina - 30 * dt);
-        this.staminaRegenDelay = Config.player.staminaRegenDelay;
-        if (this.stamina === 0) this.staminaLocked = true;
-      } else if (this.staminaRegenDelay <= 0) {
-        this.stamina = Math.min(100, this.stamina + 16 * dt);
-        if (this.staminaLocked && this.stamina >= 100) this.staminaLocked = false;
+      if (!this.downed) {
+        if (running) {
+          this.stamina = Math.max(0, this.stamina - 30 * dt);
+          this.staminaRegenDelay = Config.player.staminaRegenDelay;
+          if (this.stamina === 0) this.staminaLocked = true;
+        } else if (this.staminaRegenDelay <= 0) {
+          this.stamina = Math.min(100, this.stamina + 16 * dt);
+          if (this.staminaLocked && this.stamina >= 100) this.staminaLocked = false;
+        }
       }
 
       // Play moving footsteps sound effects
@@ -355,7 +406,7 @@ class Player {
       }
     } else {
       this.noise = Math.max(0, this.noise - Config.player.noiseDecayStill * dt);
-      if (this.staminaRegenDelay <= 0) {
+      if (!this.downed && this.staminaRegenDelay <= 0) {
         this.stamina = Math.min(100, this.stamina + 22 * dt);
         if (this.staminaLocked && this.stamina >= 100) this.staminaLocked = false;
       }
@@ -372,11 +423,12 @@ class Player {
    * Triggers a weapon reload sequence
    */
   reload(audioManager) {
-    if (!this.weaponId || this.stunned > 0 || this.dodgeTimer > 0 || this.reloading > 0 || this.ammo >= this.weapon.maxAmmo || this.reserveAmmo <= 0) {
+    if (!this.weaponId || this.stunned > 0 || this.flashStunTimer > 0 || this.dodgeTimer > 0 || this.reloading > 0 || this.ammo >= this.weapon.maxAmmo || this.reserveAmmo <= 0) {
       return false;
     }
     this.weaponTimer.reloadTimer = this.weapon.reloadDuration;
     this.weaponTimer.reloadMode = this.weapon.reloadMode;
+    if (this.weapon.reloadMode === 'magazine') this.reloadSerial++;
     if (audioManager?.playSound) audioManager.playSound('resources/gun-reload-2-511308.mp3', 0.5);
     return true;
   }
@@ -386,7 +438,7 @@ class Player {
    */
   shoot(stabilized, mapManager, audioManager, monster) {
     if (!this.weaponId) return { fired: false, reason: 'unarmed' };
-    if (this.stunned > 0) {
+    if (this.stunned > 0 || this.flashStunTimer > 0) {
       return { fired: false, reason: 'stunned' };
     }
     let reloadInterrupted = false;
@@ -402,6 +454,7 @@ class Player {
       return { fired: false, reason: 'empty' };
     }
 
+    this.supplyUse = null;
     this.ammo -= 1;
     this.shootCooldown = this.weapon.shootCooldownDuration;
     this.noise = Math.min(100, this.noise + this.weapon.shotNoise);
@@ -471,6 +524,25 @@ function isPointLitByAnyPlayer(x, y, players, mapManager) {
   return (players || []).some(player => isPointLitByPlayer(x, y, player, mapManager));
 }
 
+function isPointVisibleToPlayer(x, y, observer, mapManager, roomLightsOn = false) {
+  if (!observer || observer.downed || observer.dead) return false;
+  const dx = x - observer.x;
+  const dy = y - observer.y;
+  const distance = Math.hypot(dx, dy);
+  const angle = Math.atan2(dy, dx);
+  if (distance > 74) {
+    const difference = Math.abs(Math.atan2(Math.sin(angle - observer.angle), Math.cos(angle - observer.angle)));
+    if (difference > Config.player.flashlightSpread) return false;
+    const room = roomLightsOn && mapManager.getRoomAt(x, y);
+    const range = room && room.lights && room.lights.length
+      ? Math.hypot(Config.VIEW_W, Config.VIEW_H) / Config.camera.baseZoom
+      : Config.player.flashlightRange * (observer.flashlight ? 1 : 0.3);
+    if (distance > range) return false;
+  }
+  const ray = mapManager.rayWallDistance || mapManager.rayVisionDistance;
+  return distance <= ray.call(mapManager, observer.x, observer.y, Math.cos(angle), Math.sin(angle), distance, 0);
+}
+
 function getNavigationRoom(mapManager, x, y) {
   const rooms = mapManager.worldRooms || [];
   const containingRooms = rooms.filter(room => {
@@ -495,6 +567,16 @@ function getDoorExitPoint(mapManager, centerX, centerY, room, radius, directionX
   const maxDistance = 220;
 
   for (let distance = radius + 18; distance <= maxDistance; distance += 12) {
+    const x = centerX + directionX / directionLength * distance;
+    const y = centerY + directionY / directionLength * distance;
+    if (!mapManager.blocked(x, y, radius) && getNavigationRoom(mapManager, x, y) === room) {
+      return { x, y };
+    }
+  }
+
+  // An open passage can lead into a short connector whose far door is closed.
+  // Its center may be blocked even though a nearer point inside is body-clear.
+  for (let distance = radius + 6; distance >= 2; distance -= 4) {
     const x = centerX + directionX / directionLength * distance;
     const y = centerY + directionY / directionLength * distance;
     if (!mapManager.blocked(x, y, radius) && getNavigationRoom(mapManager, x, y) === room) {
@@ -539,15 +621,13 @@ function buildPursuitWaypoints(mapManager, fromX, fromY, targetX, targetY, radiu
         direction.y
       );
       const approachDistance = Math.hypot(entryPoint.x - routeX, entryPoint.y - routeY);
-      const approachPath = buildLocalGridPath(
-        mapManager,
-        routeX,
-        routeY,
-        entryPoint.x,
-        entryPoint.y,
-        radius,
-        approachDistance + 140
-      );
+      // Generated rooms reserve door-to-center lanes, including for wide bodies.
+      const center = routeRoom.center;
+      const viaCenter = !isDirectPathClear(mapManager, routeX, routeY, entryPoint.x, entryPoint.y, radius) &&
+        isDirectPathClear(mapManager, routeX, routeY, center.x, center.y, radius) &&
+        isDirectPathClear(mapManager, center.x, center.y, entryPoint.x, entryPoint.y, radius);
+      const approachPath = viaCenter ? [center, entryPoint] : buildLocalGridPath(
+        mapManager, routeX, routeY, entryPoint.x, entryPoint.y, radius, approachDistance + 140);
       for (const point of approachPath.slice(0, -1)) {
         waypoints.push({
           x: point.x,
@@ -588,9 +668,9 @@ function buildPursuitWaypoints(mapManager, fromX, fromY, targetX, targetY, radiu
   return waypoints;
 }
 
-function isDirectPathClear(mapManager, fromX, fromY, targetX, targetY, radius) {
+function isDirectPathClear(mapManager, fromX, fromY, targetX, targetY, radius, spacing = 8) {
   const distance = Math.hypot(targetX - fromX, targetY - fromY);
-  const steps = Math.max(1, Math.ceil(distance / Math.max(8, radius * 0.75)));
+  const steps = Math.max(1, Math.ceil(distance / spacing));
   for (let i = 1; i <= steps; i++) {
     const t = i / steps;
     const x = fromX + (targetX - fromX) * t;
@@ -600,8 +680,8 @@ function isDirectPathClear(mapManager, fromX, fromY, targetX, targetY, radius) {
   return true;
 }
 
-function buildLocalGridPath(mapManager, fromX, fromY, targetX, targetY, radius, maxDistance) {
-  if (isDirectPathClear(mapManager, fromX, fromY, targetX, targetY, radius)) return [];
+function buildLocalGridPath(mapManager, fromX, fromY, targetX, targetY, radius, maxDistance, goalTest = null) {
+  if (goalTest ? goalTest(fromX, fromY) : isDirectPathClear(mapManager, fromX, fromY, targetX, targetY, radius)) return [];
 
   const cellSize = 28;
   const maxCells = Math.ceil((maxDistance + 140) / cellSize);
@@ -617,7 +697,8 @@ function buildLocalGridPath(mapManager, fromX, fromY, targetX, targetY, radius, 
     const currentX = fromX + current.gx * cellSize;
     const currentY = fromY + current.gy * cellSize;
 
-    if (Math.hypot(targetX - currentX, targetY - currentY) <= cellSize * 1.5 &&
+    if (goalTest ? goalTest(currentX, currentY) :
+        Math.hypot(targetX - currentX, targetY - currentY) <= cellSize * 1.5 &&
         isDirectPathClear(mapManager, currentX, currentY, targetX, targetY, radius)) {
       destinationKey = currentKey;
       break;
@@ -647,11 +728,11 @@ function buildLocalGridPath(mapManager, fromX, fromY, targetX, targetY, radius, 
     key = parents.get(key);
   }
   path.reverse();
-  path.push({ x: targetX, y: targetY });
+  if (!goalTest) path.push({ x: targetX, y: targetY });
   return path;
 }
 
-function getPursuitTarget(entity, dt, mapManager, targetX, targetY, refreshInterval) {
+function getPursuitTarget(entity, dt, mapManager, targetX, targetY, refreshInterval, safeCorners = false) {
   entity.waypointTimer -= dt;
   const currentWaypoint = entity.waypoints[0];
   const traversingDoor = currentWaypoint &&
@@ -679,6 +760,8 @@ function getPursuitTarget(entity, dt, mapManager, targetX, targetY, refreshInter
     const enteredTargetRoom = !waypoint.isDoorExit ||
       getNavigationRoom(mapManager, entity.x, entity.y) === waypoint.room;
     if (distance >= completionDistance || !enteredTargetRoom) break;
+    const next = entity.waypoints[1];
+    if (safeCorners && next && !isDirectPathClear(mapManager, entity.x, entity.y, next.x, next.y, entity.radius)) break;
     entity.waypoints.shift();
   }
 
@@ -754,7 +837,7 @@ function recoverStuckPursuer(entity, dt, mapManager) {
   for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 4) {
     const nextX = entity.x + Math.cos(angle) * nudgeDistance;
     const nextY = entity.y + Math.sin(angle) * nudgeDistance;
-    if (!mapManager.blocked(nextX, nextY, entity.radius)) {
+    if (isDirectPathClear(mapManager, entity.x, entity.y, nextX, nextY, entity.radius, 2)) {
       entity.x = nextX;
       entity.y = nextY;
       break;
@@ -797,6 +880,16 @@ function updatePatrol(entity, dt, mapManager, speed, refreshInterval) {
   recoverStuckPursuer(entity, dt, mapManager);
 }
 
+function hasEnemyContact(entity, target, map) {
+  const distance = Math.hypot(target.x - entity.x, target.y - entity.y);
+  if (distance > entity.radius + (target.radius ?? Config.player.radius) + 5) return false;
+  if (!distance) return true;
+  return typeof map.rayWallDistance === 'function'
+    ? map.rayWallDistance(entity.x, entity.y, (target.x - entity.x) / distance,
+      (target.y - entity.y) / distance, distance) >= distance
+    : isDirectPathClear(map, entity.x, entity.y, target.x, target.y, 0, 2);
+}
+
 class Monster {
   constructor() {
     this.reset();
@@ -817,6 +910,8 @@ class Monster {
     this.radius = Config.monster.radius;
     this.active = false;
     this.alerted = false;
+    this.attackCooldown = 0;
+    this.discoveryTimer = 0;
     this.angle = 0;
     this.lostTime = 0;
     this.patrolAngle = 0;
@@ -825,7 +920,10 @@ class Monster {
     this.slowTimer = 0;
     this.stagger = 0;
     this.shotCount = 0;
+    this.maxHp = 1;
+    this.hp = this.maxHp;
     this.recoverTimer = 0;
+    this.flashStunTimer = 0;
     this.waypoints = [];
     this.waypointTimer = 0;
     this.patrolTarget = null;
@@ -836,26 +934,34 @@ class Monster {
 
   /**
    * Registers bullet hit from player.
-   * Every fifth accumulated hit triggers a 10-second stunned recovery.
+   * An effective hit starts one difficulty-specific Nightmare sleep cycle.
    */
-  registerHit() {
+  registerHit(damage = 1) {
     if (this.recoverTimer > 0) {
       return { hit: true, triggeredRecovery: false, recovering: true };
     }
 
-    this.shotCount++;
+    const amount = Math.max(0, Number(damage) || 0);
+    if (!amount) return { hit: false, recovering: false, hp: this.hp };
+    this.hp = Math.max(0, this.hp - amount);
+    this.shotCount = this.maxHp - this.hp;
 
-    if (this.shotCount >= Config.monster.recoveryHits) {
-      this.recoverTimer = Config.monster.recoveryDuration;
-      this.stagger = Config.monster.recoveryDuration;
+    if (this.hp === 0) {
+      this.sleepCycle = (this.sleepCycle || 0) + 1;
+      this.recoverTimer = this.recoveryDuration || Config.monster.recoveryDuration;
+      this.stagger = this.recoverTimer;
       this.shotCount = 0;
-      return { hit: true, triggeredRecovery: true, recovering: true, shotCount: Config.monster.recoveryHits };
+      return { hit: true, triggeredRecovery: true, recovering: true, hp: 0, shotCount: this.maxHp };
     }
 
     this.stagger = Config.monster.hitStagger;
     this.burstTimer = 0;
 
     return { hit: true, triggeredRecovery: false, recovering: false, shotCount: this.shotCount, stunDuration: Config.monster.hitStagger };
+  }
+
+  applyFlashStun(seconds) {
+    this.flashStunTimer = Math.max(this.flashStunTimer, seconds);
   }
 
   /**
@@ -931,6 +1037,12 @@ class Monster {
    */
   update(dt, player, noiseLevel, mapManager, audioManager, others) {
     if (!this.active) return null;
+    this.attackCooldown = Math.max(0, this.attackCooldown - dt);
+    this.discoveryTimer = Math.max(0, this.discoveryTimer - dt);
+    if (this.flashStunTimer > 0) {
+      this.flashStunTimer = Math.max(0, this.flashStunTimer - dt);
+      return { playerHit: false, recovering: this.recoverTimer > 0 };
+    }
 
     const distance = Math.hypot(this.x - player.x, this.y - player.y);
 
@@ -946,7 +1058,7 @@ class Monster {
       recovering: false
     };
 
-    // Stunned 10s Recovery State (immobilized, cannot attack or chase)
+    // Stunned 20s Recovery State (immobilized, cannot attack or chase)
     if (this.recoverTimer > 0) {
       const prevTimer = this.recoverTimer;
       this.recoverTimer = Math.max(0, this.recoverTimer - dt);
@@ -959,10 +1071,12 @@ class Monster {
       return result;
     }
 
-    const canSense = distance < Config.monster.alertDistance || noiseLevel > Config.monster.triggerNoiseThreshold;
+    const canSense = !this.alerted && noiseLevel < 30 ? distance <= 150 :
+      distance < Config.monster.alertDistance || noiseLevel > Config.monster.triggerNoiseThreshold;
 
     if (!this.alerted && canSense) {
       this.alerted = true;
+      if ((player.noise || 0) < 30) this.discoveryTimer = 1;
       this.lostTime = 0;
       this.patrolTarget = null;
       this.waypoints = [];
@@ -988,21 +1102,23 @@ class Monster {
     }
 
     // Chasing state machine
-    if (this.alerted) {
-      const angle = Math.atan2(player.y - this.y, player.x - this.x);
-      const nextX = this.x + Math.cos(angle) * Config.monster.speed * dt;
-      const nextY = this.y + Math.sin(angle) * Config.monster.speed * dt;
-      const crossingWall = mapManager.blocked(nextX, this.y, this.radius) || mapManager.blocked(this.x, nextY, this.radius);
-
-      const monsterSpeed = this.stagger > 0
-        ? 0
-        : crossingWall
-          ? Config.monster.wallChokeSpeed
-          : Config.monster.speed;
-
-      this.x += Math.cos(angle) * monsterSpeed * dt;
-      this.y += Math.sin(angle) * monsterSpeed * dt;
-      this.angle = angle;
+    if (this.alerted && this.stagger <= 0) {
+      const speed = this.slowTimer > 0 ? Config.monster.slowSpeed : Config.monster.speed;
+      const steps = Math.max(1, Math.ceil(speed * dt / 8));
+      const stepTime = dt / steps;
+      for (let step = 0; step < steps; step++) {
+        if (!player.invulnerable && hasEnemyContact(this, player, mapManager)) break;
+        const angle = Math.atan2(player.y - this.y, player.x - this.x);
+        const nextX = this.x + Math.cos(angle) * speed * stepTime;
+        const nextY = this.y + Math.sin(angle) * speed * stepTime;
+        if (mapManager.movementBarrierAt?.(nextX, nextY, this.radius)) break;
+        const crossingWall = mapManager.blocked(nextX, nextY, this.radius);
+        // Preserve slow wall phasing without skipping the wall at chase speed.
+        const monsterSpeed = crossingWall ? Config.monster.wallChokeSpeed : speed;
+        this.x += Math.cos(angle) * monsterSpeed * stepTime;
+        this.y += Math.sin(angle) * monsterSpeed * stepTime;
+        this.angle = angle;
+      }
     }
 
     // Patrol between rooms when de-aggroed
@@ -1013,7 +1129,7 @@ class Monster {
     // Separation from hunters — sideways-only so narrow corridors stay passable
     if (others) {
       const candidates = typeof others.nearby === 'function'
-        ? others.nearby(this.x, this.y, this.radius + Math.max(Config.monster.radius, Config.hunter.radius) + 2)
+        ? others.nearby(this.x, this.y, this.radius + Math.max(Config.monster.radius, Config.hunter.radius, Config.heavy.radius) + 2)
         : others;
       for (const other of candidates) {
         if (other === this || !other.active) continue;
@@ -1033,24 +1149,14 @@ class Monster {
       }
     }
 
-    // Contact / Damage trigger; do not consume the hit or blink away during a roll.
-    if (distance < Config.monster.attackDistance) {
+    // Contact damage respects rolls and this actor's attack interval.
+    if (hasEnemyContact(this, player, mapManager)) {
       this.alerted = true;
       this.lostTime = 0;
 
-      if (!player.invulnerable) {
+      if (!player.invulnerable && this.attackCooldown <= 1e-8) {
         result.playerHit = true;
-
-        // Respawn far away after a real contact hit.
-        const spawn = this.getFarSpawnPoint(player.x, player.y, mapManager);
-        this.x = spawn.x;
-        this.y = spawn.y;
-        this.waypoints = [];
-        this.waypointTimer = 0;
-        this.patrolTarget = null;
-        this._stuckTimer = 0;
-        this._lastX = null;
-        this._lastY = null;
+        this.attackCooldown = 0.2;
       }
     }
 
@@ -1074,6 +1180,55 @@ class Hunter {
       Math.floor(roll / Config.hunter.traitChance * Config.hunter.traitTypes.length)
     );
     return Config.hunter.traitTypes[index];
+  }
+
+  _prepareAmbush(mapManager) {
+    this.ambushTarget = null;
+    const room = mapManager.getRoomAt(this.x, this.y);
+    if (!room) return;
+    const doors = room.doors || (mapManager.doors || []).filter(door => door.roomA === room || door.roomB === room);
+    const clearance = this.radius + 12;
+    const candidates = [];
+    for (const door of doors) {
+      if (!door.p1 || !door.p2) continue;
+      const dx = door.p2.x - door.p1.x;
+      const dy = door.p2.y - door.p1.y;
+      const length = Math.hypot(dx, dy);
+      if (!length) continue;
+      const normal = door.normal || { x: dy / length, y: -dx / length };
+      const inward = (room.center.x - door.p1.x) * normal.x + (room.center.y - door.p1.y) * normal.y >= 0 ? 1 : -1;
+      for (const [point, side] of [[door.p1, -1], [door.p2, 1]]) {
+        const candidate = {
+          x: point.x + dx / length * clearance * side + normal.x * clearance * inward,
+          y: point.y + dy / length * clearance * side + normal.y * clearance * inward
+        };
+        if (mapManager.getRoomAt(candidate.x, candidate.y) === room &&
+            !mapManager.blocked(candidate.x, candidate.y, this.radius)) candidates.push(candidate);
+      }
+    }
+    candidates.sort((a, b) => Math.hypot(a.x - this.x, a.y - this.y) - Math.hypot(b.x - this.x, b.y - this.y));
+    const roomMap = { blocked: (x, y, radius) => mapManager.getRoomAt(x, y) !== room || mapManager.blocked(x, y, radius) };
+    for (const candidate of candidates) {
+      const direct = isDirectPathClear(roomMap, this.x, this.y, candidate.x, candidate.y, this.radius);
+      const path = direct ? [] : buildLocalGridPath(roomMap, this.x, this.y, candidate.x, candidate.y,
+        this.radius, Math.hypot(room.w, room.h));
+      if (!direct && !path.length) continue;
+      this.ambushTarget = candidate;
+      this.localPath = path;
+      return;
+    }
+  }
+
+  _triggerAmbush() {
+    this.ambushTriggered = true;
+    this.ambushTarget = null;
+    this.alerted = true;
+    this.lostTime = 0;
+    this.waypoints = [];
+    this.waypointTimer = 0;
+    this.localPath = [];
+    this.localRepathTimer = 0;
+    this.patrolTarget = null;
   }
 
   _findDarkTarget(players, mapManager, targetPlayer) {
@@ -1124,6 +1279,9 @@ class Hunter {
 
   updateDeath(dt) {
     if (!this.dead) return null;
+    this.discoveryTimer = Math.max(0, this.discoveryTimer - dt);
+    this.attackCooldown = Math.max(0, this.attackCooldown - dt);
+    this.corpseTime = Math.max(0, (this.corpseTime || 0) - dt);
     if (!this.revivePending) {
       this.deathFade = Math.max(0, this.deathFade - dt / Config.hunter.deathFadeDuration);
       return { revived: false };
@@ -1136,6 +1294,7 @@ class Hunter {
 
     this.revivePending = false;
     this.dead = false;
+    this.corpseTime = 0;
     this.active = true;
     this.alerted = true;
     this.hp = this.maxHp * 0.5;
@@ -1165,11 +1324,16 @@ class Hunter {
     this.radius = Config.hunter.radius;
     this.active = false;
     this.alerted = false;
+    this.attackCooldown = 0;
+    this.discoveryTimer = 0;
     this.dead = false;
     this.deathFade = 0;
+    this.corpseTime = 0;
     this.reviveUsed = false;
     this.revivePending = false;
     this.reviveTimer = 0;
+    this.ambushTriggered = false;
+    this.ambushTarget = null;
     this.lightAvoidTarget = null;
     this.lightAvoidTimer = 0;
     this.avoidingLight = false;
@@ -1183,6 +1347,7 @@ class Hunter {
     this.slowTimer = 0;
     this.stagger = 0;
     // Pathfinding state
+    this.flashStunTimer = 0;
     this.waypoints = [];
     this.waypointTimer = 0;
     this.patrolTarget = null;
@@ -1228,6 +1393,7 @@ class Hunter {
     this._stuckTimer = 0;
     this._lastX = null;
     this._lastY = null;
+    if (this.trait === 'ambusher' && !this.ambushTriggered) this._prepareAmbush(mapManager);
     if (audioManager) {
       const toHunterAngle = Math.atan2(this.y - playerY, this.x - playerX);
       const pan = Math.sin(toHunterAngle - playerAngle);
@@ -1236,9 +1402,10 @@ class Hunter {
     return { activated: true };
   }
 
-  registerHit() {
+  registerHit(amount = 1) {
     if (this.dead || !this.active) return { hit: false };
-    this.hp--;
+    if (this.trait === 'ambusher' && !this.ambushTriggered) this._triggerAmbush();
+    this.hp -= Math.max(0, Number(amount) || 0);
     this.stagger = Config.hunter.hitStagger;
     this.burstTimer = 0;
     this.localPath = [];
@@ -1247,6 +1414,7 @@ class Hunter {
       this.dead = true;
       this.active = false;
       this.deathFade = 1;
+      this.corpseTime = 3;
       if (this.trait === 'reviver' && !this.reviveUsed) {
         this.reviveUsed = true;
         this.revivePending = true;
@@ -1260,8 +1428,36 @@ class Hunter {
     return { hit: true, dead: false, hpLeft: this.hp };
   }
 
-  update(dt, player, noiseLevel, mapManager, audioManager, others, lightSources = [player]) {
+  applyFlashStun(seconds) {
+    this.flashStunTimer = Math.max(this.flashStunTimer, seconds);
+    if (seconds > 0 && this.active && !this.dead && this.trait === 'ambusher' && !this.ambushTriggered) this._triggerAmbush();
+  }
+
+  update(dt, player, noiseLevel, mapManager, audioManager, others, lightSources = [player], roomLightsOn = false) {
     if (!this.active || this.dead) return null;
+    this.attackCooldown = Math.max(0, this.attackCooldown - dt);
+    this.discoveryTimer = Math.max(0, this.discoveryTimer - dt);
+    const activeLights = (lightSources || []).filter(source => source && !source.downed && !source.dead);
+    if (this.trait === 'ambusher' && !this.ambushTriggered && this.ambushTarget) {
+      let nearestViewer = null;
+      let viewerDistance = Infinity;
+      for (const observer of activeLights) {
+        const distance = Math.hypot(observer.x - this.x, observer.y - this.y);
+        if (distance < viewerDistance && isPointVisibleToPlayer(this.x, this.y, observer, mapManager, roomLightsOn)) {
+          nearestViewer = observer;
+          viewerDistance = distance;
+        }
+      }
+      if (nearestViewer) {
+        if (!this.alerted && (nearestViewer.noise || 0) < 30) this.discoveryTimer = 1;
+        this._triggerAmbush();
+        player = nearestViewer;
+      }
+    }
+    if (this.flashStunTimer > 0) {
+      this.flashStunTimer = Math.max(0, this.flashStunTimer - dt);
+      return { playerHit: false };
+    }
 
     const result = {};
     const dx = player.x - this.x;
@@ -1274,17 +1470,32 @@ class Hunter {
     if (this.burstCooldown > 0) this.burstCooldown -= dt;
     if (this.slowTimer > 0) this.slowTimer -= dt;
 
-    const activeLights = (lightSources || []).filter(source => source && !source.downed);
+    if (this.trait === 'ambusher' && !this.ambushTriggered && this.ambushTarget) {
+      if (this.stagger <= 0) {
+        while (this.localPath.length && Math.hypot(this.localPath[0].x - this.x, this.localPath[0].y - this.y) < 4) {
+          this.localPath.shift();
+        }
+        const target = this.localPath[0] || this.ambushTarget;
+        const remaining = Math.hypot(target.x - this.x, target.y - this.y);
+        if (remaining > 1) {
+          const speed = this.slowTimer > 0 ? Config.hunter.slowSpeed : Config.hunter.speed;
+          moveWithAvoidance(this, mapManager, target.x, target.y, Math.min(speed, remaining / Math.max(dt, 0.001)), dt);
+        }
+      }
+      return { playerHit: false };
+    }
+
     const illuminated = this.trait === 'photophobic' &&
       distance > Config.hunter.lightIgnoreDistance &&
       isPointLitByAnyPlayer(this.x, this.y, activeLights, mapManager);
 
     // Nearby players can be tracked around corners; loud noise and direct flashlight exposure carry farther
-    const canSense = distance < Config.hunter.alertDistance ||
-      noiseLevel > Config.hunter.triggerNoiseThreshold || illuminated;
+    const canSense = !this.alerted && noiseLevel < 30 ? distance <= 150 :
+      distance < Config.hunter.alertDistance || noiseLevel > Config.hunter.triggerNoiseThreshold || illuminated;
 
     if (!this.alerted && canSense) {
       this.alerted = true;
+      if ((player.noise || 0) < 30) this.discoveryTimer = 1;
       this.lostTime = 0;
       this.patrolTarget = null;
       this.waypoints = [];
@@ -1375,18 +1586,9 @@ class Hunter {
       recoverStuckPursuer(this, dt, mapManager);
 
       // Contact damage
-      if (!illuminated && distance < Config.hunter.attackDistance) {
+      if (!illuminated && !player.invulnerable && this.attackCooldown <= 1e-8 && hasEnemyContact(this, player, mapManager)) {
         result.playerHit = true;
-        const sp = this.getFarSpawnPoint(player.x, player.y, mapManager);
-        if (sp) { this.x = sp.x; this.y = sp.y; }
-        this.waypoints = [];
-        this.waypointTimer = 0;
-        this.localPath = [];
-        this.localRepathTimer = 0;
-        this.patrolTarget = null;
-        this._stuckTimer = 0;
-        this._lastX = null;
-        this._lastY = null;
+        this.attackCooldown = 0.5;
       }
 
     } else if (!this.alerted && this.stagger <= 0) {
@@ -1396,7 +1598,7 @@ class Hunter {
     // Separation: only push sideways relative to travel direction so corridor queues flow through
     if (others) {
       const candidates = typeof others.nearby === 'function'
-        ? others.nearby(this.x, this.y, this.radius + Math.max(Config.monster.radius, Config.hunter.radius) + 2)
+        ? others.nearby(this.x, this.y, this.radius + Math.max(Config.monster.radius, Config.hunter.radius, Config.heavy.radius) + 2)
         : others;
       for (const other of candidates) {
         if (other === this || !other.active) continue;
@@ -1419,6 +1621,302 @@ class Hunter {
     }
 
     return result;
+  }
+}
+
+class Heavy {
+  constructor(maxHp = Config.heavy.hp.medium) {
+    this.reset(null, maxHp);
+  }
+
+  reset(map, maxHp = this.maxHp || Config.heavy.hp.medium) {
+    const spawn = map?.monsterSpawns?.[0] || { x: 800, y: 800 };
+    this.x = spawn.x;
+    this.y = spawn.y;
+    this.radius = Config.heavy.radius;
+    this.maxHp = maxHp;
+    this.hp = maxHp;
+    this.active = false;
+    this.alerted = false;
+    this.discoveryTimer = 0;
+    this.dead = false;
+    this.corpseTime = 0;
+    this.angle = 0;
+    this.phase = 'pursuit';
+    this.phaseTimer = 0;
+    this.stunTimer = 0;
+    this.chargeAngle = 0;
+    this.chargeHits = new Set();
+    this.waypoints = [];
+    this.waypointTimer = 0;
+    this.localPath = [];
+    this.localRepathTimer = 0;
+    this._stuckTimer = 0;
+    this._lastX = null;
+    this._lastY = null;
+    this.pursuitGoal = null;
+    this.progressGoal = null;
+  }
+
+  activate(x = this.x, y = this.y) {
+    this.x = x;
+    this.y = y;
+    this.active = true;
+    this.dead = false;
+    this.corpseTime = 0;
+    this.phase = 'pursuit';
+    this.waypoints = [];
+    this.waypointTimer = 0;
+    this.localPath = [];
+    this.localRepathTimer = 0;
+  }
+
+  stun(seconds) {
+    if (this.dead) return;
+    this.phase = 'stunned';
+    this.stunTimer = Math.max(this.stunTimer, seconds);
+    this.phaseTimer = 0;
+    this.waypoints = [];
+    this.localPath = [];
+  }
+
+  applyFlashStun(seconds) {
+    this.stun(seconds);
+  }
+
+  registerHit(damage = 1, bypassArmor = false) {
+    if (this.active && !this.dead) this.alerted = true;
+    if (!this.active || this.dead || (!bypassArmor && this.phase !== 'stunned')) return { hit: false, dead: this.dead, hp: this.hp };
+    this.hp = Math.max(0, this.hp - Math.max(0, damage));
+    if (this.hp === 0) {
+      this.dead = true;
+      this.active = false;
+      this.corpseTime = 3;
+    }
+    return { hit: true, dead: this.dead, hp: this.hp };
+  }
+
+  updateDeath(dt) {
+    if (this.dead) {
+      this.discoveryTimer = Math.max(0, this.discoveryTimer - dt);
+      this.corpseTime = Math.max(0, (this.corpseTime || 0) - dt);
+    }
+  }
+
+  canChargeFrom(map, x, y, target) {
+    const chargeMap = { blocked: (px, py, radius) => map.blocked(px, py, radius, false, true) };
+    if (chargeMap.blocked(x, y, this.radius)) return false;
+    const distance = Math.hypot(target.x - x, target.y - y);
+    const angle = Math.atan2(target.y - y, target.x - x);
+    const contactDistance = Math.max(0, distance - this.radius - (target.radius || Config.player.radius) + 1);
+    const visible = typeof map.rayWallDistance === 'function'
+      ? map.rayWallDistance(x, y, Math.cos(angle), Math.sin(angle), distance) >= distance
+      : isDirectPathClear(chargeMap, x, y, target.x, target.y, 0, 2);
+    return visible && (contactDistance === 0 || isDirectPathClear(chargeMap, x, y,
+      x + Math.cos(angle) * contactDistance, y + Math.sin(angle) * contactDistance, this.radius));
+  }
+
+  clearPursuit() {
+    this.waypoints = [];
+    this.waypointTimer = 0;
+    this.localPath = [];
+    this.localRepathTimer = 0;
+    this.progressGoal = null;
+    this._stuckTimer = 0;
+  }
+
+  update(dt, target, map, players = []) {
+    const result = { hits: [] };
+    if (!this.active || this.dead) return result;
+    this.discoveryTimer = Math.max(0, this.discoveryTimer - dt);
+    if (!target || target.downed || !map) return result;
+    if (!this.alerted && this.phase === 'pursuit') {
+      if ((target.noise || 0) < 30 && Math.hypot(target.x - this.x, target.y - this.y) > 150) return result;
+      this.alerted = true;
+      if ((target.noise || 0) < 30) this.discoveryTimer = 1;
+    }
+    if (this.phase === 'stunned') {
+      this.stunTimer = Math.max(0, this.stunTimer - dt);
+      if (this.stunTimer === 0) this.phase = 'pursuit';
+      return result;
+    }
+    if (this.phase === 'windup') {
+      this.phaseTimer = Math.max(0, this.phaseTimer - dt);
+      if (this.phaseTimer === 0) {
+        this.phase = 'charge';
+        this.chargeHits.clear();
+      }
+      return result;
+    }
+    if (this.phase === 'charge') {
+      const distance = Config.heavy.chargeSpeed * dt;
+      const steps = Math.max(1, Math.ceil(distance / 8));
+      const dx = Math.cos(this.chargeAngle) * distance / steps;
+      const dy = Math.sin(this.chargeAngle) * distance / steps;
+      for (let step = 0; step < steps; step++) {
+        const nx = this.x + dx;
+        const ny = this.y + dy;
+        if (map.blocked(nx, ny, this.radius)) {
+          result.wallImpact = { x: this.x, y: this.y };
+          const barrier = map.movementBarrierAt?.(nx, ny, this.radius);
+          if (barrier) result.wallImpact.barrierId = barrier.id;
+          this.stun(Config.heavy.stunDuration);
+          break;
+        }
+        this.x = nx;
+        this.y = ny;
+        for (const player of players) {
+          if (!player) continue;
+          const playerKey = player.id ?? player.playerId ?? player.clientId ?? player;
+          if (this.chargeHits.has(playerKey) || player.invulnerable || player.invulnerableThisFrame || player.dodgeTimer > 0 || player.downed) continue;
+          if (Math.hypot(player.x - this.x, player.y - this.y) <= this.radius + (player.radius || 0)) {
+            this.chargeHits.add(playerKey);
+            result.hits.push(player);
+          }
+        }
+      }
+      return result;
+    }
+    const distance = Math.hypot(target.x - this.x, target.y - this.y);
+    const angle = Math.atan2(target.y - this.y, target.x - this.x);
+    if (this.canChargeFrom(map, this.x, this.y, target)) {
+      this.chargeAngle = angle;
+      this.angle = this.chargeAngle;
+      this.phase = 'windup';
+      this.phaseTimer = Config.heavy.windupDuration;
+      return result;
+    }
+    const ownRoom = getNavigationRoom(map, this.x, this.y);
+    const targetRoom = getNavigationRoom(map, target.x, target.y);
+    if (!this.pursuitGoal || this.pursuitGoal.room !== targetRoom ||
+        Math.hypot(this.pursuitGoal.x - target.x, this.pursuitGoal.y - target.y) > 28) {
+      this.clearPursuit();
+      this.pursuitGoal = { x: target.x, y: target.y, room: targetRoom };
+    }
+    this.localRepathTimer -= dt;
+    if (this.localPath.length && !isDirectPathClear(map, this.x, this.y, this.localPath[0].x, this.localPath[0].y, this.radius)) {
+      this.clearPursuit();
+    }
+    if (ownRoom && ownRoom === targetRoom && !this.localPath.length && this.localRepathTimer <= 0) {
+      this.localRepathTimer = 0.8;
+      this.localPath = buildLocalGridPath(map, this.x, this.y, target.x, target.y, this.radius, distance + 140,
+        (x, y) => this.canChargeFrom(map, x, y, target));
+    } else if (ownRoom !== targetRoom) {
+      this.localPath = [];
+      this.localRepathTimer = 0;
+    }
+    while (this.localPath.length && Math.hypot(this.localPath[0].x - this.x, this.localPath[0].y - this.y) < 18) {
+      const next = this.localPath[1];
+      if (!next || !isDirectPathClear(map, this.x, this.y, next.x, next.y, this.radius)) break;
+      this.localPath.shift();
+    }
+    if (ownRoom && ownRoom === targetRoom && !this.localPath.length) return result;
+    const waypoint = this.localPath[0] || getPursuitTarget(this, dt, map, target.x, target.y, Config.heavy.waypointRefresh, true);
+    if ((waypoint.isDoor || waypoint.isDoorExit) && waypoint.door && !waypoint.door.open) return result;
+    const remaining = Math.hypot(waypoint.x - this.x, waypoint.y - this.y);
+    const key = `${waypoint.x},${waypoint.y}`;
+    if (this.progressGoal !== key || remaining < this.progressDistance - 2) {
+      this.progressGoal = key;
+      this.progressDistance = remaining;
+      this._stuckTimer = 0;
+    } else this._stuckTimer += dt;
+    if (this._stuckTimer > 0.9) this.clearPursuit();
+    else moveWithAvoidance(this, map, waypoint.x, waypoint.y, Math.min(Config.heavy.speed, remaining / Math.max(dt, 0.001)), dt);
+    return result;
+  }
+}
+
+class Flashbang {
+  constructor(id, ownerId, x, y, targetX, targetY, skillId = 'flashbang') {
+    this.id = id;
+    this.skillId = skillId;
+    this.ownerId = ownerId;
+    this.x = x;
+    this.y = y;
+    const distance = Math.hypot(targetX - x, targetY - y);
+    this.remainingDistance = Math.max(Config.flashbang.minDistance, Math.min(Config.flashbang.maxDistance, distance));
+    this.angle = distance ? Math.atan2(targetY - y, targetX - x) : 0;
+    this.landed = false;
+    this.fuse = Config.flashbang.fuse;
+    this.exploded = false;
+  }
+
+  update(dt, map) {
+    if (this.exploded) return false;
+    if (this.landed) {
+      this.fuse = Math.max(0, this.fuse - dt);
+      if (this.fuse === 0) {
+        this.exploded = true;
+        return true;
+      }
+      return false;
+    }
+    let travel = Math.min(this.remainingDistance, Config.flashbang.speed * dt);
+    let bounces = 0;
+    while (travel > 0) {
+      const step = Math.min(4, travel);
+      const nx = this.x + Math.cos(this.angle) * step;
+      const ny = this.y + Math.sin(this.angle) * step;
+      if (map.blocked(nx, ny, Config.flashbang.radius, false, true)) {
+        const normal = this._collisionNormal(map, nx, ny);
+        const vx = Math.cos(this.angle);
+        const vy = Math.sin(this.angle);
+        const dot = vx * normal.x + vy * normal.y;
+        this.angle = Math.atan2(vy - 2 * dot * normal.y, vx - 2 * dot * normal.x);
+        if (++bounces >= 8) break;
+      } else {
+        this.x = nx;
+        this.y = ny;
+        bounces = 0;
+      }
+      travel -= step;
+      this.remainingDistance = Math.max(0, this.remainingDistance - step);
+    }
+    if (this.remainingDistance === 0 || bounces >= 8) this.landed = true;
+    return false;
+  }
+
+  _collisionNormal(map, x, y) {
+    let best = Infinity;
+    let normal = { x: -Math.cos(this.angle), y: -Math.sin(this.angle) };
+    const surfaces = [...(map.walls || []), ...(map.doors || []).filter(door => !door.open)];
+    for (const surface of surfaces) {
+      const a = surface.p1 || (surface.x1 !== undefined ? { x: surface.x1, y: surface.y1 } : null);
+      const b = surface.p2 || (surface.x2 !== undefined ? { x: surface.x2, y: surface.y2 } : null);
+      if (a && b) {
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / (dx * dx + dy * dy || 1)));
+        const px = a.x + dx * t;
+        const py = a.y + dy * t;
+        const distance = Math.hypot(x - px, y - py);
+        if (distance < best && distance < Config.flashbang.radius + 8) {
+          best = distance;
+          if (t === 0 || t === 1) {
+            const radialX = x - px || this.x - px;
+            const radialY = y - py || this.y - py;
+            const length = Math.hypot(radialX, radialY) || 1;
+            normal = { x: radialX / length, y: radialY / length };
+          } else {
+            const length = Math.hypot(dx, dy) || 1;
+            normal = { x: -dy / length, y: dx / length };
+          }
+        }
+      } else if (surface.x !== undefined) {
+        const px = Math.max(surface.x, Math.min(surface.x + surface.w, x));
+        const py = Math.max(surface.y, Math.min(surface.y + surface.h, y));
+        const distance = Math.hypot(x - px, y - py);
+        if (distance < best && distance <= Config.flashbang.radius + 1) {
+          best = distance;
+          const distances = [Math.abs(x - surface.x), Math.abs(x - surface.x - surface.w),
+            Math.abs(y - surface.y), Math.abs(y - surface.y - surface.h)];
+          const side = distances.indexOf(Math.min(...distances));
+          normal = side === 0 ? { x: -1, y: 0 } : side === 1 ? { x: 1, y: 0 } :
+            side === 2 ? { x: 0, y: -1 } : { x: 0, y: 1 };
+        }
+      }
+    }
+    return normal;
   }
 }
 

@@ -10,6 +10,8 @@ const sandbox = {
   crypto: { getRandomValues(array) { array[0] = 123; return array; } },
   EventTarget,
   CustomEvent,
+  AbortController,
+  DOMException,
   RTCPeerConnection: class {
     constructor() { this.connectionState = 'new'; this.iceGatheringState = 'complete'; this.localDescription = null; }
     addEventListener() {}
@@ -40,11 +42,14 @@ test('host binds both created RTC channels before waiting for channel readiness'
   const session = new CoopSession();
   session.roomCode = 'ABC234';
   session.hostToken = 'host-token';
-  await session._createHostPeer({ id: 'guest-2', slot: 2, generation: 0 });
+  const preparing = session._createHostPeer({ id: 'guest-2', slot: 2, generation: 0 });
+  for (let i = 0; i < 10; i++) await Promise.resolve();
   const peer = session.peers.get('guest-2');
 
   assert.equal(peer.stateChannel.label, 'state:guest-2');
   assert.equal(peer.eventChannel.label, 'events:guest-2');
+  await session.close(false);
+  await preparing;
 });
 const Config = sandbox.ConfigUnderTest;
 const Player = sandbox.PlayerUnderTest;
@@ -74,7 +79,7 @@ test('host state snapshots fan out independently to all three guest connections'
 
   assert.equal(sent, 3);
   assert.deepEqual(members.map(member => member.stateChannel.sent[0].tick), [30, 30, 30]);
-  assert.ok(members.every(member => member.stateChannel.sent[0].version === 4));
+  assert.ok(members.every(member => member.stateChannel.sent[0].version === 15));
 });
 
 test('host can target one guest with an event without broadcasting to the others', () => {
@@ -100,12 +105,23 @@ test('new ready acknowledgment messages use the bumped lobby protocol version', 
 
   session.sendEvent('request-roster', { slot: 2 });
 
-  assert.equal(host.eventChannel.sent[0].version, 4);
+  assert.equal(host.eventChannel.sent[0].version, 15);
+});
+
+test('state snapshots are dropped before stale data can build a large WebRTC queue', () => {
+  const session = new CoopSession();
+  session.role = 'host';
+  const buffered = channel();
+  buffered.bufferedAmount = 80_000;
+  session.peers = new Map([['guest-1', { id: 'guest-1', stateChannel: buffered }]]);
+
+  assert.equal(session.sendState('snapshot', { tick: 60 }), 0);
+  assert.equal(buffered.sent.length, 0);
 });
 
 test('joining an older room explains that both players must refresh and recreate it', async () => {
   const originalFetch = sandbox.fetch;
-  sandbox.fetch = async () => ({ ok: true, json: async () => ({ protocol_version: 3 }) });
+  sandbox.fetch = async () => ({ ok: true, json: async () => ({ protocol_version: 4 }) });
   const session = new CoopSession();
 
   await assert.rejects(session.join('ABC234'), /刷新页面并重建房间/);
@@ -224,7 +240,7 @@ test('host moves remote players at aimed speed', () => {
   aimed.x = 100;
   aimed.y = 140;
   const entry = {
-    id: 'guest-1', player: aimed, online: true, qte: null,
+    id: 'guest-1', player: aimed, online: true, qte: null, lastInputAt: 1000,
     input: { keys: { d: true }, aim: 0, aiming: true, activeSlot: 'sidearm', flashlight: true, fire: false, seq: 1 }
   };
   game.remotePlayers = new Map([['guest-1', entry]]);
@@ -244,7 +260,7 @@ test('host uses the continuous remote aiming state when processing automatic fir
   };
   game.state = { coop: { role: 'host', running: true, playerId: 'host' } };
   game.remotePlayers = new Map([['guest-1', {
-    id: 'guest-1', player: shooter, online: true, qte: null,
+    id: 'guest-1', player: shooter, online: true, qte: null, lastInputAt: 1000,
     input: { keys: {}, aim: 0, aiming: true, activeSlot: 'sidearm', flashlight: true, fire: true, seq: 1 }
   }]]);
   game._onlineCoopPlayers = () => [];
@@ -260,7 +276,7 @@ test('guest includes its current aiming state in continuous input updates', () =
   const sent = [];
   const game = Object.create(Game.prototype);
   game.state = {
-    elapsed: 0, stabilized: true, keys: {}, fireHeld: false,
+    running: true, elapsed: 0, stabilized: true, keys: {}, fireHeld: false,
     coop: { role: 'guest', running: true, playerId: 'guest-1', connected: true, inputSeq: 0 }
   };
   game.player = {
@@ -294,15 +310,15 @@ test('mouse aim exactly inverts the zoomed camera including look and recoil offs
   };
   game.ui = { frame: { getBoundingClientRect: () => rect } };
   game.player = { x: 200, y: 300, angle: 0 };
-  game.state = { stabilized: true, cameraLookX: 0, cameraLookY: 0, recoilX: 12, recoilY: -7 };
+  game.state = { stabilized: true, cameraZoom: 1.716, cameraLookX: 55, cameraLookY: -28.6, recoilX: 12, recoilY: -7 };
   game.renderer = { prepareCamera() {} };
   const centerX = rect.left + rect.width / 2;
   const centerY = rect.top + rect.height / 2;
 
   game.handleAim({ clientX: centerX + scaleX * 250, clientY: centerY - scaleY * 130 });
 
-  assert.ok(Math.abs(game.state.mouseX - (200 + 55 + 12 + 250 / 1.1)) < 0.001);
-  assert.ok(Math.abs(game.state.mouseY - (300 - 28.6 - 7 - 130 / 1.1)) < 0.001);
+  assert.ok(Math.abs(game.state.mouseX - (200 + 55 + 12 + 250 / 1.716)) < 0.001);
+  assert.ok(Math.abs(game.state.mouseY - (300 - 28.6 - 7 - 130 / 1.716)) < 0.001);
 });
 
 test('host snapshots carry stable IDs and state for all four players', () => {
@@ -321,7 +337,10 @@ test('host snapshots carry stable IDs and state for all four players', () => {
   game.remotePlayers = new Map(players.map(([id, player]) => [id, { id, player, online: true, inventory: [] }]));
   game.monster = {};
   game.hunters = [];
-  game.map = { doors: [], scrap: [], terminals: [] };
+  game.map = {
+    doors: [], scrap: [], terminals: [], layoutSignature: () => 'shared-layout',
+    worldRooms: [{ discovered: false }, { discovered: false }]
+  };
   game._playerSnapshot = player => ({ x: player.x, y: player.y });
 
   const snapshot = game._createCoopSnapshot();
@@ -346,8 +365,11 @@ test('guest applies authoritative snapshots for the local player and every remot
   game.monster = {};
   game.hunters = [];
   game.nextHunterSpawnIndex = 0;
-  game.map = { doors: [], scrap: [], terminals: [] };
-  game.ui = { updateTerminalsStatus() {} };
+  game.map = {
+    doors: [], scrap: [], terminals: [], layoutSignature: () => 'shared-layout',
+    worldRooms: [{ discovered: false }, { discovered: false }]
+  };
+  game.ui = { updateTerminalsStatus() {}, updateExtractionProgress(state) { game.guestRescueEta = state.rescueRemaining; } };
   game._applyCoopInventorySnapshot = () => false;
   game._lastSnapshotTick = -1;
   const players = [
@@ -358,11 +380,17 @@ test('guest applies authoritative snapshots for the local player and every remot
   ];
 
   game._applyCoopSnapshot({
+    tick: 10000,
+    mapSignature: 'shared-layout', discoveredRooms: [0, 1],
     players, inventories: {}, monster: { active: false }, hunters: [], doors: [], scrap: [], terminals: [],
+    mission: { elapsed: 10, extractionCalled: true, rescueRemaining: 18, rescueArrived: false,
+      rescuePresent: 1, rescueRequired: 4, finalTerminalPressure: false },
     bulletTraces: [], impactParticles: []
   });
 
   assert.equal(game.player.x, 30);
+  assert.equal(game.guestRescueEta, 18);
+  assert.deepEqual(game.map.worldRooms.map(room => room.discovered), [true, true]);
   assert.equal(JSON.stringify([...game.remotePlayers].map(([id, entry]) => [id, entry.player.x])),
     JSON.stringify([['host', 10], ['guest-1', 20], ['guest-3', 40]]));
 });
@@ -382,9 +410,9 @@ test('host can start with three ready guests and sends all four player identitie
   game.state = {
     coop: {
       role: 'host', connected: true, running: false, localReady: true, friendlyFire: true,
-      members: [1, 2, 3].map(slot => ({ id: `guest-${slot}`, slot: slot + 1, connected: true, ready: true, armory: { slot } }))
+      members: [1, 2, 3].map(slot => ({ id: `guest-${slot}`, slot: slot + 1, connected: true, ready: true, armory: { slot }, backpackItems: [{ id: `carry-${slot}`, value: 250 }] }))
     },
-    selectedDifficulty: 'medium', hunterSettings: {}, finalTerminalSettings: {}
+    selectedDifficulty: 'medium', hunterSettings: {}, finalTerminalSettings: {}, inventory: [{ id: 'host-canister', value: 250 }]
   };
   game.player = { exportArmory: () => ({ owned: 'host' }) };
   game.coopSession = { sendEvent: (...args) => sent.push(args) };
@@ -396,6 +424,8 @@ test('host can start with three ready guests and sends all four player identitie
   assert.equal(game.startedPayload.players.length, 4);
   assert.equal(JSON.stringify(game.startedPayload.players.map(player => player.id)), JSON.stringify(['host', 'guest-1', 'guest-2', 'guest-3']));
   assert.equal(game.startedPayload.players[3].armory.slot, 3);
+  assert.equal(game.startedPayload.players[0].backpackItems[0].id, 'host-canister');
+  assert.equal(game.startedPayload.players[1].backpackItems[0].id, 'carry-1');
 });
 
 test('host simulates movement input independently for all three guest players', () => {
@@ -414,7 +444,7 @@ test('host simulates movement input independently for all three guest players', 
     player.x = 100;
     player.y = 100 + slot * 30;
     game.remotePlayers.set(`guest-${slot - 1}`, {
-      id: `guest-${slot - 1}`, slot, player, online: true, qte: null,
+      id: `guest-${slot - 1}`, slot, player, online: true, qte: null, lastInputAt: 1000,
       input: { keys: { d: true }, aim: 0, activeSlot: 'sidearm', flashlight: true, fire: false, seq: 1 }
     });
   }

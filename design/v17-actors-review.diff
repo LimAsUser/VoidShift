@@ -1,0 +1,423 @@
+diff --git a/tmp/v17-baseline/config.js b/js/config.js
+index bd27431d..819e0fc3 100644
+--- a/tmp/v17-baseline/config.js
++++ b/js/config.js
+@@ -148,7 +148,7 @@ const Config = {
+       initialReserve: 120,
+       purchasePrice: 0,
+       shootCooldownDuration: 0.4,
+-      reloadDuration: 1.2,
++      reloadDuration: 2,
+       reloadMode: 'magazine',
+       hipSpread: 0.38,
+       aimSpread: 0.01,
+@@ -167,7 +167,7 @@ const Config = {
+       initialReserve: 240,
+       purchasePrice: 4250,
+       shootCooldownDuration: 0.1,
+-      reloadDuration: 1.8,
++      reloadDuration: 4,
+       reloadMode: 'magazine',
+       hipSpread: 0.52,
+       aimSpread: 0.04,
+@@ -185,9 +185,9 @@ const Config = {
+       maxAmmo: 8,
+       initialReserve: 80,
+       purchasePrice: 15250,
+-      shootCooldownDuration: 0.8,
+-      reloadDuration: 0.5,
+-      reloadMode: 'shell',
++      shootCooldownDuration: 0.6,
++      reloadDuration: 1,
++      reloadMode: 'magazine',
+       pelletCount: 4,
+       hipSpreadDegrees: 40,
+       aimSpreadDegrees: 8,
+@@ -205,9 +205,9 @@ const Config = {
+       maxAmmo: 4,
+       initialReserve: 24,
+       purchasePrice: 5500,
+-      shootCooldownDuration: 1.2,
+-      reloadDuration: 1,
+-      reloadMode: 'shell',
++      shootCooldownDuration: 0.5,
++      reloadDuration: 2,
++      reloadMode: 'magazine',
+       hipSpread: 0.38,
+       aimSpread: 0.01,
+       shotNoise: 2,
+@@ -216,13 +216,58 @@ const Config = {
+       automatic: false,
+       damage: 1,
+       penetrationTargets: 3
++    },
++    machinegun: {
++      id: 'machinegun',
++      label: '机枪',
++      slot: 'primary',
++      image: 'resources/images/equipment-v17/machinegun.png',
++      maxAmmo: 100,
++      initialReserve: 0,
++      purchasePrice: 15000,
++      shootCooldownDuration: 0.3,
++      reloadDuration: 10,
++      reloadMode: 'magazine',
++      hipSpread: 0.52,
++      aimSpread: 0.26,
++      shotNoise: 2,
++      recoilAim: 2,
++      recoilHip: 4,
++      automatic: true,
++      damage: 2,
++      penetrationTargets: 1
++    },
++    'mini-shotgun': {
++      id: 'mini-shotgun',
++      label: '迷你散弹枪',
++      slot: 'sidearm',
++      image: 'resources/images/equipment-v17/mini-shotgun.png',
++      maxAmmo: 2,
++      initialReserve: 0,
++      purchasePrice: 3000,
++      shootCooldownDuration: 0.3,
++      reloadDuration: 1,
++      reloadMode: 'shell',
++      pelletCount: 3,
++      hipSpreadDegrees: 40,
++      aimSpreadDegrees: 20,
++      shotNoise: 4,
++      recoilAim: 8,
++      recoilHip: 22,
++      automatic: false,
++      damage: 1,
++      penetrationTargets: 1
+     }
+   },
+ 
+   ammo: {
+     standardUnitsPerRound: { pistol: 1, smg: 1, revolver: 2, shotgun: 4 },
+     unitsPerPurchase: 100,
+-    pricePerPurchase: 200
++    pricePerPurchase: 200,
++    weaponPacks: {
++      machinegun: { unitsPerPurchase: 100, pricePerPurchase: 200 },
++      'mini-shotgun': { unitsPerPurchase: 10, pricePerPurchase: 50 }
++    }
+   },
+ 
+   monster: {
+@@ -279,18 +324,20 @@ const Config = {
+     chargeSpeed: 300,
+     windupDuration: 2,
+     stunDuration: 3,
+-    chargeDamage: 10,
++    chargeDamage: 5,
+     knockback: 50,
+     waypointRefresh: 0.5
+   },
+ 
+   skills: {
+     flashbang: { id: 'flashbang', label: '闪光弹', price: 1000, cooldown: 15, image: 'resources/images/flashbang.png', description: '投掷后落地 1 秒引爆，晕眩 80 范围内无遮挡的所有活体 5 秒，包括自己与队友。' },
+-    grenade: { id: 'grenade', label: '手榴弹', price: 5000, cooldown: 20, image: 'resources/images/abilities/grenade.png', description: '80 范围爆炸造成 5 点伤害，可击穿 Heavy 护甲；会伤到自己，队友遵循友伤设置。' }
++    grenade: { id: 'grenade', label: '手榴弹', price: 5000, cooldown: 20, image: 'resources/images/abilities/grenade.png', description: '80 范围爆炸造成 5 点伤害，可击穿 Heavy 护甲；会伤到自己，队友遵循友伤设置。' },
++    barrier: { id: 'barrier', label: '磁锁隔离栅', price: 5000, cooldown: 30, image: 'resources/images/equipment-v17/barrier.png', description: '放置隔离栅阻挡敌人通过，冷却 30 秒。' }
+   },
+   passives: {
+     roll: { id: 'roll', label: '翻滚', price: 7000, image: 'resources/images/abilities/roll.png', description: '装备后按 Space 向移动方向翻滚 100 单位，最多消耗 20 体力，翻滚期间免疫伤害。' },
+-    'life-scan': { id: 'life-scan', label: '生命侦测', price: 4000, image: 'resources/images/abilities/life-scan.png', description: '仅自己在 M 地图看到全图活体敌人，不揭示地形、物资或终端。' }
++    'life-scan': { id: 'life-scan', label: '生命侦测', price: 4000, image: 'resources/images/abilities/life-scan.png', description: '仅自己在 M 地图看到全图活体敌人，不揭示地形、物资或终端。' },
++    shield: { id: 'shield', label: '应急护盾', price: 6000, cooldown: 50, duration: 3, image: 'resources/images/equipment-v17/shield.png', description: '护盾持续 3 秒，冷却 50 秒。' }
+   },
+ 
+   flashbang: {
+
+diff --git a/tmp/v17-baseline/entities.js b/js/entities.js
+index d318cc70..32d70242 100644
+--- a/tmp/v17-baseline/entities.js
++++ b/js/entities.js
+@@ -15,7 +15,7 @@ class Player {
+     });
+     weaponAmmo.pistol = { magazine: Config.weapons.pistol.maxAmmo, reserve: 120 };
+     return {
+-      ownedWeapons: { pistol: true, smg: false, shotgun: false, revolver: false },
++      ownedWeapons: Object.fromEntries(Object.keys(Config.weapons).map(id => [id, id === 'pistol'])),
+       loadout: { primary: null, sidearm: 'pistol' },
+       activeSlot: 'sidearm',
+       ownedSkills: Object.fromEntries(Object.keys(Config.skills || {}).map(id => [id, false])),
+@@ -111,6 +111,10 @@ class Player {
+     this.stunned = 0; // Stun duration timer in seconds
+     this.flashStunTimer = 0;
+     this.skillReadyAt = 0;
++    this.supplyUse = null;
++    this.shieldUntil = 0;
++    this.shieldReadyAt = 0;
++    this.reloadSerial = this.reloadSerial || 0;
+     this.downed = false;
+     this.bleedout = 0;
+     this.reviveProgress = 0;
+@@ -131,6 +135,7 @@ class Player {
+ 
+   applyFlashStun(seconds) {
+     this.flashStunTimer = Math.max(this.flashStunTimer, seconds);
++    if (seconds > 0) this.supplyUse = null;
+     this.dodgeTimer = 0;
+     this.invulnerableThisFrame = false;
+   }
+@@ -239,6 +244,7 @@ class Player {
+     this.dodgeDirectionY = dy / length;
+     this.dodgeTimer = Config.player.dodgeDuration;
+     this.invulnerableThisFrame = true;
++    this.supplyUse = null;
+     return true;
+   }
+ 
+@@ -247,6 +253,7 @@ class Player {
+         !this.consumeStamina(Config.player.meleeStaminaCost)) return false;
+     this.meleeCooldown = Config.player.meleeCooldown;
+     this.meleeVisualTimer = 0.22;
++    this.supplyUse = null;
+     return true;
+   }
+ 
+@@ -265,6 +272,7 @@ class Player {
+     this.invulnerableThisFrame = false;
+ 
+     const prevStunned = this.stunned;
++    if (this.downed || flashStunned || prevStunned > 0) this.supplyUse = null;
+     if (this.stunned > 0) {
+       this.stunned = Math.max(0, this.stunned - dt);
+     }
+@@ -308,7 +316,7 @@ class Player {
+     }
+ 
+     this._updateReload(dt, updateResult);
+-    this.move(dt, keys, stabilized, mapManager, audioManager, collisionPlayers);
++    this.move(dt, keys, stabilized, mapManager, audioManager, collisionPlayers, this.supplyUse ? 40 : null);
+ 
+     return updateResult;
+   }
+@@ -420,6 +428,7 @@ class Player {
+     }
+     this.weaponTimer.reloadTimer = this.weapon.reloadDuration;
+     this.weaponTimer.reloadMode = this.weapon.reloadMode;
++    if (this.weapon.reloadMode === 'magazine') this.reloadSerial++;
+     if (audioManager?.playSound) audioManager.playSound('resources/gun-reload-2-511308.mp3', 0.5);
+     return true;
+   }
+@@ -445,6 +454,7 @@ class Player {
+       return { fired: false, reason: 'empty' };
+     }
+ 
++    this.supplyUse = null;
+     this.ammo -= 1;
+     this.shootCooldown = this.weapon.shootCooldownDuration;
+     this.noise = Math.min(100, this.noise + this.weapon.shotNoise);
+@@ -827,7 +837,7 @@ function recoverStuckPursuer(entity, dt, mapManager) {
+   for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 4) {
+     const nextX = entity.x + Math.cos(angle) * nudgeDistance;
+     const nextY = entity.y + Math.sin(angle) * nudgeDistance;
+-    if (!mapManager.blocked(nextX, nextY, entity.radius)) {
++    if (isDirectPathClear(mapManager, entity.x, entity.y, nextX, nextY, entity.radius, 2)) {
+       entity.x = nextX;
+       entity.y = nextY;
+       break;
+@@ -900,6 +910,8 @@ class Monster {
+     this.radius = Config.monster.radius;
+     this.active = false;
+     this.alerted = false;
++    this.attackCooldown = 0;
++    this.discoveryTimer = 0;
+     this.angle = 0;
+     this.lostTime = 0;
+     this.patrolAngle = 0;
+@@ -1020,6 +1032,8 @@ class Monster {
+    */
+   update(dt, player, noiseLevel, mapManager, audioManager, others) {
+     if (!this.active) return null;
++    this.attackCooldown = Math.max(0, this.attackCooldown - dt);
++    this.discoveryTimer = Math.max(0, this.discoveryTimer - dt);
+     if (this.flashStunTimer > 0) {
+       this.flashStunTimer = Math.max(0, this.flashStunTimer - dt);
+       return { playerHit: false, recovering: this.recoverTimer > 0 };
+@@ -1057,6 +1071,7 @@ class Monster {
+ 
+     if (!this.alerted && canSense) {
+       this.alerted = true;
++      if ((player.noise || 0) < 30) this.discoveryTimer = 1;
+       this.lostTime = 0;
+       this.patrolTarget = null;
+       this.waypoints = [];
+@@ -1091,6 +1106,7 @@ class Monster {
+         const angle = Math.atan2(player.y - this.y, player.x - this.x);
+         const nextX = this.x + Math.cos(angle) * speed * stepTime;
+         const nextY = this.y + Math.sin(angle) * speed * stepTime;
++        if (mapManager.movementBarrierAt?.(nextX, nextY, this.radius)) break;
+         const crossingWall = mapManager.blocked(nextX, nextY, this.radius);
+         // Preserve slow wall phasing without skipping the wall at chase speed.
+         const monsterSpeed = crossingWall ? Config.monster.wallChokeSpeed : speed;
+@@ -1128,24 +1144,14 @@ class Monster {
+       }
+     }
+ 
+-    // Contact / Damage trigger; do not consume the hit or blink away during a roll.
++    // Contact damage respects rolls and this actor's attack interval.
+     if (hasEnemyContact(this, player, mapManager)) {
+       this.alerted = true;
+       this.lostTime = 0;
+ 
+-      if (!player.invulnerable) {
++      if (!player.invulnerable && this.attackCooldown <= 1e-8) {
+         result.playerHit = true;
+-
+-        // Respawn far away after a real contact hit.
+-        const spawn = this.getFarSpawnPoint(player.x, player.y, mapManager);
+-        this.x = spawn.x;
+-        this.y = spawn.y;
+-        this.waypoints = [];
+-        this.waypointTimer = 0;
+-        this.patrolTarget = null;
+-        this._stuckTimer = 0;
+-        this._lastX = null;
+-        this._lastY = null;
++        this.attackCooldown = 0.2;
+       }
+     }
+ 
+@@ -1268,6 +1274,8 @@ class Hunter {
+ 
+   updateDeath(dt) {
+     if (!this.dead) return null;
++    this.discoveryTimer = Math.max(0, this.discoveryTimer - dt);
++    this.attackCooldown = Math.max(0, this.attackCooldown - dt);
+     this.corpseTime = Math.max(0, (this.corpseTime || 0) - dt);
+     if (!this.revivePending) {
+       this.deathFade = Math.max(0, this.deathFade - dt / Config.hunter.deathFadeDuration);
+@@ -1311,6 +1319,8 @@ class Hunter {
+     this.radius = Config.hunter.radius;
+     this.active = false;
+     this.alerted = false;
++    this.attackCooldown = 0;
++    this.discoveryTimer = 0;
+     this.dead = false;
+     this.deathFade = 0;
+     this.corpseTime = 0;
+@@ -1387,10 +1397,10 @@ class Hunter {
+     return { activated: true };
+   }
+ 
+-  registerHit() {
++  registerHit(amount = 1) {
+     if (this.dead || !this.active) return { hit: false };
+     if (this.trait === 'ambusher' && !this.ambushTriggered) this._triggerAmbush();
+-    this.hp--;
++    this.hp -= Math.max(0, Number(amount) || 0);
+     this.stagger = Config.hunter.hitStagger;
+     this.burstTimer = 0;
+     this.localPath = [];
+@@ -1420,6 +1430,8 @@ class Hunter {
+ 
+   update(dt, player, noiseLevel, mapManager, audioManager, others, lightSources = [player], roomLightsOn = false) {
+     if (!this.active || this.dead) return null;
++    this.attackCooldown = Math.max(0, this.attackCooldown - dt);
++    this.discoveryTimer = Math.max(0, this.discoveryTimer - dt);
+     const activeLights = (lightSources || []).filter(source => source && !source.downed && !source.dead);
+     if (this.trait === 'ambusher' && !this.ambushTriggered && this.ambushTarget) {
+       let nearestViewer = null;
+@@ -1432,6 +1444,7 @@ class Hunter {
+         }
+       }
+       if (nearestViewer) {
++        if (!this.alerted && (nearestViewer.noise || 0) < 30) this.discoveryTimer = 1;
+         this._triggerAmbush();
+         player = nearestViewer;
+       }
+@@ -1477,6 +1490,7 @@ class Hunter {
+ 
+     if (!this.alerted && canSense) {
+       this.alerted = true;
++      if ((player.noise || 0) < 30) this.discoveryTimer = 1;
+       this.lostTime = 0;
+       this.patrolTarget = null;
+       this.waypoints = [];
+@@ -1567,18 +1581,9 @@ class Hunter {
+       recoverStuckPursuer(this, dt, mapManager);
+ 
+       // Contact damage
+-      if (!illuminated && hasEnemyContact(this, player, mapManager)) {
++      if (!illuminated && !player.invulnerable && this.attackCooldown <= 1e-8 && hasEnemyContact(this, player, mapManager)) {
+         result.playerHit = true;
+-        const sp = this.getFarSpawnPoint(player.x, player.y, mapManager);
+-        if (sp) { this.x = sp.x; this.y = sp.y; }
+-        this.waypoints = [];
+-        this.waypointTimer = 0;
+-        this.localPath = [];
+-        this.localRepathTimer = 0;
+-        this.patrolTarget = null;
+-        this._stuckTimer = 0;
+-        this._lastX = null;
+-        this._lastY = null;
++        this.attackCooldown = 0.5;
+       }
+ 
+     } else if (!this.alerted && this.stagger <= 0) {
+@@ -1627,6 +1632,8 @@ class Heavy {
+     this.maxHp = maxHp;
+     this.hp = maxHp;
+     this.active = false;
++    this.alerted = false;
++    this.discoveryTimer = 0;
+     this.dead = false;
+     this.corpseTime = 0;
+     this.angle = 0;
+@@ -1685,18 +1692,22 @@ class Heavy {
+   }
+ 
+   updateDeath(dt) {
+-    if (this.dead) this.corpseTime = Math.max(0, (this.corpseTime || 0) - dt);
++    if (this.dead) {
++      this.discoveryTimer = Math.max(0, this.discoveryTimer - dt);
++      this.corpseTime = Math.max(0, (this.corpseTime || 0) - dt);
++    }
+   }
+ 
+   canChargeFrom(map, x, y, target) {
+-    if (map.blocked(x, y, this.radius)) return false;
++    const chargeMap = { blocked: (px, py, radius) => map.blocked(px, py, radius, false, true) };
++    if (chargeMap.blocked(x, y, this.radius)) return false;
+     const distance = Math.hypot(target.x - x, target.y - y);
+     const angle = Math.atan2(target.y - y, target.x - x);
+     const contactDistance = Math.max(0, distance - this.radius - (target.radius || Config.player.radius) + 1);
+     const visible = typeof map.rayWallDistance === 'function'
+       ? map.rayWallDistance(x, y, Math.cos(angle), Math.sin(angle), distance) >= distance
+-      : isDirectPathClear(map, x, y, target.x, target.y, 0, 2);
+-    return visible && (contactDistance === 0 || isDirectPathClear(map, x, y,
++      : isDirectPathClear(chargeMap, x, y, target.x, target.y, 0, 2);
++    return visible && (contactDistance === 0 || isDirectPathClear(chargeMap, x, y,
+       x + Math.cos(angle) * contactDistance, y + Math.sin(angle) * contactDistance, this.radius));
+   }
+ 
+@@ -1711,10 +1722,13 @@ class Heavy {
+ 
+   update(dt, target, map, players = []) {
+     const result = { hits: [] };
+-    if (!this.active || this.dead || !target || target.downed || !map) return result;
++    if (!this.active || this.dead) return result;
++    this.discoveryTimer = Math.max(0, this.discoveryTimer - dt);
++    if (!target || target.downed || !map) return result;
+     if (!this.alerted && this.phase === 'pursuit') {
+       if ((target.noise || 0) < 30 && Math.hypot(target.x - this.x, target.y - this.y) > 150) return result;
+       this.alerted = true;
++      if ((target.noise || 0) < 30) this.discoveryTimer = 1;
+     }
+     if (this.phase === 'stunned') {
+       this.stunTimer = Math.max(0, this.stunTimer - dt);
+@@ -1739,6 +1753,8 @@ class Heavy {
+         const ny = this.y + dy;
+         if (map.blocked(nx, ny, this.radius)) {
+           result.wallImpact = { x: this.x, y: this.y };
++          const barrier = map.movementBarrierAt?.(nx, ny, this.radius);
++          if (barrier) result.wallImpact.barrierId = barrier.id;
+           this.stun(Config.heavy.stunDuration);
+           break;
+         }
+

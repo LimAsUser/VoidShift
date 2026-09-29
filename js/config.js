@@ -13,13 +13,13 @@ const Config = {
   ROOM_W: 520,
   ROOM_H: 420,
   WALL_THICK: 18,
-  DOOR_SIZE: 64,
+  DOOR_SIZE: 128,
 
-  // Facility Scale Presets: Small (12), Medium (18), Large (24)
+  // Functional compartments only; transit corridors are generated separately.
   mapScales: {
-    small: { id: 'small', label: '小型 (12 舱)', cols: 4, rows: 3, roomCount: 12, quota: 420, terminals: 3, hunters: 4, hunterSpawnInterval: 30, hunterRespawnCount: 1, hunterMaxHp: 2 },
-    medium: { id: 'medium', label: '中型 (18 舱)', cols: 6, rows: 3, roomCount: 18, quota: 780, terminals: 3, hunters: 6, hunterSpawnInterval: 30, hunterRespawnCount: 2, hunterMaxHp: 2 },
-    large: { id: 'large', label: '大型 (24 舱)', cols: 6, rows: 4, roomCount: 24, quota: 1200, terminals: 4, hunters: 8, hunterSpawnInterval: 30, hunterRespawnCount: 3, hunterMaxHp: 2 }
+    small: { id: 'small', label: '小型 (16 舱)', cols: 4, rows: 4, roomCount: 16, quota: 420, terminals: 3, hunters: 14, hunterSpawnInterval: 30, hunterRespawnCount: 4, hunterMaxHp: 3 },
+    medium: { id: 'medium', label: '中型 (26 舱)', cols: 7, rows: 4, roomCount: 26, quota: 780, terminals: 4, hunters: 18, hunterSpawnInterval: 30, hunterRespawnCount: 6, hunterMaxHp: 3 },
+    large: { id: 'large', label: '大型 (36 舱)', cols: 9, rows: 4, roomCount: 36, quota: 1200, terminals: 5, hunters: 30, hunterSpawnInterval: 30, hunterRespawnCount: 8, hunterMaxHp: 3 }
   },
   currentScale: 'small',
 
@@ -60,29 +60,35 @@ const Config = {
 
   difficultyPresets: {
     easy: {
-      id: 'easy', label: '简单', finalTerminalSpawnCount: 3, finalTerminalSpawnInterval: 30,
+      id: 'easy', label: '简单', finalTerminalSpawnCount: 6, finalTerminalSpawnInterval: 30,
       maps: {
-        small: { hunters: 2, hunterMaxHp: 1, hunterRespawnCount: 1, hunterSpawnInterval: 30 },
-        medium: { hunters: 4, hunterMaxHp: 1, hunterRespawnCount: 1, hunterSpawnInterval: 30 },
-        large: { hunters: 6, hunterMaxHp: 1, hunterRespawnCount: 1, hunterSpawnInterval: 30 }
+        small: { hunters: 10, hunterMaxHp: 2, hunterRespawnCount: 2, hunterSpawnInterval: 30 },
+        medium: { hunters: 16, hunterMaxHp: 2, hunterRespawnCount: 3, hunterSpawnInterval: 30 },
+        large: { hunters: 24, hunterMaxHp: 2, hunterRespawnCount: 4, hunterSpawnInterval: 30 }
       }
     },
     medium: {
-      id: 'medium', label: '中等', finalTerminalSpawnCount: 5, finalTerminalSpawnInterval: 30,
+      id: 'medium', label: '中等', finalTerminalSpawnCount: 10, finalTerminalSpawnInterval: 30,
       maps: {
-        small: { hunters: 4, hunterMaxHp: 2, hunterRespawnCount: 1, hunterSpawnInterval: 30 },
-        medium: { hunters: 6, hunterMaxHp: 2, hunterRespawnCount: 2, hunterSpawnInterval: 30 },
-        large: { hunters: 8, hunterMaxHp: 2, hunterRespawnCount: 3, hunterSpawnInterval: 30 }
+        small: { hunters: 14, hunterMaxHp: 3, hunterRespawnCount: 4, hunterSpawnInterval: 30 },
+        medium: { hunters: 18, hunterMaxHp: 3, hunterRespawnCount: 6, hunterSpawnInterval: 30 },
+        large: { hunters: 30, hunterMaxHp: 3, hunterRespawnCount: 8, hunterSpawnInterval: 30 }
       }
     },
     hard: {
-      id: 'hard', label: '困难', finalTerminalSpawnCount: 8, finalTerminalSpawnInterval: 30,
+      id: 'hard', label: '困难', finalTerminalSpawnCount: 16, finalTerminalSpawnInterval: 30,
       maps: {
-        small: { hunters: 5, hunterMaxHp: 3, hunterRespawnCount: 2, hunterSpawnInterval: 30 },
-        medium: { hunters: 8, hunterMaxHp: 3, hunterRespawnCount: 3, hunterSpawnInterval: 30 },
-        large: { hunters: 12, hunterMaxHp: 3, hunterRespawnCount: 4, hunterSpawnInterval: 30 }
+        small: { hunters: 24, hunterMaxHp: 5, hunterRespawnCount: 6, hunterSpawnInterval: 20 },
+        medium: { hunters: 34, hunterMaxHp: 5, hunterRespawnCount: 8, hunterSpawnInterval: 20 },
+        large: { hunters: 50, hunterMaxHp: 5, hunterRespawnCount: 10, hunterSpawnInterval: 20 }
       }
     }
+  },
+
+  encounterRules: {
+    easy: { nightmareHp: 1, nightmareCounts: [1, 1, 1], nightmareSleep: 40, heavyCounts: [0, 0, 0], heavyHp: 0, rescueWait: 20 },
+    medium: { nightmareHp: 3, nightmareCounts: [1, 2, 3], nightmareSleep: 30, heavyCounts: [2, 3, 4], heavyHp: 10, rescueWait: 40 },
+    hard: { nightmareHp: 5, nightmareCounts: [2, 3, 4], nightmareSleep: 20, heavyCounts: [3, 4, 5], heavyHp: 20, rescueWait: 60 }
   },
 
   // Calculated dynamic world dimensions
@@ -105,17 +111,20 @@ const Config = {
     this._worldH = val;
   },
 
+  camera: { baseZoom: 1.56, aimMultiplier: 1.1, maxLookFraction: 0.25, smoothingSeconds: 0.12 },
+
   player: {
     spawnX: 180,
     spawnY: 180,
     radius: 10,
     speed: 70,
-    sprintSpeed: 100,
+    sprintSpeed: 150,
+    downedSpeed: 20,
     dodgeDistance: 100,
     dodgeDuration: 0.35,
     dodgeStaminaCost: 20,
     staminaRegenDelay: 1,
-    meleeRange: 50,
+    meleeRange: 55,
     meleeStaminaCost: 10,
     meleeCooldown: 1,
     meleeDamage: 1,
@@ -138,8 +147,8 @@ const Config = {
       maxAmmo: 6,
       initialReserve: 120,
       purchasePrice: 0,
-      shootCooldownDuration: 0.38,
-      reloadDuration: 1.2,
+      shootCooldownDuration: 0.4,
+      reloadDuration: 2,
       reloadMode: 'magazine',
       hipSpread: 0.38,
       aimSpread: 0.01,
@@ -158,7 +167,7 @@ const Config = {
       initialReserve: 240,
       purchasePrice: 4250,
       shootCooldownDuration: 0.1,
-      reloadDuration: 1.8,
+      reloadDuration: 4,
       reloadMode: 'magazine',
       hipSpread: 0.52,
       aimSpread: 0.04,
@@ -176,9 +185,9 @@ const Config = {
       maxAmmo: 8,
       initialReserve: 80,
       purchasePrice: 15250,
-      shootCooldownDuration: 0.8,
-      reloadDuration: 0.5,
-      reloadMode: 'shell',
+      shootCooldownDuration: 0.6,
+      reloadDuration: 1,
+      reloadMode: 'magazine',
       pelletCount: 4,
       hipSpreadDegrees: 40,
       aimSpreadDegrees: 8,
@@ -196,9 +205,9 @@ const Config = {
       maxAmmo: 4,
       initialReserve: 24,
       purchasePrice: 5500,
-      shootCooldownDuration: 1.2,
-      reloadDuration: 1,
-      reloadMode: 'shell',
+      shootCooldownDuration: 0.5,
+      reloadDuration: 2,
+      reloadMode: 'magazine',
       hipSpread: 0.38,
       aimSpread: 0.01,
       shotNoise: 2,
@@ -207,22 +216,68 @@ const Config = {
       automatic: false,
       damage: 1,
       penetrationTargets: 3
+    },
+    machinegun: {
+      id: 'machinegun',
+      label: '机关枪',
+      slot: 'primary',
+      image: 'resources/images/equipment-v17/machinegun.png',
+      maxAmmo: 100,
+      initialReserve: 0,
+      purchasePrice: 15000,
+      shootCooldownDuration: 0.3,
+      reloadDuration: 10,
+      reloadMode: 'magazine',
+      hipSpread: 0.52,
+      aimSpread: 0.26,
+      shotNoise: 2,
+      recoilAim: 2,
+      recoilHip: 4,
+      automatic: true,
+      damage: 2,
+      penetrationTargets: 1
+    },
+    'mini-shotgun': {
+      id: 'mini-shotgun',
+      label: '小型散弹枪',
+      slot: 'sidearm',
+      image: 'resources/images/equipment-v17/mini-shotgun.png',
+      maxAmmo: 2,
+      initialReserve: 0,
+      purchasePrice: 3000,
+      shootCooldownDuration: 0.3,
+      reloadDuration: 1,
+      reloadMode: 'shell',
+      pelletCount: 3,
+      hipSpreadDegrees: 40,
+      aimSpreadDegrees: 20,
+      shotNoise: 4,
+      recoilAim: 8,
+      recoilHip: 22,
+      automatic: false,
+      damage: 1,
+      penetrationTargets: 1
     }
   },
 
   ammo: {
     standardUnitsPerRound: { pistol: 1, smg: 1, revolver: 2, shotgun: 4 },
     unitsPerPurchase: 100,
-    pricePerPurchase: 1000
+    pricePerPurchase: 200,
+    weaponPacks: {
+      machinegun: { unitsPerPurchase: 100, pricePerPurchase: 200 },
+      'mini-shotgun': { unitsPerPurchase: 10, pricePerPurchase: 50 }
+    }
   },
 
   monster: {
     spawnX: 1600,
     spawnY: 1100,
-    radius: 15,
-    speed: 90,
+    radius: 22.5,
+    spriteWidth: 72,
+    speed: 385,
     slowSpeed: 32,
-    wallChokeSpeed: 28,
+    wallChokeSpeed: 22.4,
     patrolSpeedScale: 60,
     alertDistance: 380,
     alertDeaggroTimeout: 6,
@@ -231,13 +286,14 @@ const Config = {
     contactDamage: 10,
     contactOxygenDamage: 4,
     hitStagger: 1,
-    recoveryHits: 5,
-    recoveryDuration: 10,
+    recoveryHits: 1,
+    recoveryDuration: 40,
     waypointRefresh: 0.5
   },
 
   hunter: {
-    radius: 15,
+    radius: 22.5,
+    spriteWidth: 63,
     speed: 80,
     slowSpeed: 32,
     patrolSpeedScale: 60,
@@ -251,13 +307,48 @@ const Config = {
     knockback: 10,
     deathFadeDuration: 0.6,
     traitChance: 0.3,
-    traitTypes: ['photophobic', 'slim', 'reviver'],
+    traitTypes: ['photophobic', 'slim', 'reviver', 'ambusher'],
     lightIgnoreDistance: 50,
     lightAvoidRefresh: 0.35,
     lightAvoidRadii: [90, 160],
-    traitReviveDuration: 2,
+    traitReviveDuration: 7,
     maxHp: 1,
     waypointRefresh: 0.5
+  },
+
+  heavy: {
+    hp: { easy: 5, medium: 5, hard: 10 },
+    radius: 44,
+    spriteWidth: 112,
+    speed: 50,
+    chargeSpeed: 300,
+    windupDuration: 2,
+    stunDuration: 3,
+    chargeDamage: 5,
+    knockback: 50,
+    waypointRefresh: 0.5
+  },
+
+  skills: {
+    flashbang: { id: 'flashbang', label: '闪光弹', price: 1000, cooldown: 15, image: 'resources/images/flashbang.png', description: '投距 50–600；落地 1 秒后晕眩半径 120 内无遮挡的所有活体 5 秒，包括自己与队友。' },
+    grenade: { id: 'grenade', label: '手榴弹', price: 5000, cooldown: 20, image: 'resources/images/equipment-v17/grenade.png', description: '投距 50–600；半径 120 内爆炸造成 5 点伤害，可击穿 Heavy 护甲；会伤到自己，队友遵循友伤设置。' },
+    barrier: { id: 'barrier', label: '磁锁隔离栅', price: 5000, cooldown: 30, image: 'resources/images/equipment-v17/barrier.png', description: '放置隔离栅阻挡敌人通过，冷却 30 秒。' }
+  },
+  passives: {
+    roll: { id: 'roll', label: '翻滚', price: 7000, image: 'resources/images/equipment-v17/roll.png', description: '装备后按 Space 向移动方向翻滚 100 单位，最多消耗 20 体力，翻滚期间免疫伤害。' },
+    'life-scan': { id: 'life-scan', label: '生命侦测', price: 4000, image: 'resources/images/equipment-v17/life-scan.png', description: '仅自己在 M 地图看到全图活体敌人，不揭示地形、物资或终端。' },
+    shield: { id: 'shield', label: '应急护盾', price: 6000, cooldown: 50, duration: 3, image: 'resources/images/equipment-v17/shield.png', description: '护盾持续 3 秒，冷却 50 秒。' }
+  },
+
+  flashbang: {
+    purchasePrice: 500,
+    speed: 450,
+    radius: 3,
+    minDistance: 50,
+    maxDistance: 600,
+    fuse: 1,
+    blastRadius: 120,
+    stunDuration: 5
   },
 
   extraction: {
@@ -535,6 +626,21 @@ const Config = {
         { name: '应急维生补给包', size: 1, baseValue: 250, rarity: 'common', shape: '1x2' },
         { name: '钻石', size: 1, baseValue: 55000, rarity: 'legendary', shape: '1x1' }
       ]
+    }
+  },
+
+  consumables: {
+    flashbang: {
+      id: 'flashbang', name: '闪光弹', shape: '1x1', purchasePrice: 500,
+      value: 250, effect: 'flashbang', image: 'resources/images/flashbang.png'
+    },
+    oxygenCanister: {
+      id: 'oxygen-canister', name: '备用氧气瓶', shape: '1x2', purchasePrice: 300,
+      value: 150, effect: 'oxygen-50', image: 'resources/images/equipment-v17/oxygen.png'
+    },
+    medkit: {
+      id: 'medkit', name: '急救包', shape: '1x2', purchasePrice: 300,
+      value: 150, effect: 'health-40', image: 'resources/images/equipment-v17/medkit.png'
     }
   },
 

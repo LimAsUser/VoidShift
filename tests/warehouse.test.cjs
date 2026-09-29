@@ -8,11 +8,12 @@ const root = path.join(__dirname, '..');
 const sandbox = {
   window: { addEventListener() {} },
   performance: { now: () => 1000 },
-  localStorage: { value: '', setItem(_key, value) { this.value = value; } },
+  localStorage: { value: '', getItem() { return this.value || null; }, setItem(_key, value) { this.value = value; } },
   structuredClone
 };
 for (const [file, exportCode] of [
   ['js/config.js', 'globalThis.ConfigUnderTest = Config;'],
+  ['js/rewards.js', ''],
   ['js/inventory.js', 'globalThis.BackpackManagerUnderTest = BackpackManager;'],
   ['js/game.js', 'globalThis.GameUnderTest = Game;']
 ]) {
@@ -20,6 +21,7 @@ for (const [file, exportCode] of [
 }
 
 const Config = sandbox.ConfigUnderTest;
+const BackpackManager = sandbox.BackpackManagerUnderTest;
 const Game = sandbox.GameUnderTest;
 
 function makeGame(storageItems = [], storageOverflowItems = []) {
@@ -28,7 +30,9 @@ function makeGame(storageItems = [], storageOverflowItems = []) {
     storageItems,
     storageOverflowItems,
     storageCapacity: Config.storage?.capacityCells || 100,
-    money: 1000
+    money: 1000,
+    inventory: [],
+    coop: { role: null, running: false }
   };
   game.selectedStorageIds = new Set();
   game.saved = 0;
@@ -110,6 +114,37 @@ test('warehouse items can be repositioned or rotated using the shared footprint 
   assert.equal(item.gx, 4);
   assert.equal(item.gy, 2);
   assert.equal(item.rot, 1);
+});
+
+test('selected warehouse items transfer to the next-dive backpack and preserve their shapes', () => {
+  const item = { id: 3, name: '氧气瓶', type: 'consumable', effect: 'oxygen-50', shape: '1x2', value: 250 };
+  const game = makeGame([item]);
+  game.backpack = BackpackManager.fromType('field');
+  game.state.inventory = game.backpack.items;
+  game.selectedStorageIds.add(String(game.state.storageItems[0].id));
+
+  assert.equal(game.transferSelectedStorageToBackpack(), 1);
+  assert.equal(game.state.storageItems.length, 0);
+  assert.equal(game.backpack.items.length, 1);
+  assert.equal(game.backpack.items[0].shape, '1x2');
+  assert.equal(game.backpack.items[0].value, 250);
+});
+
+test('selected next-dive backpack items can be withdrawn, sold, and retained when storage is full', () => {
+  const packed = Array.from({ length: 100 }, (_, index) => ({ name: `cell-${index}`, shape: '1x1', value: 1 }));
+  const game = makeGame(packed);
+  game.backpack = BackpackManager.fromType('field');
+  const bottle = { id: 1, name: '氧气瓶', type: 'consumable', effect: 'oxygen-50', shape: '1x2', value: 250 };
+  game.backpack.place(bottle);
+  game.state.inventory = game.backpack.items;
+  game.state.coop = { role: null, running: false };
+  game.selectedPackIds = new Set(['1']);
+
+  assert.equal(game.transferSelectedBackpackToStorage(), 0);
+  assert.equal(game.backpack.items.length, 1);
+  assert.equal(game.sellSelectedPreparedBackpack(), 250);
+  assert.equal(game.state.money, 1250);
+  assert.equal(game.backpack.items.length, 0);
 });
 
 test('keyboard rotation accepts the string ID used by the storage selection set', () => {

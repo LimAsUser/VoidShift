@@ -1,0 +1,424 @@
+{
+  "method": "MP3 decoded with local FFmpeg; numeric checks, not listening approval",
+  "files": [
+    {
+      "file": "mp3/hunter-step-01.mp3",
+      "duration": 0.88,
+      "peak_dbfs": -6.69,
+      "rms_dbfs": -28.45,
+      "leading_seconds": 0.00017,
+      "bytes": 22567
+    },
+    {
+      "file": "mp3/hunter-step-02.mp3",
+      "duration": 0.88,
+      "peak_dbfs": -6.64,
+      "rms_dbfs": -26.0,
+      "leading_seconds": 0.00013,
+      "bytes": 22567
+    },
+    {
+      "file": "mp3/hunter-step-03.mp3",
+      "duration": 0.88,
+      "peak_dbfs": -6.63,
+      "rms_dbfs": -27.88,
+      "leading_seconds": 0.0001,
+      "bytes": 22567
+    },
+    {
+      "file": "mp3/hunter-step-04.mp3",
+      "duration": 0.88,
+      "peak_dbfs": -6.63,
+      "rms_dbfs": -28.54,
+      "leading_seconds": 0.00017,
+      "bytes": 22567
+    },
+    {
+      "file": "mp3/hunter-step-05.mp3",
+      "duration": 0.88,
+      "peak_dbfs": -6.65,
+      "rms_dbfs": -29.2,
+      "leading_seconds": 8e-05,
+      "bytes": 22567
+    },
+    {
+      "file": "mp3/hunter-step-06.mp3",
+      "duration": 0.88,
+      "peak_dbfs": -6.89,
+      "rms_dbfs": -26.68,
+      "leading_seconds": 0.00023,
+      "bytes": 22567
+    },
+    {
+      "file": "mp3/monster-step-01.mp3",
+      "duration": 0.64,
+      "peak_dbfs": -10.12,
+      "rms_dbfs": -30.23,
+      "leading_seconds": 0.0001,
+      "bytes": 16808
+    },
+    {
+      "file": "mp3/monster-step-02.mp3",
+      "duration": 0.64,
+      "peak_dbfs": -10.34,
+      "rms_dbfs": -30.38,
+      "leading_seconds": 0.00019,
+      "bytes": 16808
+    },
+    {
+      "file": "mp3/monster-step-03.mp3",
+      "duration": 0.64,
+      "peak_dbfs": -10.03,
+      "rms_dbfs": -32.01,
+      "leading_seconds": 4e-05,
+      "bytes": 16808
+    },
+    {
+      "file": "mp3/monster-step-04.mp3",
+      "duration": 0.64,
+      "peak_dbfs": -10.04,
+      "rms_dbfs": -31.87,
+      "leading_seconds": 2e-05,
+      "bytes": 16808
+    },
+    {
+      "file": "mp3/monster-hit-01.mp3",
+      "duration": 0.49,
+      "peak_dbfs": -7.36,
+      "rms_dbfs": -27.38,
+      "leading_seconds": 0.00021,
+      "bytes": 13351
+    },
+    {
+      "file": "mp3/monster-hit-02.mp3",
+      "duration": 0.49,
+      "peak_dbfs": -7.39,
+      "rms_dbfs": -28.52,
+      "leading_seconds": 0.00033,
+      "bytes": 13351
+    },
+    {
+      "file": "mp3/monster-hit-03.mp3",
+      "duration": 0.49,
+      "peak_dbfs": -7.41,
+      "rms_dbfs": -27.4,
+      "leading_seconds": 0.00031,
+      "bytes": 13351
+    },
+    {
+      "file": "mp3/heavy-step-01.mp3",
+      "duration": 1.03,
+      "peak_dbfs": -5.0,
+      "rms_dbfs": -24.23,
+      "leading_seconds": 0.00015,
+      "bytes": 26022
+    },
+    {
+      "file": "mp3/heavy-step-02.mp3",
+      "duration": 1.03,
+      "peak_dbfs": -4.99,
+      "rms_dbfs": -22.06,
+      "leading_seconds": 0.00013,
+      "bytes": 26022
+    },
+    {
+      "file": "mp3/heavy-step-03.mp3",
+      "duration": 1.03,
+      "peak_dbfs": -5.01,
+      "rms_dbfs": -24.27,
+      "leading_seconds": 0.00025,
+      "bytes": 26022
+    },
+    {
+      "file": "mp3/heavy-step-04.mp3",
+      "duration": 1.03,
+      "peak_dbfs": -5.0,
+      "rms_dbfs": -22.81,
+      "leading_seconds": 0.0001,
+      "bytes": 26022
+    },
+    {
+      "file": "mp3/heavy-windup-01.mp3",
+      "duration": 2.0,
+      "peak_dbfs": -6.64,
+      "rms_dbfs": -24.27,
+      "leading_seconds": 0.0001,
+      "bytes": 49640
+    },
+    {
+      "file": "mp3/heavy-wall-impact-01.mp3",
+      "duration": 1.42,
+      "peak_dbfs": -4.13,
+      "rms_dbfs": -22.74,
+      "leading_seconds": 0.00013,
+      "bytes": 35821
+    },
+    {
+      "file": "mp3/heavy-wall-impact-02.mp3",
+      "duration": 1.42,
+      "peak_dbfs": -4.13,
+      "rms_dbfs": -23.71,
+      "leading_seconds": 0.0001,
+      "bytes": 35821
+    },
+    {
+      "file": "mp3/pistol-shot-01.mp3",
+      "duration": 0.46,
+      "peak_dbfs": -5.44,
+      "rms_dbfs": -28.22,
+      "leading_seconds": 8e-05,
+      "bytes": 12775
+    },
+    {
+      "file": "mp3/pistol-shot-02.mp3",
+      "duration": 0.46,
+      "peak_dbfs": -5.38,
+      "rms_dbfs": -26.1,
+      "leading_seconds": 8e-05,
+      "bytes": 12775
+    },
+    {
+      "file": "mp3/pistol-shot-03.mp3",
+      "duration": 0.46,
+      "peak_dbfs": -5.61,
+      "rms_dbfs": -27.69,
+      "leading_seconds": 6e-05,
+      "bytes": 12775
+    },
+    {
+      "file": "mp3/smg-shot-01.mp3",
+      "duration": 0.27,
+      "peak_dbfs": -5.43,
+      "rms_dbfs": -28.11,
+      "leading_seconds": 6e-05,
+      "bytes": 8164
+    },
+    {
+      "file": "mp3/smg-shot-02.mp3",
+      "duration": 0.27,
+      "peak_dbfs": -5.46,
+      "rms_dbfs": -27.24,
+      "leading_seconds": 0.00013,
+      "bytes": 8164
+    },
+    {
+      "file": "mp3/smg-shot-03.mp3",
+      "duration": 0.27,
+      "peak_dbfs": -5.43,
+      "rms_dbfs": -26.46,
+      "leading_seconds": 0.00013,
+      "bytes": 8164
+    },
+    {
+      "file": "mp3/shotgun-shot-01.mp3",
+      "duration": 0.73,
+      "peak_dbfs": -4.49,
+      "rms_dbfs": -25.48,
+      "leading_seconds": 2e-05,
+      "bytes": 19112
+    },
+    {
+      "file": "mp3/shotgun-shot-02.mp3",
+      "duration": 0.73,
+      "peak_dbfs": -4.55,
+      "rms_dbfs": -26.05,
+      "leading_seconds": 0.0,
+      "bytes": 19112
+    },
+    {
+      "file": "mp3/shotgun-shot-03.mp3",
+      "duration": 0.73,
+      "peak_dbfs": -4.66,
+      "rms_dbfs": -23.9,
+      "leading_seconds": 4e-05,
+      "bytes": 19112
+    },
+    {
+      "file": "mp3/revolver-shot-01.mp3",
+      "duration": 0.62,
+      "peak_dbfs": -4.51,
+      "rms_dbfs": -25.8,
+      "leading_seconds": 6e-05,
+      "bytes": 16233
+    },
+    {
+      "file": "mp3/revolver-shot-02.mp3",
+      "duration": 0.62,
+      "peak_dbfs": -4.5,
+      "rms_dbfs": -25.58,
+      "leading_seconds": 0.0,
+      "bytes": 16233
+    },
+    {
+      "file": "mp3/revolver-shot-03.mp3",
+      "duration": 0.62,
+      "peak_dbfs": -4.59,
+      "rms_dbfs": -27.03,
+      "leading_seconds": 4e-05,
+      "bytes": 16233
+    },
+    {
+      "file": "mp3/ui-click-01.mp3",
+      "duration": 0.12,
+      "peak_dbfs": -13.83,
+      "rms_dbfs": -32.01,
+      "leading_seconds": 0.00015,
+      "bytes": 4132
+    },
+    {
+      "file": "mp3/ui-click-02.mp3",
+      "duration": 0.12,
+      "peak_dbfs": -13.86,
+      "rms_dbfs": -34.88,
+      "leading_seconds": 0.0001,
+      "bytes": 4132
+    },
+    {
+      "file": "mp3/ui-click-03.mp3",
+      "duration": 0.12,
+      "peak_dbfs": -13.81,
+      "rms_dbfs": -34.1,
+      "leading_seconds": 0.0001,
+      "bytes": 4132
+    },
+    {
+      "file": "mp3/ui-confirm-01.mp3",
+      "duration": 0.28,
+      "peak_dbfs": -13.86,
+      "rms_dbfs": -35.45,
+      "leading_seconds": 0.00013,
+      "bytes": 8166
+    },
+    {
+      "file": "mp3/ui-cancel-01.mp3",
+      "duration": 0.24,
+      "peak_dbfs": -13.81,
+      "rms_dbfs": -35.93,
+      "leading_seconds": 0.0001,
+      "bytes": 7013
+    },
+    {
+      "file": "mp3/ui-error-01.mp3",
+      "duration": 0.28,
+      "peak_dbfs": -13.85,
+      "rms_dbfs": -35.55,
+      "leading_seconds": 8e-05,
+      "bytes": 8164
+    },
+    {
+      "file": "mp3/terminal-key-01.mp3",
+      "duration": 0.17,
+      "peak_dbfs": -11.66,
+      "rms_dbfs": -30.4,
+      "leading_seconds": 0.0001,
+      "bytes": 5864
+    },
+    {
+      "file": "mp3/terminal-key-02.mp3",
+      "duration": 0.17,
+      "peak_dbfs": -11.63,
+      "rms_dbfs": -30.18,
+      "leading_seconds": 0.0001,
+      "bytes": 5864
+    },
+    {
+      "file": "mp3/terminal-key-03.mp3",
+      "duration": 0.17,
+      "peak_dbfs": -11.68,
+      "rms_dbfs": -30.32,
+      "leading_seconds": 0.00013,
+      "bytes": 5864
+    },
+    {
+      "file": "mp3/terminal-error-01.mp3",
+      "duration": 0.3,
+      "peak_dbfs": -11.63,
+      "rms_dbfs": -33.98,
+      "leading_seconds": 8e-05,
+      "bytes": 8746
+    },
+    {
+      "file": "mp3/terminal-error-02.mp3",
+      "duration": 0.3,
+      "peak_dbfs": -11.66,
+      "rms_dbfs": -31.74,
+      "leading_seconds": 0.00015,
+      "bytes": 8746
+    },
+    {
+      "file": "mp3/terminal-success-01.mp3",
+      "duration": 0.82,
+      "peak_dbfs": -11.61,
+      "rms_dbfs": -29.33,
+      "leading_seconds": 6e-05,
+      "bytes": 21420
+    },
+    {
+      "file": "mp3/terminal-shock-01.mp3",
+      "duration": 0.62,
+      "peak_dbfs": -6.35,
+      "rms_dbfs": -28.45,
+      "leading_seconds": 8e-05,
+      "bytes": 16234
+    },
+    {
+      "file": "mp3/terminal-shock-02.mp3",
+      "duration": 0.62,
+      "peak_dbfs": -6.49,
+      "rms_dbfs": -27.23,
+      "leading_seconds": 0.0,
+      "bytes": 16234
+    },
+    {
+      "file": "auditions/01-hunter-stalking.mp3",
+      "duration": 10.29,
+      "peak_dbfs": -6.45,
+      "rms_dbfs": -28.45,
+      "leading_seconds": 0.24517,
+      "bytes": 248363
+    },
+    {
+      "file": "auditions/02-monster-crawl-hit.mp3",
+      "duration": 9.14,
+      "peak_dbfs": -7.45,
+      "rms_dbfs": -31.56,
+      "leading_seconds": 0.25006,
+      "bytes": 220717
+    },
+    {
+      "file": "auditions/03-heavy-step-charge-impact.mp3",
+      "duration": 10.72,
+      "peak_dbfs": -4.58,
+      "rms_dbfs": -23.0,
+      "leading_seconds": 0.23515,
+      "bytes": 258740
+    },
+    {
+      "file": "auditions/04-four-weapons.mp3",
+      "duration": 11.57,
+      "peak_dbfs": -4.52,
+      "rms_dbfs": -28.03,
+      "leading_seconds": 0.24873,
+      "bytes": 279464
+    },
+    {
+      "file": "auditions/05-interface.mp3",
+      "duration": 4.68,
+      "peak_dbfs": -13.78,
+      "rms_dbfs": -40.95,
+      "leading_seconds": 0.2459,
+      "bytes": 113573
+    },
+    {
+      "file": "auditions/06-terminal.mp3",
+      "duration": 7.17,
+      "peak_dbfs": -6.3,
+      "rms_dbfs": -32.77,
+      "leading_seconds": 0.25012,
+      "bytes": 173476
+    }
+  ],
+  "total_mp3_bytes": 2055953,
+  "decoded_seconds": 82.41,
+  "maximum_decoded_peak_dbfs": -4.13
+}

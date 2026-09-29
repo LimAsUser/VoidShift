@@ -29,6 +29,13 @@
       "when": 1790336420479,
       "tag": "0003_reusable_guest_slots",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1790652608331,
+      "tag": "0004_mission_rewards_and_create_intent",
+      "breakpoints": true
     }
   ]
 }

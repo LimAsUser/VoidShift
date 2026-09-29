@@ -1,0 +1,657 @@
+{
+  "pages": [
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "briefingContent",
+      "viewport": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "mapContent",
+      "viewport": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "storageContent",
+      "viewport": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "loadoutContent",
+      "viewport": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "ammoContent",
+      "viewport": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "coopContent",
+      "viewport": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "tutorialContent",
+      "viewport": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "briefingContent",
+      "viewport": [
+        1920,
+        900
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "mapContent",
+      "viewport": [
+        1920,
+        900
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "storageContent",
+      "viewport": [
+        1920,
+        900
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "loadoutContent",
+      "viewport": [
+        1920,
+        900
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "ammoContent",
+      "viewport": [
+        1920,
+        900
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "coopContent",
+      "viewport": [
+        1920,
+        900
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "tutorialContent",
+      "viewport": [
+        1920,
+        900
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "briefingContent",
+      "viewport": [
+        1440,
+        900
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "mapContent",
+      "viewport": [
+        1440,
+        900
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "storageContent",
+      "viewport": [
+        1440,
+        900
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "loadoutContent",
+      "viewport": [
+        1440,
+        900
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "ammoContent",
+      "viewport": [
+        1440,
+        900
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "coopContent",
+      "viewport": [
+        1440,
+        900
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "tutorialContent",
+      "viewport": [
+        1440,
+        900
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "briefingContent",
+      "viewport": [
+        1280,
+        720
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "mapContent",
+      "viewport": [
+        1280,
+        720
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "storageContent",
+      "viewport": [
+        1280,
+        720
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "loadoutContent",
+      "viewport": [
+        1280,
+        720
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "ammoContent",
+      "viewport": [
+        1280,
+        720
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "coopContent",
+      "viewport": [
+        1280,
+        720
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "tutorialContent",
+      "viewport": [
+        1280,
+        720
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "briefingContent",
+      "viewport": [
+        1280,
+        640
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "mapContent",
+      "viewport": [
+        1280,
+        640
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "storageContent",
+      "viewport": [
+        1280,
+        640
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "loadoutContent",
+      "viewport": [
+        1280,
+        640
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "ammoContent",
+      "viewport": [
+        1280,
+        640
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "coopContent",
+      "viewport": [
+        1280,
+        640
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "tutorialContent",
+      "viewport": [
+        1280,
+        640
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "briefingContent",
+      "viewport": [
+        960,
+        540
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "mapContent",
+      "viewport": [
+        960,
+        540
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "storageContent",
+      "viewport": [
+        960,
+        540
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "loadoutContent",
+      "viewport": [
+        960,
+        540
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "ammoContent",
+      "viewport": [
+        960,
+        540
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "coopContent",
+      "viewport": [
+        960,
+        540
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "tutorialContent",
+      "viewport": [
+        960,
+        540
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "briefingContent",
+      "viewport": [
+        390,
+        844
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "mapContent",
+      "viewport": [
+        390,
+        844
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "storageContent",
+      "viewport": [
+        390,
+        844
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "loadoutContent",
+      "viewport": [
+        390,
+        844
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "ammoContent",
+      "viewport": [
+        390,
+        844
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "coopContent",
+      "viewport": [
+        390,
+        844
+      ]
+    },
+    {
+      "documentOverflow": false,
+      "launchVisible": true,
+      "lobbyActionsVisible": true,
+      "outsideCards": [],
+      "page": "tutorialContent",
+      "viewport": [
+        390,
+        844
+      ]
+    }
+  ],
+  "auxiliary": [
+    {
+      "inside": true,
+      "page": "title",
+      "size": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "inside": true,
+      "page": "settings",
+      "size": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "inside": true,
+      "page": "title",
+      "size": [
+        1920,
+        900
+      ]
+    },
+    {
+      "inside": true,
+      "page": "settings",
+      "size": [
+        1920,
+        900
+      ]
+    },
+    {
+      "inside": true,
+      "page": "title",
+      "size": [
+        1440,
+        900
+      ]
+    },
+    {
+      "inside": true,
+      "page": "settings",
+      "size": [
+        1440,
+        900
+      ]
+    },
+    {
+      "inside": true,
+      "page": "title",
+      "size": [
+        1280,
+        720
+      ]
+    },
+    {
+      "inside": true,
+      "page": "settings",
+      "size": [
+        1280,
+        720
+      ]
+    },
+    {
+      "inside": true,
+      "page": "title",
+      "size": [
+        1280,
+        640
+      ]
+    },
+    {
+      "inside": true,
+      "page": "settings",
+      "size": [
+        1280,
+        640
+      ]
+    },
+    {
+      "inside": true,
+      "page": "title",
+      "size": [
+        960,
+        540
+      ]
+    },
+    {
+      "inside": true,
+      "page": "settings",
+      "size": [
+        960,
+        540
+      ]
+    },
+    {
+      "inside": true,
+      "page": "title",
+      "size": [
+        390,
+        844
+      ]
+    },
+    {
+      "inside": true,
+      "page": "settings",
+      "size": [
+        390,
+        844
+      ]
+    }
+  ]
+}

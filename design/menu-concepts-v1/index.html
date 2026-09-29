@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VOID SHIFT · 菜单设计预览</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#030c14;color:#e2f0f4;font:16px/1.5 system-ui,sans-serif}
+header{padding:16px 24px;border-bottom:1px solid #245565;background:#071722}
+h1{margin:0;font-size:22px}p{margin:6px 0;color:#acc5cf}a{color:#80e7ee}
+nav{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}nav a{padding:8px 12px;border:1px solid #245565;text-decoration:none}
+.controls{padding:12px 24px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;background:#0b1c27}
+label{cursor:pointer}input{accent-color:#d7f36b}
+main{padding:0 20px 30px;overflow-x:auto}
+section{margin:24px 0 40px;width:min(100%,1920px)}
+h2{font-size:18px;margin:0 0 8px}
+.frame{width:100%;aspect-ratio:16/9;background:#02070c;border:1px solid #245565}
+.frame img{display:block;width:100%;height:100%;object-fit:contain}
+body:has(#size1920:checked) section{width:1920px}
+body:has(#size1280:checked) section{width:1280px}
+.notes{max-width:1100px;padding:20px 24px;border-top:1px solid #245565}
+.notes li{margin:7px 0}
+</style>
+</head>
+<body>
+<header><h1>VOID SHIFT · 菜单设计预览 V1</h1>
+<p>8 张独立效果图。仅设计，不是可操作游戏；画面中的按钮不会执行游戏操作。</p>
+<nav><a href="#01-title">开始画面</a><a href="#02-briefing">任务简报</a><a href="#03-map">地图</a><a href="#04-storage">仓库与下一潜背包</a><a href="#05-loadout">LOADOUT 装备</a><a href="#06-ammo">弹药库与补给</a><a href="#07-coop">CO-OP 大厅</a><a href="#08-tutorial">教程</a></nav>
+</header>
+<div class="controls">
+<strong>展示尺寸</strong>
+<label><input type="radio" name="size" id="sizefit" checked>适应窗口</label>
+<label><input type="radio" name="size" id="size1920">1920 × 1080</label>
+<label><input type="radio" name="size" id="size1280">1280 × 720</label>
+<a href="README.md">布局与验收说明</a>
+</div>
+<main><section id="01-title"><h2>01 · 开始画面　<a href="01-title.png" target="_blank" rel="noopener">打开原图</a></h2><div class="frame"><img src="01-title.png" alt="开始画面设计效果图"></div></section>
+<section id="02-briefing"><h2>02 · 任务简报　<a href="02-briefing.png" target="_blank" rel="noopener">打开原图</a></h2><div class="frame"><img src="02-briefing.png" alt="任务简报设计效果图" loading="lazy"></div></section>
+<section id="03-map"><h2>03 · 地图　<a href="03-map.png" target="_blank" rel="noopener">打开原图</a></h2><div class="frame"><img src="03-map.png" alt="地图设计效果图" loading="lazy"></div></section>
+<section id="04-storage"><h2>04 · 仓库与下一潜背包　<a href="04-storage.png" target="_blank" rel="noopener">打开原图</a></h2><div class="frame"><img src="04-storage.png" alt="仓库与下一潜背包设计效果图" loading="lazy"></div></section>
+<section id="05-loadout"><h2>05 · LOADOUT 装备　<a href="05-loadout.png" target="_blank" rel="noopener">打开原图</a></h2><div class="frame"><img src="05-loadout.png" alt="LOADOUT 装备设计效果图" loading="lazy"></div></section>
+<section id="06-ammo"><h2>06 · 弹药库与补给　<a href="06-ammo.png" target="_blank" rel="noopener">打开原图</a></h2><div class="frame"><img src="06-ammo.png" alt="弹药库与补给设计效果图" loading="lazy"></div></section>
+<section id="07-coop"><h2>07 · CO-OP 大厅　<a href="07-coop.png" target="_blank" rel="noopener">打开原图</a></h2><div class="frame"><img src="07-coop.png" alt="CO-OP 大厅设计效果图" loading="lazy"></div></section>
+<section id="08-tutorial"><h2>08 · 教程　<a href="08-tutorial.png" target="_blank" rel="noopener">打开原图</a></h2><div class="frame"><img src="08-tutorial.png" alt="教程设计效果图" loading="lazy"></div></section>
+</main>
+<aside class="notes"><h2>实现时的边界</h2><ul>
+<li>开始画面负责品牌与氛围；“开始游戏”进入准备界面，不直接下潜。</li>
+<li>准备界面移除品牌大栏、资金大条、重复页面标题，保留紧凑导航与出发操作。</li>
+<li>仓库中间操作区保持可见。待入库为仓库侧独立区域；本图为空区折叠状态。</li>
+<li>1280 × 720 应重新排版，而不是把整张图片当 UI 等比例缩小；正文 14–16px，辅助文字至少 12px，主要按钮至少 44px 高。</li>
+<li>窄屏内容可滚动；仓库改为上下布局，转移操作保持可达。出发栏、大厅准备/开局区固定可见。</li>
+<li>图中资产、人数、余额与装备状态为示例，不对应实时存档。插画不是新关卡、第三人称玩法、角色皮肤或等级系统。</li>
+<li>原图由 imagegen 输出约 1672 × 941（仓库 1672 × 940），这里以 16:9 画布展示；没有声称原图是原生 1920 × 1080。</li>
+</ul></aside>
+</body></html>

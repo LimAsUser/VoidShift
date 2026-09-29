@@ -89,7 +89,7 @@ function makeGame() {
   };
   game.renderer = { prepareCamera() {} };
   game.ui = {
-    showDescentTransition() { uiEvents.push('transition-show'); },
+    showDescentTransition(tip) { uiEvents.push('transition-show'); game.descentTip = tip; },
     hideDescentTransition() { uiEvents.push('transition-hide'); },
     hideTutorial() {}, hideQTE() {}, updateStartState() {}, updateTerminalsStatus() {},
     updateFinishState(success, summary) { uiEvents.push(['settlement', success, summary]); },
@@ -109,7 +109,7 @@ function makeGame() {
   return game;
 }
 
-test('dive waits behind the transition, and Space skip begins gameplay only once', () => {
+test('dive keeps world paused for the full three-second transition', () => {
   animationFrames = 0;
   timers.clear();
   const game = makeGame();
@@ -120,12 +120,13 @@ test('dive waits behind the transition, and Space skip begins gameplay only once
   assert.equal(game.state.running, false);
   assert.equal(animationFrames, 0);
   assert.ok(game.uiEvents.includes('transition-show'));
-
-  assert.equal(game.skipDescentTransition(), true);
+  assert.match(game.descentTip, /灯光|氧气瓶/);
+  assert.equal(Array.from(timers.values())[0].delay, 3000);
+  Array.from(timers.values())[0].callback();
   assert.equal(game.state.transitioning, false);
   assert.equal(game.state.running, true);
   assert.equal(animationFrames, 1);
-  assert.equal(game.skipDescentTransition(), false);
+  assert.equal(game._completeDescentTransition(), false);
   assert.equal(animationFrames, 1);
 });
 
@@ -136,7 +137,7 @@ test('the descent timer begins gameplay automatically after its transition', () 
 
   game.start();
   const timer = Array.from(timers.values())[0];
-  assert.equal(timer.delay, 1200);
+  assert.equal(timer.delay, 3000);
   timer.callback();
 
   assert.equal(game.state.transitioning, false);
@@ -146,7 +147,7 @@ test('the descent timer begins gameplay automatically after its transition', () 
   assert.equal(animationFrames, 1);
 });
 
-test('reduced motion bypasses the animated descent', () => {
+test('reduced motion retains a static three-second descent', () => {
   animationFrames = 0;
   timers.clear();
   const game = makeGame();
@@ -154,12 +155,38 @@ test('reduced motion bypasses the animated descent', () => {
 
   game.start();
 
-  assert.equal(game.state.transitioning, false);
+  assert.equal(game.state.transitioning, true);
+  assert.equal(game.state.running, false);
+  assert.equal(Array.from(timers.values())[0].delay, 3000);
+  Array.from(timers.values())[0].callback();
   assert.equal(game.state.running, true);
-  assert.equal(animationFrames, 1);
-  assert.equal(timers.size, 0);
   assert.ok(game.uiEvents.includes('audio-start'));
   sandbox.window.matchMedia = () => ({ matches: false });
+});
+
+test('host and guest each retain the full descent before their mission starts', () => {
+  for (const role of ['host', 'guest']) {
+    timers.clear();
+    const game = makeGame();
+    game.state.coop = { role, running: true };
+    game.start();
+    assert.equal(game.state.transitioning, true);
+    assert.equal(game.state.running, false);
+    assert.equal(Array.from(timers.values())[0].delay, 3000);
+  }
+});
+
+test('extraction HUD distinguishes marked pod, rescue ETA and arrived crew count', () => {
+  const ui = Object.create(UIManager.prototype);
+  ui.extractStatusText = { textContent: '', className: '' };
+  ui.hudExtractStatus = { textContent: '', className: '' };
+  ui.contractState = { textContent: '' };
+  ui.updateExtractionProgress({ finalTerminalPressure: true, extractionCalled: false });
+  assert.match(ui.hudExtractStatus.textContent, /撤离点已标记/);
+  ui.updateExtractionProgress({ extractionCalled: true, rescueArrived: false, rescueRemaining: 12.1 });
+  assert.match(ui.hudExtractStatus.textContent, /13秒/);
+  ui.updateExtractionProgress({ extractionCalled: true, rescueArrived: true, rescuePresent: 2, rescueRequired: 3 });
+  assert.match(ui.hudExtractStatus.textContent, /2\/3/);
 });
 
 test('settlement summary preserves mission count, value, time, and the applicable ammo result', () => {
@@ -209,8 +236,64 @@ test('the settlement dialog renders both outcome states with mission and ammo de
   assert.match(ui.settlementAmmoOutcome.textContent, /全部损失/);
 });
 
+test('closing the in-game backpack keeps movement locked through its exit animation', () => {
+  const classes = new Set(['is-open']);
+  const overlay = {
+    style: { display: 'block' },
+    classList: {
+      add: value => classes.add(value),
+      remove: (...values) => values.forEach(value => classes.delete(value))
+    }
+  };
+  sandbox.document.getElementById = id => id === 'inventoryOverlay' ? overlay : null;
+  const game = makeGame();
+  game.state.inventoryOpen = true;
+  game.state.keys = { w: true };
+  game._cancelItemDrag = () => {};
+
+  game.toggleInventory(false);
+
+  assert.equal(game.state.inventoryOpen, true);
+  assert.equal(game.state.inventoryClosing, true);
+  assert.equal(classes.has('is-closing'), true);
+  assert.equal(overlay.style.display, 'block');
+  const timer = timers.get(game._inventoryCloseTimer);
+  timer.callback();
+  assert.equal(game.state.inventoryOpen, false);
+  assert.equal(game.state.inventoryClosing, false);
+  assert.equal(overlay.style.display, 'none');
+});
+
+test('the full map fades out before hiding and releases the transition callback', () => {
+  const classes = new Set();
+  const modal = {
+    style: { display: 'flex' },
+    classList: {
+      contains: value => classes.has(value),
+      add: value => classes.add(value),
+      remove: (...values) => values.forEach(value => classes.delete(value))
+    }
+  };
+  const ui = { fullMapModal: modal };
+  let hidden = 0;
+
+  UIManager.prototype.setFullMapVisible.call(ui, false, () => hidden++);
+
+  assert.equal(modal.style.display, 'flex');
+  assert.equal(classes.has('closing'), true);
+  const timer = timers.get(ui._fullMapHideTimer);
+  timer.callback();
+  assert.equal(modal.style.display, 'none');
+  assert.equal(classes.has('hidden'), true);
+  assert.equal(hidden, 1);
+});
+
 test('finishing stops audio and clears active threats and combat effects before showing settlement', () => {
   const game = makeGame();
+  game.state.flashbangCount = 3;
+  game.state.flashbangs = [{ id: 'pending' }];
+  game.state.flashBursts = [{ id: 'flash' }];
+  game.heavy = { active: true };
   game.state.running = true;
   game.state.inventory = [{ value: 420 }];
   game.state.loot = 1;
@@ -231,6 +314,10 @@ test('finishing stops audio and clears active threats and combat effects before 
 
   assert.equal(game.state.running, false);
   assert.equal(game.monster.active, false);
+  assert.equal(game.heavy.active, false);
+  assert.equal(game.state.flashbangCount, 0);
+  assert.equal(game.state.flashbangs.length, 0);
+  assert.equal(game.state.flashBursts.length, 0);
   assert.deepEqual(game.hunters.map(hunter => [hunter.active, hunter.dead, hunter.deathFade, hunter.revivePending]), [
     [false, false, 0, false],
     [false, false, 0, false]
@@ -242,6 +329,31 @@ test('finishing stops audio and clears active threats and combat effects before 
   assert.equal(settlement[1], false);
   assert.equal(settlement[2].lootCount, 1);
   assert.equal(settlement[2].lootValue, 420);
+});
+
+test('successful extraction keeps the recovered pack for safehouse decisions instead of auto-storing or paying it twice', () => {
+  const game = makeGame();
+  game.state.flashbangCount = 2;
+  const recovered = { id: 8, name: '废料', shape: '1x1', value: 420, gx: 0, gy: 0, rot: 0 };
+  game.state.running = true;
+  game.state.money = 1000;
+  game.state.inventory = [recovered, ...[1,2].map(id=>({id:`flash-${id}`,effect:'flashbang',shape:'1x1',value:250,gx:id,gy:0,rot:0}))];
+  game.state.storageItems = [];
+  game.state.storageOverflowItems = [];
+  game.state.storageCapacity = 100;
+  game.state.loot = 1;
+  game.state.lootValue = 420;
+  game.player.exportArmory = () => ({});
+  game.backpack = { items: game.state.inventory };
+  game._bindBackpackInventories = () => { game.state.inventory = game.backpack.items; };
+
+  game.finish(true);
+
+  assert.equal(game.state.inventory.length, 3);
+  assert.equal(game.state.inventory[0].value, 420);
+  assert.equal(game.state.storageItems.length, 0);
+  assert.equal(game.state.money, 1000);
+  assert.equal(game.state.flashbangCount, 2);
 });
 
 test('a QTE timeout that ends the mission stops the same update before world and audio processing', () => {
@@ -315,6 +427,7 @@ test('audio shutdown stops active/ambient sources, cancels delayed cues, and can
   audio.proximityGain = { gain: param() };
   audio.activeSources = new Set([active, ambient]);
   audio.scheduledAudioTimers = new Set([901]);
+  audio.heavySteps = new Map();
   audio.soundBuffers = new Map();
   audio.soundLoads = new Map();
   audio.ambientSource = ambient;
@@ -360,6 +473,7 @@ test('a real one-shot sound source is tracked and stopped at mission end', async
   audio.proximityGain = { gain: param() };
   audio.activeSources = new Set();
   audio.scheduledAudioTimers = new Set();
+  audio.heavySteps = new Map();
   audio.soundBuffers = new Map();
   audio.soundLoads = new Map();
   audio.audioGeneration = 4;

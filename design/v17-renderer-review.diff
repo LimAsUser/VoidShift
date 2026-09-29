@@ -1,0 +1,440 @@
+diff --git a/tmp/v17-baseline/renderer.js b/js/renderer.js
+index a6e37832..d04a03fe 100644
+--- a/tmp/v17-baseline/renderer.js
++++ b/js/renderer.js
+@@ -10,6 +10,7 @@ class Renderer {
+     this.cameraOffsetX = 0;
+     this.cameraOffsetY = 0;
+     this.sprites = {};
++    this.hitMasks = {};
+     this.roomCaches = new WeakMap();
+     this.motionQuery = typeof window !== 'undefined' ? window.matchMedia?.('(prefers-reduced-motion: reduce)') : null;
+   }
+@@ -23,14 +24,127 @@ class Renderer {
+     return this.sprites[name];
+   }
+ 
+-  drawEnemyBody(ctx, name, width) {
++  drawEnemyBody(ctx, name, width, hitFlash = false) {
+     const image = this.sprite(name);
+     if (!image.complete || !image.naturalWidth) return false;
+     const height = width * image.naturalHeight / image.naturalWidth;
+     ctx.drawImage(image, -width / 2, -height / 2, width, height);
++    if (hitFlash) {
++      if (!this.hitMasks[name]) {
++        const mask = document.createElement('canvas');
++        mask.width = Math.min(512, image.naturalWidth);
++        mask.height = Math.max(1, Math.round(mask.width * image.naturalHeight / image.naturalWidth));
++        const maskCtx = mask.getContext('2d');
++        maskCtx.drawImage(image, 0, 0, mask.width, mask.height);
++        maskCtx.globalCompositeOperation = 'source-in';
++        maskCtx.fillStyle = '#fff';
++        maskCtx.fillRect(0, 0, mask.width, mask.height);
++        this.hitMasks[name] = mask;
++      }
++      ctx.drawImage(this.hitMasks[name], -width / 2, -height / 2, width, height);
++    }
+     return true;
+   }
+ 
++  visibleWorldPoint(point, player, mapManager, state) {
++    if (!this.inViewport({ x: point.x - 12, y: point.y - 12, w: 24, h: 24 }, state)) return false;
++    return isPointVisibleToPlayer(point.x, point.y, player, mapManager, this.roomLightLevel(state) > 0);
++  }
++
++  drawDiscovery(ctx, actor, width, player, mapManager, state) {
++    if (!(actor.discoveryTimer > 0) || actor.dead || !this.visibleWorldPoint(actor, player, mapManager, state)) return;
++    ctx.save();
++    ctx.fillStyle = '#ffe8ba';
++    ctx.font = 'bold 21px monospace';
++    ctx.textAlign = 'center';
++    ctx.shadowBlur = 0;
++    ctx.fillText('!', actor.x, actor.y - width / 2 - 12);
++    ctx.restore();
++  }
++
++  drawDamageNumbers(ctx, player, mapManager, state) {
++    for (const number of state.damageNumbers || []) {
++      const age = Math.max(0, state.elapsed - number.born);
++      if (age >= 0.9 || !this.visibleWorldPoint(number, player, mapManager, state)) continue;
++      ctx.save();
++      ctx.globalAlpha = Math.max(0, 1 - age / 0.9);
++      ctx.fillStyle = '#fff1dc';
++      ctx.font = 'bold 16px monospace';
++      ctx.textAlign = 'center';
++      ctx.shadowBlur = 0;
++      const rise = this.motionQuery?.matches ? 0 : age / 0.9 * 24;
++      ctx.fillText(String(Math.round(number.amount)), number.x, number.y - (number.radius || 20) - 14 - rise);
++      ctx.restore();
++    }
++  }
++
++  drawShield(ctx, actor, state) {
++    if (!(actor.shieldUntil > state.elapsed)) return;
++    ctx.save();
++    ctx.shadowBlur = 0;
++    ctx.fillStyle = 'rgba(101,221,235,.08)';
++    ctx.strokeStyle = 'rgba(101,221,235,.38)';
++    ctx.lineWidth = 1.5;
++    ctx.beginPath();
++    ctx.arc(actor.x, actor.y, (actor.radius || 10) + 13, 0, Math.PI * 2);
++    ctx.fill();
++    ctx.stroke();
++    ctx.restore();
++  }
++
++  drawGroundDebris(ctx, player, mapManager, state) {
++    const draw = (debris, magazine) => {
++      const age = Math.max(0, state.elapsed - debris.born);
++      if ((!magazine && age >= 10) || !this.visibleWorldPoint(debris, player, mapManager, state)) return;
++      ctx.save();
++      ctx.globalAlpha = magazine || age <= 8 ? 1 : (10 - age) / 2;
++      const bounce = !this.motionQuery?.matches && age < 0.3 ? Math.sin(age / 0.3 * Math.PI) * 3 : 0;
++      ctx.translate(debris.x, debris.y - bounce);
++      ctx.rotate(debris.angle || 0);
++      ctx.fillStyle = magazine ? '#7c8d97' : '#bea271';
++      ctx.fillRect(magazine ? -3 : -2, magazine ? -6 : -1, magazine ? 6 : 4, magazine ? 12 : 2);
++      ctx.fillStyle = magazine ? '#394953' : '#e7c99c';
++      ctx.fillRect(magazine ? -2 : -1.5, magazine ? -5 : -1, magazine ? 1 : 1, magazine ? 9 : 2);
++      ctx.restore();
++    };
++    for (const casing of state.casings || []) draw(casing, false);
++    for (const magazine of state.magazines || []) draw(magazine, true);
++  }
++
++  drawBarriers(ctx, player, mapManager, state) {
++    const image = this.sprite('equipment-v17/barrier');
++    const draw = (barrier, blueprint) => {
++      if (!this.inViewport(barrier, state)) return;
++      const center = { x: barrier.x + barrier.w / 2, y: barrier.y + barrier.h / 2 };
++      if (!blueprint && !this.visibleWorldPoint(center, player, mapManager, state)) return;
++      ctx.save();
++      ctx.translate(center.x, center.y);
++      const vertical = barrier.vertical ?? barrier.h > barrier.w;
++      const width = vertical ? barrier.h : barrier.w, height = vertical ? barrier.w : barrier.h;
++      if (vertical) ctx.rotate(Math.PI / 2);
++      ctx.globalAlpha = blueprint ? 0.4 : 1;
++      if (image.complete && image.naturalWidth) ctx.drawImage(image, -width / 2, -height / 2, width, height);
++      ctx.strokeStyle = blueprint ? (barrier.valid ? '#65ddeb' : '#ff615f') : '#7b9eab';
++      ctx.lineWidth = blueprint ? 2 : 1;
++      ctx.strokeRect(-width / 2, -height / 2, width, height);
++      if (blueprint) {
++        ctx.fillStyle = barrier.valid ? 'rgba(101,221,235,.25)' : 'rgba(255,97,95,.25)';
++        ctx.fillRect(-width / 2, -height / 2, width, height);
++      }
++      ctx.restore();
++      if (!blueprint) {
++        ctx.save();
++        ctx.fillStyle = '#d9edf1';
++        ctx.font = 'bold 10px monospace';
++        ctx.textAlign = 'center';
++        ctx.fillText(`${Math.max(0, Math.round(barrier.hp))} / 20`, center.x, barrier.y - 8);
++        ctx.restore();
++      }
++    };
++    for (const barrier of state.barriers || []) draw(barrier, false);
++    if (state.barrierBlueprint) draw(state.barrierBlueprint, true);
++  }
++
+   drawEnemyRing(ctx, bodyWidth, originalWidth = bodyWidth) {
+     ctx.save();
+     ctx.beginPath();
+@@ -88,13 +202,8 @@ class Renderer {
+       }
+     }
+     ctx.globalAlpha = 1;
+-    ctx.fillStyle = terminal.solved ? '#50e3c2' : '#65ddeb';
+-    ctx.shadowColor = ctx.fillStyle;
+-    ctx.shadowBlur = 8;
+-    ctx.fillRect(-6, -6, 12, 12);
+-    ctx.shadowBlur = 0;
+-    ctx.fillStyle = '#081a25';
+-    ctx.fillRect(-3, -3, 6, 4);
++    const image = this.sprite('equipment-v17/terminal');
++    if (image.complete && image.naturalWidth) ctx.drawImage(image, -10, -10, 20, 20);
+     ctx.fillStyle = terminal.solved ? '#50e3c2' : '#65ddeb';
+     ctx.font = 'bold 10px monospace';
+     ctx.textAlign = 'center';
+@@ -160,7 +269,59 @@ class Renderer {
+       bounds.y <= centerY + Config.VIEW_H / zoom / 2 + margin;
+   }
+ 
+-  roomBuffer(room, kind, lightStrip = null) {
++  stripLightStrength(strip, x, y) {
++    const dx = strip.x2 - strip.x1, dy = strip.y2 - strip.y1;
++    const lengthSquared = dx * dx + dy * dy;
++    const t = lengthSquared ? Math.max(0, Math.min(1, ((x - strip.x1) * dx + (y - strip.y1) * dy) / lengthSquared)) : 0;
++    const distance = Math.hypot(x - strip.x1 - dx * t, y - strip.y1 - dy * t);
++    return 0.72 * Math.pow(Math.max(0, 1 - distance / Math.max(1, strip.range || 500)), 6);
++  }
++
++  roomLightField(room, state) {
++    const cached = this.roomCache(room);
++    if (!cached.lightField) {
++      const scale = Math.min(1 / 8, 128 / Math.max(cached.w, cached.h));
++      const width = Math.max(1, Math.ceil(cached.w * scale)), height = Math.max(1, Math.ceil(cached.h * scale));
++      const canvas = document.createElement('canvas');
++      canvas.width = width; canvas.height = height;
++      const ctx = canvas.getContext('2d');
++      const normal = new Float32Array(width * height);
++      const faults = (room.lights || []).filter(strip => strip.state === 'flicker').map(strip => ({ strip, values: new Float32Array(width * height) }));
++      const active = (room.lights || []).filter(strip => !['flicker', 'off'].includes(strip.state));
++      for (let row = 0; row < height; row++) {
++        for (let col = 0; col < width; col++) {
++          const x = cached.x + (col + 0.5) / width * cached.w, y = cached.y + (row + 0.5) / height * cached.h;
++          if (room.vertices?.length && !pointInPolygon(x, y, room.vertices)) continue;
++          const index = row * width + col;
++          for (const strip of active) normal[index] = Math.max(normal[index], this.stripLightStrength(strip, x, y));
++          for (const fault of faults) fault.values[index] = this.stripLightStrength(fault.strip, x, y);
++        }
++      }
++      cached.lightField = { canvas, ctx, width, height, normal, faults, values: new Float32Array(normal.length),
++        pixels: ctx.createImageData?.(width, height), levels: null };
++    }
++    const field = cached.lightField;
++    const levels = field.faults.map(fault => this.stripLightLevel(fault.strip, state));
++    if (field.levels && levels.every((level, index) => level === field.levels[index])) return field;
++    field.levels = levels;
++    for (let index = 0; index < field.values.length; index++) {
++      let strength = field.normal[index];
++      for (let fault = 0; fault < field.faults.length; fault++) strength = Math.max(strength, field.faults[fault].values[index] * levels[fault]);
++      field.values[index] = strength;
++      if (field.pixels) field.pixels.data[index * 4 + 3] = Math.round(strength * 255);
++    }
++    if (field.pixels && field.ctx.putImageData) field.ctx.putImageData(field.pixels, 0, 0);
++    else {
++      field.ctx.clearRect(0, 0, field.width, field.height);
++      for (let index = 0; index < field.values.length; index++) {
++        field.ctx.fillStyle = `rgba(0,0,0,${field.values[index]})`;
++        field.ctx.fillRect(index % field.width, Math.floor(index / field.width), 1, 1);
++      }
++    }
++    return field;
++  }
++
++  roomBuffer(room, kind) {
+     const cached = this.roomCache(room);
+     const deck = kind === 'floor' ? this.sprite('starship/floor-deck') : null;
+     const ready = !!(deck?.complete && deck.naturalWidth);
+@@ -191,22 +352,6 @@ class Renderer {
+       this.traceRoom(ctx, room);
+       ctx.stroke();
+       cached.floorReady = ready;
+-    } else {
+-      for (const strip of room.lights || []) {
+-        if (lightStrip ? strip !== lightStrip : ['flicker', 'off'].includes(strip.state)) continue;
+-        const range = strip.range || Math.hypot(cached.w, cached.h);
+-        // Three stationary samples light each strip; visibility is clipped once from the observer.
+-        for (const amount of [0, 0.5, 1]) {
+-          const x = strip.x1 + (strip.x2 - strip.x1) * amount;
+-          const y = strip.y1 + (strip.y2 - strip.y1) * amount;
+-          const glow = ctx.createRadialGradient(x, y, 0, x, y, range);
+-          glow.addColorStop(0, 'rgba(0,0,0,.44)');
+-          glow.addColorStop(0.5, 'rgba(0,0,0,.28)');
+-          glow.addColorStop(1, 'rgba(0,0,0,.04)');
+-          ctx.fillStyle = glow;
+-          ctx.fillRect(cached.x, cached.y, cached.w, cached.h);
+-        }
+-      }
+     }
+     cached[kind] = canvas;
+     return cached;
+@@ -549,27 +694,11 @@ class Renderer {
+         ctx.save();
+         ctx.translate(term.x, term.y);
+ 
+-        // Terminal pedestal base
+-        ctx.fillStyle = '#18221e';
+-        ctx.strokeStyle = term.solved ? '#50e3c2' : '#f5a623';
+-        ctx.lineWidth = 2;
+-        ctx.fillRect(-18, -18, 36, 36);
+-        ctx.strokeRect(-18, -18, 36, 36);
+-
+-        // Inner glowing CRT terminal screen
+-        const screenGlow = term.solved ? '#50e3c2' : '#f5a623';
+-        ctx.shadowColor = screenGlow;
+-        ctx.shadowBlur = term.solved ? 8 : (10 + Math.sin(gameState.elapsed * 4) * 4);
+-        ctx.fillStyle = term.solved ? 'rgba(80, 227, 194, 0.4)' : 'rgba(245, 166, 35, 0.4)';
+-        ctx.fillRect(-12, -12, 24, 24);
+-        ctx.shadowBlur = 0;
+-
+-        // Terminal symbol
++        const terminalImage = this.sprite('equipment-v17/terminal');
++        if (terminalImage.complete && terminalImage.naturalWidth) ctx.drawImage(terminalImage, -22, -22, 44, 44);
+         ctx.fillStyle = term.solved ? '#50e3c2' : '#f5a623';
+-        ctx.font = 'bold 12px Space Mono';
+         ctx.textAlign = 'center';
+         ctx.textBaseline = 'middle';
+-        ctx.fillText(term.solved ? '✓' : '!', 0, 0);
+ 
+         // Proximity text prompt
+         const dist = Math.hypot(term.x - player.x, term.y - player.y);
+@@ -588,7 +717,7 @@ class Renderer {
+     }
+ 
+     // Searchable salvage uses a dedicated sprite; fog is applied later as usual.
+-    const crateImage = this.sprite('loot-crate');
++    const crateImage = this.sprite('equipment-v17/crate');
+     if (crateImage.complete && crateImage.naturalWidth) {
+       for (const box of mapManager.containers || []) {
+         const width = box.w || 44, height = box.h || 32;
+@@ -601,17 +730,15 @@ class Renderer {
+       if (s.found) return;
+         ctx.save();
+         ctx.translate(s.x, s.y);
+-        ctx.rotate(Math.PI / 4);
+         const legendary = s.rarity === 'legendary';
+         const glowColor = legendary ? '#fff0a6' : s.rarity === 'rare' ? '#f5a623' : s.rarity === 'uncommon' ? '#50e3c2' : '#d7f36b';
+-        ctx.fillStyle = glowColor;
+-        ctx.shadowColor = glowColor;
+-        ctx.shadowBlur = legendary ? 24 : 12;
+-        const size = legendary ? 20 : 16;
+-        ctx.fillRect(-size / 2, -size / 2, size, size);
+-        ctx.shadowBlur = 0;
+-        ctx.fillStyle = legendary ? '#fff8dc' : '#1c2420';
+-        ctx.fillRect(-4, -4, 8, 8);
++        const size = legendary ? 28 : 24;
++        const path = BackpackManager.imageFor(s).replace(/^resources\/images\//, '').replace(/\.png$/, '');
++        const image = this.sprite(path);
++        if (image.complete && image.naturalWidth) ctx.drawImage(image, -size / 2, -size / 2, size, size);
++        ctx.strokeStyle = glowColor;
++        ctx.lineWidth = 1;
++        ctx.strokeRect(-size / 2, -size / 2, size, size);
+         if (legendary) {
+           ctx.strokeStyle = '#fff8dc';
+           ctx.lineWidth = 2;
+@@ -629,7 +756,7 @@ class Renderer {
+         ctx.lineWidth = 1.5;
+         ctx.stroke();
+       }
+-      const image = this.sprite(grenade ? 'abilities/grenade' : 'flashbang');
++      const image = this.sprite(grenade ? 'equipment-v17/grenade' : 'flashbang');
+       const lift = flash.landed ? 0 : Math.min(12, Math.max(0, flash.remainingDistance || 0) * .08);
+       if (image.complete && image.naturalWidth) ctx.drawImage(image, flash.x - 9, flash.y - 9 - lift, 18, 18);
+       else { ctx.fillStyle = grenade ? '#ff8841' : '#ffe1a1'; ctx.fillRect(flash.x - 3, flash.y - 3 - lift, 6, 6); }
+@@ -649,6 +776,9 @@ class Renderer {
+       ctx.restore();
+     }
+ 
++    this.drawGroundDebris(ctx, player, mapManager, gameState);
++    this.drawBarriers(ctx, player, mapManager, gameState);
++
+     const hasCorpseRegistry = Array.isArray(gameState.corpses);
+     for (const corpse of gameState.corpses || []) {
+       const width = corpse.width;
+@@ -660,7 +790,8 @@ class Renderer {
+       ctx.globalAlpha = corpse.fadeRemaining == null ? 1 : Math.max(0, Math.min(1, corpse.fadeRemaining));
+       ctx.translate(corpse.x, corpse.y);
+       ctx.rotate(corpse.angle || 0);
+-      this.drawEnemyBody(ctx, `${corpse.kind}-down`, width);
++      this.drawEnemyBody(ctx, `${corpse.kind}-down`, width,
++        corpse.hitFlashUntil > gameState.elapsed && this.visibleWorldPoint(corpse, player, mapManager, gameState));
+       ctx.restore();
+     }
+ 
+@@ -690,8 +821,10 @@ class Renderer {
+       ctx.translate(heavy.x, heavy.y);
+       ctx.rotate(heavy.angle || 0);
+       if (!heavy.dead && gameState.selectedDifficulty === 'easy') this.drawEnemyRing(ctx, heavyWidth, 56);
+-      this.drawEnemyBody(ctx, heavy.dead ? 'heavy-down' : 'heavy', heavyWidth);
++      this.drawEnemyBody(ctx, heavy.dead ? 'heavy-down' : 'heavy', heavyWidth,
++        heavy.hitFlashUntil > gameState.elapsed && this.visibleWorldPoint(heavy, player, mapManager, gameState));
+       ctx.restore();
++      this.drawDiscovery(ctx, heavy, heavyWidth, player, mapManager, gameState);
+       if (!heavy.dead && (heavy.phase === 'stunned' || heavy.stunTimer > 0)) {
+         ctx.save();
+         ctx.fillStyle = '#b5f6ff';
+@@ -711,7 +844,8 @@ class Renderer {
+       ctx.translate(monster.x, monster.y);
+       ctx.rotate(monster.angle);
+       if (!(monster.recoverTimer > 0) && gameState.selectedDifficulty === 'easy') this.drawEnemyRing(ctx, monsterWidth, 48);
+-      if (!this.drawEnemyBody(ctx, monster.recoverTimer > 0 ? 'monster-down' : 'monster', monsterWidth)) {
++      if (!this.drawEnemyBody(ctx, monster.recoverTimer > 0 ? 'monster-down' : 'monster', monsterWidth,
++        monster.hitFlashUntil > gameState.elapsed && this.visibleWorldPoint(monster, player, mapManager, gameState))) {
+         ctx.scale(monsterWidth / 48, monsterWidth / 48);
+         ctx.fillStyle = '#c6563e';
+         ctx.beginPath();
+@@ -725,6 +859,7 @@ class Renderer {
+         ctx.fillRect(7, -3, 4, 3);
+       }
+       ctx.restore();
++      this.drawDiscovery(ctx, monster, monsterWidth, player, mapManager, gameState);
+ 
+       // Stunned / 10s recovery visual indicator
+       if (monster.recoverTimer > 0) {
+@@ -752,7 +887,8 @@ class Renderer {
+         ctx.rotate(hunter.angle);
+         if (!hunter.dead && gameState.selectedDifficulty === 'easy') this.drawEnemyRing(ctx, hunterWidth, 42);
+         // Arrow body (teal)
+-        if (!this.drawEnemyBody(ctx, hunter.dead ? 'hunter-down' : 'hunter', hunterWidth)) {
++        if (!this.drawEnemyBody(ctx, hunter.dead ? 'hunter-down' : 'hunter', hunterWidth,
++          hunter.hitFlashUntil > gameState.elapsed && this.visibleWorldPoint(hunter, player, mapManager, gameState))) {
+           ctx.scale(hunterWidth / 42, hunterWidth / 42);
+           ctx.fillStyle = '#2db8b0';
+           ctx.beginPath();
+@@ -767,10 +903,13 @@ class Renderer {
+           ctx.fillRect(7, -3, 4, 3);
+         }
+         ctx.restore();
++        this.drawDiscovery(ctx, hunter, hunterWidth, player, mapManager, gameState);
+ 
+       });
+     }
+ 
++    this.drawDamageNumbers(ctx, player, mapManager, gameState);
++
+     // Remote co-op players
+     const remoteEntries = Array.isArray(remotePlayers)
+       ? remotePlayers
+@@ -794,6 +933,7 @@ class Renderer {
+       ctx.fillStyle = '#f5a623';
+       ctx.fillRect(2, -2, 8, 4);
+       ctx.restore();
++      this.drawShield(ctx, remotePlayer, gameState);
+       if (remotePlayer.invulnerable) {
+         ctx.save();
+         ctx.strokeStyle = 'rgba(117,221,208,.85)';
+@@ -834,6 +974,7 @@ class Renderer {
+     ctx.fillStyle = '#d7f36b';
+     ctx.fillRect(2, -2, 8, 4);
+     ctx.restore();
++    this.drawShield(ctx, player, gameState);
+ 
+     if (player.invulnerable) {
+       ctx.save();
+@@ -1007,10 +1148,9 @@ class Renderer {
+       const laserAngle = player.angle + jitter;
+       const laserDistance = mapManager.rayWallDistance(player.x, player.y, Math.cos(laserAngle), Math.sin(laserAngle), 650);
+ 
+-      ctx.strokeStyle = 'rgba(215,243,107,.95)';
+-      ctx.lineWidth = 1.5;
+-      ctx.shadowColor = '#d7f36b';
+-      ctx.shadowBlur = 8;
++      ctx.strokeStyle = 'rgba(255,65,65,.35)';
++      ctx.lineWidth = 1 / Math.max(0.001, gameState.cameraZoom * (scaleX + scaleY) / 2);
++      ctx.shadowBlur = 0;
+ 
+       ctx.beginPath();
+       ctx.moveTo(player.x, player.y);
+@@ -1308,17 +1448,10 @@ class Renderer {
+       visionCtx.closePath();
+       visionCtx.clip();
+       for (const room of litRooms) {
+-        const cached = this.roomBuffer(room, 'illumination');
++        const cached = this.roomCache(room);
++        const field = this.roomLightField(room, gameState);
+         visionCtx.globalAlpha = lampPower;
+-        visionCtx.drawImage(cached.illumination, cached.x, cached.y, cached.w, cached.h);
+-        for (let index = 0; index < room.lights.length; index++) {
+-          const strip = room.lights[index];
+-          if (strip.state !== 'flicker') continue;
+-          const kind = `flicker-${index}`;
+-          const faulty = this.roomBuffer(room, kind, strip);
+-          visionCtx.globalAlpha = lampPower * this.stripLightLevel(strip, gameState);
+-          visionCtx.drawImage(faulty[kind], faulty.x, faulty.y, faulty.w, faulty.h);
+-        }
++        visionCtx.drawImage(field.canvas, cached.x, cached.y, cached.w, cached.h);
+       }
+     }
+     visionCtx.restore();
+

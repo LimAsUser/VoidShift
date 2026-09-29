@@ -26,6 +26,19 @@ class AudioManager {
     this.soundLoads = new Map();
     this.audioGeneration = 0;
     this.missionAudioMuted = false;
+    this.heavySteps = new Map();
+    this.masterVolume = 100;
+    this.ambientVolume = 100;
+    this.hitVoices = new Map();
+    this.lastHitSounds = new Map();
+  }
+
+  setVolumes(master = this.masterVolume, ambient = this.ambientVolume) {
+    this.masterVolume = Math.max(0, Math.min(100, Number(master) || 0));
+    this.ambientVolume = Math.max(0, Math.min(100, Number(ambient) || 0));
+    const now = this.context?.currentTime || 0;
+    this.master?.gain.setTargetAtTime(this.missionAudioMuted ? 0 : 1.2 * this.masterVolume / 100, now, .025);
+    this.ambientGain?.gain.setTargetAtTime(.22 * this.ambientVolume / 100, now, .025);
   }
 
   /**
@@ -46,8 +59,11 @@ class AudioManager {
     this.hasStereoPanner = typeof this.context.createStereoPanner === 'function';
 
     this.master = this.context.createGain();
-    this.master.gain.value = 1.2;
+    this.master.gain.value = this.missionAudioMuted ? 0 : 1.2 * this.masterVolume / 100;
     this.master.connect(this.context.destination);
+    this.ambientGain = this.context.createGain();
+    this.ambientGain.gain.value = .22 * this.ambientVolume / 100;
+    this.ambientGain.connect(this.master);
 
     // Setup Monster Proximity Rumble with Directional Panner
     this.proximityGain = this.context.createGain();
@@ -73,27 +89,24 @@ class AudioManager {
    * Loads and plays the casual horror background noise in an infinite loop
    */
   async playAmbientNoiseLoop() {
-    if (!this.context || this.missionAudioMuted || this.ambientSource) return;
+    if (!this.context || this.missionAudioMuted || this.ambientSource || this.ambientLoading) return;
     const generation = this.audioGeneration;
+    const loading = this.ambientLoading = {};
     try {
-      const response = await fetch('resources/casual horror background white noise-253834.mp3');
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
-      if (this.missionAudioMuted || generation !== this.audioGeneration) return;
+      const audioBuffer = await this.preloadSound('resources/casual horror background white noise-253834.mp3');
+      if (!audioBuffer || this.missionAudioMuted || generation !== this.audioGeneration) return;
 
       this.ambientSource = this.context.createBufferSource();
       this.ambientSource.buffer = audioBuffer;
       this.ambientSource.loop = true;
 
-      const ambientGain = this.context.createGain();
-      ambientGain.gain.value = 0.22; // Low background white noise volume
-
-      this.ambientSource.connect(ambientGain);
-      ambientGain.connect(this.master);
+      this.ambientSource.connect(this.ambientGain);
       this._trackSource(this.ambientSource);
       this.ambientSource.start(0);
     } catch (e) {
       console.warn('Failed to load background white noise:', e);
+    } finally {
+      if (this.ambientLoading === loading) this.ambientLoading = null;
     }
   }
 
@@ -132,6 +145,7 @@ class AudioManager {
 
   stopMissionAudio() {
     this.missionAudioMuted = true;
+    this.heavySteps.clear();
     this.audioGeneration++;
     this.scheduledAudioTimers.forEach(timer => clearTimeout(timer));
     this.scheduledAudioTimers.clear();
@@ -140,6 +154,9 @@ class AudioManager {
     });
     this.activeSources.clear();
     this.ambientSource = null;
+    this.ambientLoading = null;
+    this.hitVoices.clear();
+    this.lastHitSounds.clear();
     const now = this.context ? this.context.currentTime : 0;
     [this.master?.gain, this.proximityGain?.gain].forEach(param => {
       if (!param) return;
@@ -157,8 +174,9 @@ class AudioManager {
     if (!this.context) return;
     this.audioGeneration++;
     this.missionAudioMuted = false;
+    this.heavySteps.clear();
     const now = this.context.currentTime;
-    if (this.master) this.master.gain.setValueAtTime(1.2, now);
+    if (this.master) this.master.gain.setValueAtTime(1.2 * this.masterVolume / 100, now);
     if (this.proximityGain) this.proximityGain.gain.setValueAtTime(0, now);
     this.preloadSound('resources/gun-shot-359196.mp3');
     this.playAmbientNoiseLoop();
@@ -392,6 +410,30 @@ class AudioManager {
     source.start(0);
   }
 
+  async playMonsterHit(listener, position, mapManager, victimId, local = false) {
+    if (!this.context || this.missionAudioMuted || !listener || !position) return;
+    const now = this.context.currentTime;
+    if (now - (this.lastHitSounds.get(victimId) ?? -Infinity) < .12) return;
+    this.lastHitSounds.set(victimId, now);
+    const generation = this.audioGeneration;
+    const buffer = await this.preloadSound('resources/injured-140224.mp3');
+    if (!buffer || this.missionAudioMuted || generation !== this.audioGeneration) return;
+    const spatial = local ? {distance:0,distanceGain:1,pan:0} : this.calculateSpatial(listener.x,listener.y,listener.angle || 0,position.x,position.y,650);
+    let volume = .8 * spatial.distanceGain;
+    if (!local && spatial.distance > 0 && mapManager?.rayWallDistance &&
+      mapManager.rayWallDistance(listener.x,listener.y,(position.x-listener.x)/spatial.distance,(position.y-listener.y)/spatial.distance,spatial.distance)<spatial.distance-8) volume *= .24;
+    if (volume < .001) return;
+    const source=this.context.createBufferSource(),gain=this.context.createGain();source.buffer=buffer;gain.gain.value=volume;
+    source.connect(gain);
+    if (this.hasStereoPanner) {const pan=this.context.createStereoPanner();pan.pan.value=spatial.pan;gain.connect(pan);pan.connect(this.master);}
+    else gain.connect(this.master);
+    const voices=this.hitVoices.get(victimId)||[];
+    while(voices.length>=2){const old=voices.shift();old.gain.gain.linearRampToValueAtTime(0,this.context.currentTime+.02);try{old.source.stop(this.context.currentTime+.025);}catch(_){} }
+    const voice={source,gain};voices.push(voice);this.hitVoices.set(victimId,voices);this._trackSource(source);
+    source.onended=()=>{this.activeSources.delete(source);const index=voices.indexOf(voice);if(index>=0)voices.splice(index,1);source.disconnect?.();gain.disconnect?.();};
+    source.start(0);
+  }
+
   /**
    * Plays a single synthetic sound effect (center mono)
    */
@@ -470,14 +512,50 @@ class AudioManager {
   /**
    * Updates proximity rumble, heartbeat audio cues, and directional panning
    */
-  update(player, monster, mapManager, hunters) {
+  updateHeavyFootsteps(player, heavies, mapManager) {
+    if (!this.context || this.missionAudioMuted) {
+      this.heavySteps.clear();
+      return;
+    }
+    const active = (Array.isArray(heavies) ? heavies : [heavies]).filter(heavy =>
+      heavy?.active && !heavy.dead && ['pursuit', 'charge'].includes(heavy.phase));
+    const keys = new Set(active.map(heavy => heavy.id ?? heavy));
+    for (const key of this.heavySteps.keys()) if (!keys.has(key)) this.heavySteps.delete(key);
+    const now = performance.now();
+    for (const heavy of active) {
+      const key = heavy.id ?? heavy;
+      const step = this.heavySteps.get(key);
+      if (!step || step.phase !== heavy.phase || Math.hypot(heavy.x - step.x, heavy.y - step.y) > 100) {
+        this.heavySteps.set(key, { x: heavy.x, y: heavy.y, phase: heavy.phase, lastStep: now, lastMoved: now });
+        continue;
+      }
+      if (Math.hypot(heavy.x - step.x, heavy.y - step.y) > 0.05) step.lastMoved = now;
+      step.x = heavy.x;
+      step.y = heavy.y;
+      if (now - step.lastMoved > 180) { step.lastStep = now; continue; }
+      const gap = heavy.phase === 'charge' ? 300 : 900;
+      if (now - step.lastStep < gap) continue;
+      step.lastStep = now;
+      const spatial = this.calculateSpatial(player.x, player.y, player.angle || 0, heavy.x, heavy.y, 650);
+      if (spatial.distanceGain < 0.002) continue;
+      const angle = Math.atan2(heavy.y - player.y, heavy.x - player.x);
+      const blocked = mapManager.rayWallDistance(player.x, player.y, Math.cos(angle), Math.sin(angle), spatial.distance) < spatial.distance;
+      const gain = spatial.distanceGain * (blocked ? 0.3 : 1);
+      const charging = heavy.phase === 'charge';
+      this.playSpatialTone(charging ? 74 : 55, charging ? 0.16 : 0.24, 0.26, 'triangle', spatial.pan, gain, spatial.isBehind);
+      this.playSpatialTone(charging ? 135 : 108, 0.06, 0.055, 'sawtooth', spatial.pan, gain, spatial.isBehind);
+    }
+  }
+
+  update(player, monster, mapManager, hunters, heavies = [], options = {}) {
     if (this.missionAudioMuted) return;
+    this.updateHeavyFootsteps(player, heavies, mapManager);
     // Pick the nearest active threat (ghost or any hunter) to drive proximity audio
     const activeHunters = (hunters && Array.isArray(hunters))
       ? hunters.filter(h => h.active && !h.dead)
       : [];
     let activeThreat = null;
-    const candidates = monster.active ? [monster, ...activeHunters] : activeHunters;
+    const candidates = [...(options.nightmares || [monster]).filter(monster => monster?.active), ...activeHunters];
     candidates.forEach(c => {
       const d = Math.hypot(c.x - player.x, c.y - player.y);
       if (!activeThreat || d < Math.hypot(activeThreat.x - player.x, activeThreat.y - player.y)) {
@@ -494,6 +572,7 @@ class AudioManager {
 
     const spatial = this.calculateSpatial(player.x, player.y, player.angle, activeThreat.x, activeThreat.y, 650);
     const distance = spatial.distance;
+    const dangerCues = options.dangerCues !== false;
     const proximity = activeThreat.alerted ? Math.max(0, 1 - distance / 650) : 0;
     const toMonster = Math.atan2(activeThreat.y - player.y, activeThreat.x - player.x);
     const wallDistance = mapManager.rayWallDistance(player.x, player.y, Math.cos(toMonster), Math.sin(toMonster), 650);
@@ -506,12 +585,12 @@ class AudioManager {
     }
 
     // Smooth gain & pitch transition based on monster proximity
-    this.proximityGain.gain.setTargetAtTime(proximity * 0.42, this.context.currentTime, 0.05);
+    this.proximityGain.gain.setTargetAtTime(dangerCues ? proximity * 0.42 : 0, this.context.currentTime, 0.05);
     this.proximityOscillator.frequency.setTargetAtTime(42 + proximity * 130, this.context.currentTime, 0.08);
 
     // Heartbeat pulse cadence with directional stereo position
     const pulseGap = 720 - proximity * 650;
-    if (activeThreat.alerted && now - this.lastPulse > pulseGap) {
+    if (dangerCues && activeThreat.alerted && now - this.lastPulse > pulseGap) {
       this.lastPulse = now;
       this.playSpatialTone(58 + proximity * 65, 0.13, 0.12 + proximity * 0.2, 'sine', spatial.pan, 1, spatial.isBehind);
 
@@ -521,7 +600,7 @@ class AudioManager {
     }
 
     // High intensity line-of-sight click with directional positioning
-    if (visible && now - this.lastVisiblePulse > (260 - proximity * 150)) {
+    if (dangerCues && visible && now - this.lastVisiblePulse > (260 - proximity * 150)) {
       this.lastVisiblePulse = now;
       this.playSpatialTone(190 + proximity * 90, 0.08, 0.08 + proximity * 0.1, 'square', spatial.pan, 1, spatial.isBehind);
     }

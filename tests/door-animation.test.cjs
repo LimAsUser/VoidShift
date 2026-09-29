@@ -130,7 +130,7 @@ test('co-op snapshots carry door animation state for the guest renderer', () => 
   host.monster = {};
   host.hunters = [];
   host.map = { ...hostMap, scrap: [], terminals: [] };
-  host._playerSnapshot = () => ({});
+  host._playerSnapshot = () => ({ x: 0, y: 0, angle: 0 });
   const snapshot = host._createCoopSnapshot();
 
   const guestDoor = makeDoor();
@@ -140,7 +140,8 @@ test('co-op snapshots carry door animation state for the guest renderer', () => 
   guest.remotePlayer = {};
   guest.monster = {};
   guest.hunters = [];
-  guest.map = { doors: [guestDoor], scrap: [], terminals: [] };
+  guest.map = { doors: [guestDoor], scrap: [], terminals: [], worldRooms: [] };
+  guest.remotePlayers = new Map([['host', { id: 'host', player: guest.remotePlayer, online: true }]]);
   guest._applyPlayerSnapshot = () => {};
   guest._lockFinalTerminalNoise = () => {};
   guest._applyCoopInventorySnapshot = () => false;

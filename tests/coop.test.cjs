@@ -42,6 +42,7 @@ function makeReviveGame({ rescuerId = 'host', rescuerLocal = true } = {}) {
     slot: 2,
     player: rescuerLocal ? downed : rescuer,
     online: true,
+    lastInputAt: 1000,
     input: { keys: {} }
   }]]);
   game.coopReviveAssignments = new Map();
@@ -396,7 +397,7 @@ test('lobby never renders a connected but not-yet-slotted member as an empty sea
     members: [{ id: 'member-a', status: 'connected', connected: true, ready: false }], running: false
   });
 
-  assert.ok(ui.coopMembersList.rows.some(row => row.children?.[1]?.textContent === '座位同步中…'));
+  assert.ok(ui.coopMembersList.rows.some(row => row.children?.find(child => child.className === 'coop-seat-state')?.textContent === '座位同步中…'));
 });
 
 test('lobby exposes one host seat and three independently updated guest seats', () => {
@@ -423,9 +424,10 @@ test('lobby exposes one host seat and three independently updated guest seats', 
   assert.equal(ui.coopHostReady.textContent, '已准备');
   assert.equal(ui.coopGuestReady.textContent, '2 / 3 位队友已连接');
   assert.equal(ui.coopMembersList.rows.length, 3);
-  assert.equal(ui.coopMembersList.rows[0].children[1].textContent, '已准备');
-  assert.equal(ui.coopMembersList.rows[1].children[1].textContent, '未准备');
-  assert.match(ui.coopMembersList.rows[2].children[1].textContent, /离线/);
+  const states = ui.coopMembersList.rows.map(row => row.children.find(child => child.className === 'coop-seat-state').textContent);
+  assert.equal(states[0], '已准备');
+  assert.equal(states[1], '未准备');
+  assert.match(states[2], /离线/);
 });
 
 test('one E interaction starts a three-second revive without requiring the key to stay down', () => {
@@ -462,12 +464,21 @@ test('movement cancels a started revive and clears its progress', () => {
   assert.equal(downed.reviveProgress, 0);
 });
 
-test('a downed player still bleeds out when there is no active rescuer', () => {
+test('a downed player waits indefinitely for rescue without triggering mission failure', () => {
   const { game, downed } = makeReviveGame();
   downed.bleedout = 0.05;
 
+  assert.equal(game._updateCoopRevive(31), false);
+  assert.equal(downed.downed, true);
+  assert.equal(downed.bleedout, 0.05);
+});
+
+test('the host fails only when every online co-op player is down', () => {
+  const { game, downed, rescuer } = makeReviveGame();
+
+  assert.equal(game._updateCoopRevive(0.1), false);
+  rescuer.downed = true;
   assert.equal(game._updateCoopRevive(0.1), true);
-  assert.equal(downed.bleedout, 0);
 });
 
 test('a guest interaction event starts a revive without holding E in the input state', () => {

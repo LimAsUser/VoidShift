@@ -1,0 +1,227 @@
+[
+  {
+    "documentOverflow": false,
+    "launchVisible": true,
+    "lobbyActionsVisible": true,
+    "outsideCards": [],
+    "page": "storageContent",
+    "viewport": [
+      1920,
+      1080
+    ],
+    "fixture": {
+      "name": "纳米重力铸造车间高强度耐辐射复合合金保护板",
+      "selection": "已选物资 · 6 件"
+    }
+  },
+  {
+    "documentOverflow": false,
+    "launchVisible": true,
+    "lobbyActionsVisible": true,
+    "outsideCards": [],
+    "page": "ammoContent",
+    "viewport": [
+      1920,
+      1080
+    ],
+    "fixture": {
+      "amount": "12345678",
+      "choices": 5
+    }
+  },
+  {
+    "documentOverflow": false,
+    "launchVisible": true,
+    "lobbyActionsVisible": true,
+    "outsideCards": [],
+    "page": "coopContent",
+    "viewport": [
+      1920,
+      1080
+    ],
+    "fixture": {
+      "offline": true,
+      "ready": "等待确认…"
+    }
+  },
+  {
+    "documentOverflow": false,
+    "launchVisible": true,
+    "lobbyActionsVisible": true,
+    "outsideCards": [],
+    "page": "storageContent",
+    "viewport": [
+      1920,
+      900
+    ],
+    "fixture": {
+      "name": "纳米重力铸造车间高强度耐辐射复合合金保护板",
+      "selection": "已选物资 · 6 件"
+    }
+  },
+  {
+    "documentOverflow": false,
+    "launchVisible": true,
+    "lobbyActionsVisible": true,
+    "outsideCards": [],
+    "page": "ammoContent",
+    "viewport": [
+      1920,
+      900
+    ],
+    "fixture": {
+      "amount": "12345678",
+      "choices": 5
+    }
+  },
+  {
+    "documentOverflow": false,
+    "launchVisible": true,
+    "lobbyActionsVisible": true,
+    "outsideCards": [],
+    "page": "coopContent",
+    "viewport": [
+      1920,
+      900
+    ],
+    "fixture": {
+      "offline": true,
+      "ready": "等待确认…"
+    }
+  },
+  {
+    "documentOverflow": false,
+    "launchVisible": true,
+    "lobbyActionsVisible": true,
+    "outsideCards": [],
+    "page": "storageContent",
+    "viewport": [
+      1280,
+      640
+    ],
+    "fixture": {
+      "name": "纳米重力铸造车间高强度耐辐射复合合金保护板",
+      "selection": "已选物资 · 6 件"
+    }
+  },
+  {
+    "documentOverflow": false,
+    "launchVisible": true,
+    "lobbyActionsVisible": true,
+    "outsideCards": [],
+    "page": "ammoContent",
+    "viewport": [
+      1280,
+      640
+    ],
+    "fixture": {
+      "amount": "12345678",
+      "choices": 5
+    }
+  },
+  {
+    "documentOverflow": false,
+    "launchVisible": true,
+    "lobbyActionsVisible": true,
+    "outsideCards": [],
+    "page": "coopContent",
+    "viewport": [
+      1280,
+      640
+    ],
+    "fixture": {
+      "offline": true,
+      "ready": "等待确认…"
+    }
+  },
+  {
+    "documentOverflow": false,
+    "launchVisible": true,
+    "lobbyActionsVisible": true,
+    "outsideCards": [],
+    "page": "storageContent",
+    "viewport": [
+      960,
+      540
+    ],
+    "fixture": {
+      "name": "纳米重力铸造车间高强度耐辐射复合合金保护板",
+      "selection": "已选物资 · 6 件"
+    }
+  },
+  {
+    "documentOverflow": false,
+    "launchVisible": true,
+    "lobbyActionsVisible": true,
+    "outsideCards": [],
+    "page": "ammoContent",
+    "viewport": [
+      960,
+      540
+    ],
+    "fixture": {
+      "amount": "12345678",
+      "choices": 5
+    }
+  },
+  {
+    "documentOverflow": false,
+    "launchVisible": true,
+    "lobbyActionsVisible": true,
+    "outsideCards": [],
+    "page": "coopContent",
+    "viewport": [
+      960,
+      540
+    ],
+    "fixture": {
+      "offline": true,
+      "ready": "等待确认…"
+    }
+  },
+  {
+    "documentOverflow": false,
+    "launchVisible": true,
+    "lobbyActionsVisible": true,
+    "outsideCards": [],
+    "page": "storageContent",
+    "viewport": [
+      390,
+      844
+    ],
+    "fixture": {
+      "name": "纳米重力铸造车间高强度耐辐射复合合金保护板",
+      "selection": "已选物资 · 6 件"
+    }
+  },
+  {
+    "documentOverflow": false,
+    "launchVisible": true,
+    "lobbyActionsVisible": true,
+    "outsideCards": [],
+    "page": "ammoContent",
+    "viewport": [
+      390,
+      844
+    ],
+    "fixture": {
+      "amount": "12345678",
+      "choices": 5
+    }
+  },
+  {
+    "documentOverflow": false,
+    "launchVisible": true,
+    "lobbyActionsVisible": true,
+    "outsideCards": [],
+    "page": "coopContent",
+    "viewport": [
+      390,
+      844
+    ],
+    "fixture": {
+      "offline": true,
+      "ready": "等待确认…"
+    }
+  }
+]

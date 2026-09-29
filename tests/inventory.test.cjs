@@ -41,6 +41,14 @@ test('field backpack places differently shaped items without overlap inside its 
   assert.equal(backpack.canPlace(backpack.matrixFor(second), first.gx, first.gy), false);
 });
 
+test('inventory lookup accepts the string item ID emitted by grid DOM datasets', () => {
+  const manager = BackpackManager.fromType('field');
+  const item = { id: 7, shape: '1x2', name: '氧气瓶' };
+  assert.equal(manager.place(item), true);
+
+  assert.equal(manager.getItem('7'), item);
+});
+
 test('value sorting compacts and orders grid items from highest to lowest recoverable value', () => {
   const backpack = new BackpackManager({ cols: 3, rows: 1, cellSize: 20, gap: 0 });
   const first = { id: 1, name: 'wide', shape: '2x1', value: 10 };
@@ -106,7 +114,9 @@ test('co-op snapshots carry both players’ grid coordinates without sharing mut
   const game = Object.create(Game.prototype);
   const hostItem = { id: 41, name: 'host cargo', value: 15, gx: 1, gy: 2, rot: 1 };
   const guestItem = { id: 51, name: 'guest cargo', value: 35, gx: 4, gy: 1, rot: 2 };
-  game.state = { elapsed: 2, extractionCalled: false, loot: 2, lootValue: 50, finalTerminalPressure: false, inventory: [hostItem], remoteInventory: [guestItem], bulletTraces: [], impactParticles: [] };
+  game.state = { elapsed: 2, extractionCalled: true, rescueRemaining: 12.5, rescueArrived: false,
+    rescuePresent: 1, rescueRequired: 2, loot: 2, lootValue: 50, finalTerminalPressure: false,
+    inventory: [hostItem], remoteInventory: [guestItem], bulletTraces: [], impactParticles: [] };
   game.player = {};
   game.remotePlayer = {};
   game._playerSnapshot = () => ({});
@@ -118,8 +128,12 @@ test('co-op snapshots carry both players’ grid coordinates without sharing mut
   hostItem.gx = 7;
   guestItem.gy = 4;
 
-  assert.deepEqual([snapshot.hostInventory[0].gx, snapshot.hostInventory[0].gy, snapshot.hostInventory[0].rot], [1, 2, 1]);
-  assert.deepEqual([snapshot.guestInventory[0].gx, snapshot.guestInventory[0].gy, snapshot.guestInventory[0].rot], [4, 1, 2]);
+  const hostInventory = snapshot.players.find(player => player.id === 'host').inventory;
+  const guestInventory = snapshot.players.find(player => player.id === 'guest').inventory;
+  assert.deepEqual([hostInventory[0].gx, hostInventory[0].gy, hostInventory[0].rot], [1, 2, 1]);
+  assert.deepEqual([guestInventory[0].gx, guestInventory[0].gy, guestInventory[0].rot], [4, 1, 2]);
+  assert.deepEqual([snapshot.mission.rescueRemaining, snapshot.mission.rescueArrived,
+    snapshot.mission.rescuePresent, snapshot.mission.rescueRequired], [12.5, false, 1, 2]);
 });
 
 test('backpack snapshot reconciliation preserves the dragged item object and applies confirmed placement', () => {
@@ -152,7 +166,7 @@ test('guest co-op snapshots do not revert an active drag or an unconfirmed local
   game._itemDrag = null;
   game._guestInventoryLayoutPending = true;
   game._guestInventoryLayoutPendingAt = 1000;
-  assert.equal(game._applyCoopInventorySnapshot([{ id: 62, gx: 1, gy: 1, rot: 0 }], []), true);
+  assert.equal(game._applyCoopInventorySnapshot([{ id: 62, gx: 1, gy: 1, rot: 0 }], []), false);
   assert.deepEqual([item.gx, item.gy, item.rot], [3, 2, 1]);
 
   assert.equal(game._applyCoopInventorySnapshot([{ id: 62, gx: 3, gy: 2, rot: 1 }], []), true);
@@ -161,7 +175,7 @@ test('guest co-op snapshots do not revert an active drag or an unconfirmed local
 
 test('discarding a guest item restores that scrap to the facility floor and decrements mission loot', () => {
   const game = Object.create(Game.prototype);
-  const item = { id: 31, name: 'cable', shape: '1x1', value: 80, gx: 0, gy: 0, rot: 0 };
+  const item = { id: 31, name: 'cable', shape: '1x1', value: 80, gx: 0, gy: 0, rot: 0, foundThisRun: true };
   const floorItem = { ...item, x: 40, y: 60, found: true };
   game.state = { inventory: [], remoteInventory: [item], loot: 1, lootValue: 80 };
   game.remoteBackpack = BackpackManager.fromType('field');
@@ -260,7 +274,26 @@ test('a successful pickup stores the floor item in the local grid and carries it
   assert.equal(item.found, true);
   assert.equal(game.state.inventory[0], item);
   assert.ok(Number.isInteger(item.gx) && Number.isInteger(item.gy) && Number.isInteger(item.rot));
-  assert.deepEqual([game.state.loot, game.state.lootValue, game.player.noise], [1, 60, 20]);
+  assert.deepEqual([game.state.loot, game.state.lootValue, game.player.noise], [1, 60, 5]);
+});
+
+test('discarding a carried prep item puts it on the floor without changing this dive salvage counters', () => {
+  const item = { id: 'carry:old-3', name: '备用氧气瓶', shape: '1x2', value: 250, foundThisRun: false };
+  const game = Object.create(Game.prototype);
+  game.backpack = BackpackManager.fromType('field');
+  game.backpack.place(item);
+  game.state = { inventory: game.backpack.items, loot: 2, lootValue: 80, coop: { role: null, running: false } };
+  game.player = { x: 50, y: 60 };
+  game.map = { scrap: [] };
+  game.selectedItemId = item.id;
+  game.ui = { showToast() {}, log() {} };
+  game.updateInventoryUI = () => {};
+  game._syncGuestInventoryLayout = () => {};
+
+  assert.equal(game.discardItem(), true);
+  assert.equal(game.map.scrap.length, 1);
+  assert.equal(game.state.loot, 2);
+  assert.equal(game.state.lootValue, 80);
 });
 
 test('rendered backpack blocks receive pointer input for selection and drag', () => {
@@ -298,7 +331,7 @@ test('rendered backpack blocks receive pointer input for selection and drag', ()
   };
   try {
     const game = Object.create(Game.prototype);
-    game.state = { inventory: [], remoteInventory: [] };
+    game.state = { inventory: [], remoteInventory: [], inventoryOpen: true };
     game.player = {};
     game.remotePlayer = null;
     game.backpack = BackpackManager.fromType('field');
@@ -315,14 +348,15 @@ test('rendered backpack blocks receive pointer input for selection and drag', ()
     assert.ok(grid);
     const tile = grid.children.find(child => child.className.includes('bp-item'));
     assert.ok(tile);
-    const block = tile.children[0];
+    const block = tile.children.find(child => child.className === 'bp-block');
     assert.equal(block.style.pointerEvents, 'auto');
     assert.equal(typeof block.listeners.pointerdown, 'function');
     assert.equal(typeof block.listeners.contextmenu, 'function');
-    const currencyImage = block.children[1].children[0];
+    const price = tile.children.find(child => child.className === 'menu-item-price');
+    const currencyImage = price.children[0];
     assert.equal(currencyImage.tagName, 'img');
     assert.equal(currencyImage.attributes.src, 'resources/images/voidshift-credit-coin.png');
-    assert.equal(block.children[1].children[1].textContent, '10');
+    assert.equal(price.children[1].textContent, '10');
   } finally {
     if (previousDocument === undefined) delete sandbox.document;
     else sandbox.document = previousDocument;

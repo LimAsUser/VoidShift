@@ -1,0 +1,1802 @@
+{
+  "version": "feedback-v2",
+  "status": "candidate-awaiting-listening-approval",
+  "downloads": [],
+  "source": "local original procedural design; V1 math primitives reused, V1 files unchanged",
+  "rate": 48000,
+  "channels": 1,
+  "encoding": "MP3 libmp3lame 192 kbps",
+  "script": "scripts/create-feedback-audio-v2.py",
+  "clips": [
+    {
+      "id": "smg-shot-01",
+      "file": "mp3/smg-shot-01.mp3",
+      "duration": 0.145,
+      "pcm_sha256": "d8aff270f844723e3be1111f335ab40306c0e3239bcf374150a43a5ff4be13d3",
+      "loop": false,
+      "cue": "smg-shot",
+      "group": "weapons",
+      "seed": 706538417,
+      "one_shot": true,
+      "decision": "remake-v2",
+      "description_zh": "匹配峰值的独立枪声结构：瞬态、压力体、枪机、短舱室反射。"
+    },
+    {
+      "id": "smg-shot-02",
+      "file": "mp3/smg-shot-02.mp3",
+      "duration": 0.145,
+      "pcm_sha256": "aa0d05fa577e9cc70ae77e88b85b33c96fcec08078d4f6c5fe605a35dca23a54",
+      "loop": false,
+      "cue": "smg-shot",
+      "group": "weapons",
+      "seed": 3004545547,
+      "one_shot": true,
+      "decision": "remake-v2",
+      "description_zh": "匹配峰值的独立枪声结构：瞬态、压力体、枪机、短舱室反射。"
+    },
+    {
+      "id": "smg-shot-03",
+      "file": "mp3/smg-shot-03.mp3",
+      "duration": 0.145,
+      "pcm_sha256": "fce35e40ed9dd7fcff0867b2803d4ccbee505cb695ebc073bec84341a97d0bf7",
+      "loop": false,
+      "cue": "smg-shot",
+      "group": "weapons",
+      "seed": 3289549469,
+      "one_shot": true,
+      "decision": "remake-v2",
+      "description_zh": "匹配峰值的独立枪声结构：瞬态、压力体、枪机、短舱室反射。"
+    },
+    {
+      "id": "pistol-shot-01",
+      "file": "mp3/pistol-shot-01.mp3",
+      "duration": 0.32,
+      "pcm_sha256": "478a54aec1e823bb7237d4a5e5024befb9bdb531c56df6b67702b598baa30a3d",
+      "loop": false,
+      "cue": "pistol-shot",
+      "group": "weapons",
+      "seed": 258361358,
+      "one_shot": true,
+      "decision": "remake-v2",
+      "description_zh": "匹配峰值的独立枪声结构：瞬态、压力体、枪机、短舱室反射。"
+    },
+    {
+      "id": "pistol-shot-02",
+      "file": "mp3/pistol-shot-02.mp3",
+      "duration": 0.32,
+      "pcm_sha256": "579b0f051072fce3531815ca0e2c4ed833b113af9e24d9e36fc3c082b20d0bca",
+      "loop": false,
+      "cue": "pistol-shot",
+      "group": "weapons",
+      "seed": 2523863476,
+      "one_shot": true,
+      "decision": "remake-v2",
+      "description_zh": "匹配峰值的独立枪声结构：瞬态、压力体、枪机、短舱室反射。"
+    },
+    {
+      "id": "pistol-shot-03",
+      "file": "mp3/pistol-shot-03.mp3",
+      "duration": 0.32,
+      "pcm_sha256": "b8c2008660a6952e02d83048137701d89c9e3cd6de49611dd3de81fd881e1c72",
+      "loop": false,
+      "cue": "pistol-shot",
+      "group": "weapons",
+      "seed": 3781699874,
+      "one_shot": true,
+      "decision": "remake-v2",
+      "description_zh": "匹配峰值的独立枪声结构：瞬态、压力体、枪机、短舱室反射。"
+    },
+    {
+      "id": "revolver-shot-01",
+      "file": "mp3/revolver-shot-01.mp3",
+      "duration": 0.48,
+      "pcm_sha256": "3496e1531b49866113ba8d16680359072f7eebea509978869fc36a92bedcd24f",
+      "loop": false,
+      "cue": "revolver-shot",
+      "group": "weapons",
+      "seed": 385761667,
+      "one_shot": true,
+      "decision": "remake-v2",
+      "description_zh": "匹配峰值的独立枪声结构：瞬态、压力体、枪机、短舱室反射。"
+    },
+    {
+      "id": "revolver-shot-02",
+      "file": "mp3/revolver-shot-02.mp3",
+      "duration": 0.48,
+      "pcm_sha256": "36cfed86ad61e55bd2d29e06f2597bc5d6b3203a0635637ee8456ec1ec96463b",
+      "loop": false,
+      "cue": "revolver-shot",
+      "group": "weapons",
+      "seed": 2415333433,
+      "one_shot": true,
+      "decision": "remake-v2",
+      "description_zh": "匹配峰值的独立枪声结构：瞬态、压力体、枪机、短舱室反射。"
+    },
+    {
+      "id": "revolver-shot-03",
+      "file": "mp3/revolver-shot-03.mp3",
+      "duration": 0.48,
+      "pcm_sha256": "ad5cb2538c76348fe1b51c42ba90d1ef51f176efdad955a4f9410f67de33dfbf",
+      "loop": false,
+      "cue": "revolver-shot",
+      "group": "weapons",
+      "seed": 4176486575,
+      "one_shot": true,
+      "decision": "remake-v2",
+      "description_zh": "匹配峰值的独立枪声结构：瞬态、压力体、枪机、短舱室反射。"
+    },
+    {
+      "id": "shotgun-shot-01",
+      "file": "mp3/shotgun-shot-01.mp3",
+      "duration": 0.56,
+      "pcm_sha256": "90040ad4343b106f3d69ce6c45e2a9a753cb7b9b76428d879fc1a1729376ac98",
+      "loop": false,
+      "cue": "shotgun-shot",
+      "group": "weapons",
+      "seed": 3067547038,
+      "one_shot": true,
+      "decision": "remake-v2",
+      "description_zh": "匹配峰值的独立枪声结构：瞬态、压力体、枪机、短舱室反射。"
+    },
+    {
+      "id": "shotgun-shot-02",
+      "file": "mp3/shotgun-shot-02.mp3",
+      "duration": 0.56,
+      "pcm_sha256": "21c853d53131413afc2e546d0287101e966ed79476c79c9dc4612f257ceaa0ad",
+      "loop": false,
+      "cue": "shotgun-shot",
+      "group": "weapons",
+      "seed": 803101732,
+      "one_shot": true,
+      "decision": "remake-v2",
+      "description_zh": "匹配峰值的独立枪声结构：瞬态、压力体、枪机、短舱室反射。"
+    },
+    {
+      "id": "shotgun-shot-03",
+      "file": "mp3/shotgun-shot-03.mp3",
+      "duration": 0.56,
+      "pcm_sha256": "cfcf700bfab50cf4938f1fdf5152f54d73773515be964adbb01f179eaef0a7ce",
+      "loop": false,
+      "cue": "shotgun-shot",
+      "group": "weapons",
+      "seed": 1490644146,
+      "one_shot": true,
+      "decision": "remake-v2",
+      "description_zh": "匹配峰值的独立枪声结构：瞬态、压力体、枪机、短舱室反射。"
+    },
+    {
+      "id": "hunter-step-01",
+      "file": "mp3/hunter-step-01.mp3",
+      "duration": 0.62,
+      "pcm_sha256": "86f02cb70b9d404da74d7268ef84940c0460676227ecc28e10290189753c1f64",
+      "loop": false,
+      "cue": "hunter-step",
+      "group": "hunter",
+      "seed": 610393435,
+      "one_shot": true,
+      "decision": "remix-v1-primitives",
+      "description_zh": "独立实际落脚，材质与承重按怪物区分。"
+    },
+    {
+      "id": "hunter-step-02",
+      "file": "mp3/hunter-step-02.mp3",
+      "duration": 0.62,
+      "pcm_sha256": "78eb9427cb4ed4a244f0f39f2fb05069733fcfc7e25b165ffb82c728fc32da8a",
+      "loop": false,
+      "cue": "hunter-step",
+      "group": "hunter",
+      "seed": 3177745633,
+      "one_shot": true,
+      "decision": "remix-v1-primitives",
+      "description_zh": "独立实际落脚，材质与承重按怪物区分。"
+    },
+    {
+      "id": "hunter-step-03",
+      "file": "mp3/hunter-step-03.mp3",
+      "duration": 0.62,
+      "pcm_sha256": "9db43af2eea22ceef6835d5ad8fabe34b5146fa35e2a0bdc508b3c4a4ed634e7",
+      "loop": false,
+      "cue": "hunter-step",
+      "group": "hunter",
+      "seed": 3396320375,
+      "one_shot": true,
+      "decision": "remix-v1-primitives",
+      "description_zh": "独立实际落脚，材质与承重按怪物区分。"
+    },
+    {
+      "id": "hunter-step-04",
+      "file": "mp3/hunter-step-04.mp3",
+      "duration": 0.62,
+      "pcm_sha256": "13855bc4d0255c731243ca27955d443ba28d8a20a45f429a7f6b1ab42a79eb41",
+      "loop": false,
+      "cue": "hunter-step",
+      "group": "hunter",
+      "seed": 1410017748,
+      "one_shot": true,
+      "decision": "remix-v1-primitives",
+      "description_zh": "独立实际落脚，材质与承重按怪物区分。"
+    },
+    {
+      "id": "monster-step-01",
+      "file": "mp3/monster-step-01.mp3",
+      "duration": 0.53,
+      "pcm_sha256": "638618e5a14da68067da89e2743d8adcc878fa78bd942410c351177050bb8e90",
+      "loop": false,
+      "cue": "monster-step",
+      "group": "monster",
+      "seed": 948817727,
+      "one_shot": true,
+      "decision": "remix-v1-primitives",
+      "description_zh": "独立实际落脚，材质与承重按怪物区分。"
+    },
+    {
+      "id": "monster-step-02",
+      "file": "mp3/monster-step-02.mp3",
+      "duration": 0.53,
+      "pcm_sha256": "ecf55b75e8ee2ed1e9f7365439c3a1065906d448e4135ef91d70d68bc4f9434e",
+      "loop": false,
+      "cue": "monster-step",
+      "group": "monster",
+      "seed": 2709823109,
+      "one_shot": true,
+      "decision": "remix-v1-primitives",
+      "description_zh": "独立实际落脚，材质与承重按怪物区分。"
+    },
+    {
+      "id": "monster-step-03",
+      "file": "mp3/monster-step-03.mp3",
+      "duration": 0.53,
+      "pcm_sha256": "83c7dedcd45f63fc07a94446bde65c5a46df29dc49f1db1fcc0782f4c48a1709",
+      "loop": false,
+      "cue": "monster-step",
+      "group": "monster",
+      "seed": 3598954003,
+      "one_shot": true,
+      "decision": "remix-v1-primitives",
+      "description_zh": "独立实际落脚，材质与承重按怪物区分。"
+    },
+    {
+      "id": "monster-step-04",
+      "file": "mp3/monster-step-04.mp3",
+      "duration": 0.53,
+      "pcm_sha256": "78cd54795851c2cd277f43caf95783917963acd377de2e8a1e544fc3ee2a9cf5",
+      "loop": false,
+      "cue": "monster-step",
+      "group": "monster",
+      "seed": 1223113648,
+      "one_shot": true,
+      "decision": "remix-v1-primitives",
+      "description_zh": "独立实际落脚，材质与承重按怪物区分。"
+    },
+    {
+      "id": "heavy-step-01",
+      "file": "mp3/heavy-step-01.mp3",
+      "duration": 0.84,
+      "pcm_sha256": "84fc42ffa718a3a0e652902067014832432b11ffa885ca50394070a2d0ec52d1",
+      "loop": false,
+      "cue": "heavy-step",
+      "group": "heavy",
+      "seed": 1459543316,
+      "one_shot": true,
+      "decision": "remix-v1-primitives",
+      "description_zh": "独立实际落脚，材质与承重按怪物区分。"
+    },
+    {
+      "id": "heavy-step-02",
+      "file": "mp3/heavy-step-02.mp3",
+      "duration": 0.84,
+      "pcm_sha256": "647cc16475805b3b9cb52b56349831fe0dacaccfa75aee6771cf9d1b4dc44729",
+      "loop": false,
+      "cue": "heavy-step",
+      "group": "heavy",
+      "seed": 3489107118,
+      "one_shot": true,
+      "decision": "remix-v1-primitives",
+      "description_zh": "独立实际落脚，材质与承重按怪物区分。"
+    },
+    {
+      "id": "heavy-step-03",
+      "file": "mp3/heavy-step-03.mp3",
+      "duration": 0.84,
+      "pcm_sha256": "81b3535c146829edb9d140c170b51df4defbe6093b168b26ecac327294a7b46f",
+      "loop": false,
+      "cue": "heavy-step",
+      "group": "heavy",
+      "seed": 3102784568,
+      "one_shot": true,
+      "decision": "remix-v1-primitives",
+      "description_zh": "独立实际落脚，材质与承重按怪物区分。"
+    },
+    {
+      "id": "heavy-step-04",
+      "file": "mp3/heavy-step-04.mp3",
+      "duration": 0.84,
+      "pcm_sha256": "5aee8b28c121e82f0df4990d77a2b217ed97e842f45485851199b05d943536f0",
+      "loop": false,
+      "cue": "heavy-step",
+      "group": "heavy",
+      "seed": 647244187,
+      "one_shot": true,
+      "decision": "remix-v1-primitives",
+      "description_zh": "独立实际落脚，材质与承重按怪物区分。"
+    },
+    {
+      "id": "hunter-chase-01",
+      "file": "mp3/hunter-chase-01.mp3",
+      "duration": 0.35,
+      "pcm_sha256": "1eceff8878496e4db3d8f741e1de99b840e04b832e8caeaf77c3d3b33462a71f",
+      "loop": false,
+      "cue": "hunter-chase",
+      "group": "hunter",
+      "seed": 1313095613,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "更短、更急促的追击爪步。"
+    },
+    {
+      "id": "hunter-chase-02",
+      "file": "mp3/hunter-chase-02.mp3",
+      "duration": 0.35,
+      "pcm_sha256": "2535bb325c83e08ce2f2db95e65c42b9be3e260a902a0a887cb68cad81a9444a",
+      "loop": false,
+      "cue": "hunter-chase",
+      "group": "hunter",
+      "seed": 3612175879,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "更短、更急促的追击爪步。"
+    },
+    {
+      "id": "hunter-chase-03",
+      "file": "mp3/hunter-chase-03.mp3",
+      "duration": 0.35,
+      "pcm_sha256": "c512d10d5be837876ff3440f8fbf501554748b532122abcf0d08beb2cc610cb4",
+      "loop": false,
+      "cue": "hunter-chase",
+      "group": "hunter",
+      "seed": 2689228433,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "更短、更急促的追击爪步。"
+    },
+    {
+      "id": "hunter-attack-01",
+      "file": "mp3/hunter-attack-01.mp3",
+      "duration": 0.36,
+      "pcm_sha256": "b709a4f4a13c75cdd2d8fe6cf01b1e9ec5940299311b9a8096db14a1f1b672ca",
+      "loop": false,
+      "cue": "hunter-attack",
+      "group": "hunter",
+      "seed": 372653261,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "扑击／前窜动作；不混入命中确认。"
+    },
+    {
+      "id": "hunter-attack-02",
+      "file": "mp3/hunter-attack-02.mp3",
+      "duration": 0.36,
+      "pcm_sha256": "4faa974d9d82cecb03a68004a8d16236aa1a8a71fa157f13768842c66c15361b",
+      "loop": false,
+      "cue": "hunter-attack",
+      "group": "hunter",
+      "seed": 2403298679,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "扑击／前窜动作；不混入命中确认。"
+    },
+    {
+      "id": "hunter-hit-01",
+      "file": "mp3/hunter-hit-01.mp3",
+      "duration": 0.36,
+      "pcm_sha256": "4cc4c29a10ecc9da66a83ad8732120314d16f7926ee60fe314a3d3362b4c2b9c",
+      "loop": false,
+      "cue": "hunter-hit",
+      "group": "hunter",
+      "seed": 1182101056,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "短受击与组织、硬壳反馈。"
+    },
+    {
+      "id": "hunter-hit-02",
+      "file": "mp3/hunter-hit-02.mp3",
+      "duration": 0.36,
+      "pcm_sha256": "4768f81a5601a9803904f86dbe156623921ef961b494a77d12b4cdefc18a7b11",
+      "loop": false,
+      "cue": "hunter-hit",
+      "group": "hunter",
+      "seed": 3749462010,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "短受击与组织、硬壳反馈。"
+    },
+    {
+      "id": "monster-attack-01",
+      "file": "mp3/monster-attack-01.mp3",
+      "duration": 0.36,
+      "pcm_sha256": "91fadfcbbc9d635499b8ce3d150b6c319ca9e6102f398b49a7e3fd6add78e4a4",
+      "loop": false,
+      "cue": "monster-attack",
+      "group": "monster",
+      "seed": 3827236810,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "扑击／前窜动作；不混入命中确认。"
+    },
+    {
+      "id": "monster-attack-02",
+      "file": "mp3/monster-attack-02.mp3",
+      "duration": 0.36,
+      "pcm_sha256": "fe1519eec90db8c3a5947205d1f31d2a6b63d48679b0d57661b93f24e33a9182",
+      "loop": false,
+      "cue": "monster-attack",
+      "group": "monster",
+      "seed": 2098703984,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "扑击／前窜动作；不混入命中确认。"
+    },
+    {
+      "id": "monster-hit-01",
+      "file": "mp3/monster-hit-01.mp3",
+      "duration": 0.36,
+      "pcm_sha256": "b9a44862f70a9d75d8aa9021a3275df1dfac490f6e81ff0cc76577672e04ca1b",
+      "loop": false,
+      "cue": "monster-hit",
+      "group": "monster",
+      "seed": 3322308625,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "短受击与组织、硬壳反馈。"
+    },
+    {
+      "id": "monster-hit-02",
+      "file": "mp3/monster-hit-02.mp3",
+      "duration": 0.36,
+      "pcm_sha256": "e27dcbd0fa1de2d8fc4c3948e61d843850920796866b6dd92d78068fb3ef629d",
+      "loop": false,
+      "cue": "monster-hit",
+      "group": "monster",
+      "seed": 1594833323,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "短受击与组织、硬壳反馈。"
+    },
+    {
+      "id": "hunter-death-01",
+      "file": "mp3/hunter-death-01.mp3",
+      "duration": 1.08,
+      "pcm_sha256": "7ec4fc88caded5397c753d4519705ab0569d99b0f3b1c6a88748af1b6ab226cd",
+      "loop": false,
+      "cue": "hunter-death",
+      "group": "hunter",
+      "seed": 1696355241,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "生命期动作；Monster 是休眠不是击杀，复生不含倒计时／警告音。"
+    },
+    {
+      "id": "hunter-death-02",
+      "file": "mp3/hunter-death-02.mp3",
+      "duration": 1.08,
+      "pcm_sha256": "f5ad11131df4c31aec99f5bc048110a8fa83fc5647a9dfad0341652dc8b2da6a",
+      "loop": false,
+      "cue": "hunter-death",
+      "group": "hunter",
+      "seed": 4229235219,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "生命期动作；Monster 是休眠不是击杀，复生不含倒计时／警告音。"
+    },
+    {
+      "id": "hunter-revive-01",
+      "file": "mp3/hunter-revive-01.mp3",
+      "duration": 1.75,
+      "pcm_sha256": "633e7e2dd232745c44760c0a0e7bc39176ffe39997471d60dfd8c745c6fc67e2",
+      "loop": false,
+      "cue": "hunter-revive",
+      "group": "hunter",
+      "seed": 7966537,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "生命期动作；Monster 是休眠不是击杀，复生不含倒计时／警告音。"
+    },
+    {
+      "id": "monster-dormant-01",
+      "file": "mp3/monster-dormant-01.mp3",
+      "duration": 1.06,
+      "pcm_sha256": "3db203443210969ada38f7caaa1e3c13967ac04016dbed4a801f93860e4a276c",
+      "loop": false,
+      "cue": "monster-dormant",
+      "group": "monster",
+      "seed": 1837528704,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "生命期动作；Monster 是休眠不是击杀，复生不含倒计时／警告音。"
+    },
+    {
+      "id": "monster-wake-01",
+      "file": "mp3/monster-wake-01.mp3",
+      "duration": 1.25,
+      "pcm_sha256": "0ac18577799b11029ab93d11220e91c2f660a9e579903abef058874665861408",
+      "loop": false,
+      "cue": "monster-wake",
+      "group": "monster",
+      "seed": 1194222024,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "生命期动作；Monster 是休眠不是击杀，复生不含倒计时／警告音。"
+    },
+    {
+      "id": "heavy-death-01",
+      "file": "mp3/heavy-death-01.mp3",
+      "duration": 1.95,
+      "pcm_sha256": "8ba1163278077f1922cd3853f7f6b483e6a8c953455a04ef87d1c7e8faad0db9",
+      "loop": false,
+      "cue": "heavy-death",
+      "group": "heavy",
+      "seed": 2198704296,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "生命期动作；Monster 是休眠不是击杀，复生不含倒计时／警告音。"
+    },
+    {
+      "id": "heavy-death-02",
+      "file": "mp3/heavy-death-02.mp3",
+      "duration": 1.95,
+      "pcm_sha256": "0715244d83409c1123c14df58ff1e00a675fefb5aa7d4f90ba35479db730acfe",
+      "loop": false,
+      "cue": "heavy-death",
+      "group": "heavy",
+      "seed": 436519186,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "生命期动作；Monster 是休眠不是击杀，复生不含倒计时／警告音。"
+    },
+    {
+      "id": "heavy-recover-01",
+      "file": "mp3/heavy-recover-01.mp3",
+      "duration": 0.68,
+      "pcm_sha256": "3db164c45969d6f326cf97ffda9fb2fb000cbcb7f6e6096f73cb36d898df5c0e",
+      "loop": false,
+      "cue": "heavy-recover",
+      "group": "heavy",
+      "seed": 1008634105,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "生命期动作；Monster 是休眠不是击杀，复生不含倒计时／警告音。"
+    },
+    {
+      "id": "heavy-windup-01",
+      "file": "mp3/heavy-windup-01.mp3",
+      "duration": 2.0,
+      "pcm_sha256": "481dda167336fe248f43141904a0e73412753f9826fe1abbbc6ddc1b1bdc633b",
+      "loop": false,
+      "cue": "heavy-windup",
+      "group": "heavy",
+      "seed": 2724782614,
+      "one_shot": true,
+      "decision": "remix-v1-primitives",
+      "description_zh": "重型装甲机械动作，蓄力2秒，撞墙是钝撞不是爆炸。"
+    },
+    {
+      "id": "heavy-charge-start-01",
+      "file": "mp3/heavy-charge-start-01.mp3",
+      "duration": 0.31,
+      "pcm_sha256": "771d3e2d3d87a66643d8921d8dc02455df1fd3c3bef4cc7184042079a72db0d0",
+      "loop": false,
+      "cue": "heavy-charge-start",
+      "group": "heavy",
+      "seed": 2837749304,
+      "one_shot": true,
+      "decision": "remix-v1-primitives",
+      "description_zh": "重型装甲机械动作，蓄力2秒，撞墙是钝撞不是爆炸。"
+    },
+    {
+      "id": "heavy-wall-impact-01",
+      "file": "mp3/heavy-wall-impact-01.mp3",
+      "duration": 1.42,
+      "pcm_sha256": "1365c8122e332d171632fe6a440b188267bd6e1c6789eb8ad42f3408e052b59b",
+      "loop": false,
+      "cue": "heavy-wall-impact",
+      "group": "heavy",
+      "seed": 4097553719,
+      "one_shot": true,
+      "decision": "remix-v1-primitives",
+      "description_zh": "重型装甲机械动作，蓄力2秒，撞墙是钝撞不是爆炸。"
+    },
+    {
+      "id": "heavy-wall-impact-02",
+      "file": "mp3/heavy-wall-impact-02.mp3",
+      "duration": 1.42,
+      "pcm_sha256": "3c8ff59ffa63ca9776639125e925e7a555ebd6e37ba18b6ae784b6ecc334a934",
+      "loop": false,
+      "cue": "heavy-wall-impact",
+      "group": "heavy",
+      "seed": 1832051853,
+      "one_shot": true,
+      "decision": "remix-v1-primitives",
+      "description_zh": "重型装甲机械动作，蓄力2秒，撞墙是钝撞不是爆炸。"
+    },
+    {
+      "id": "heavy-charge-step-01",
+      "file": "mp3/heavy-charge-step-01.mp3",
+      "duration": 0.31,
+      "pcm_sha256": "581a541070f1f1e79b1bb79f69599d89cbff9c3f7a193efa5721517acae93439",
+      "loop": false,
+      "cue": "heavy-charge-step",
+      "group": "heavy",
+      "seed": 1249881945,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "短重步，便于0.3秒冲撞节奏。"
+    },
+    {
+      "id": "heavy-charge-step-02",
+      "file": "mp3/heavy-charge-step-02.mp3",
+      "duration": 0.31,
+      "pcm_sha256": "fdcff2bd1eb8bac58783e18a8b756aed528f0e8d68c474959032ad74ca815c6d",
+      "loop": false,
+      "cue": "heavy-charge-step",
+      "group": "heavy",
+      "seed": 3547791075,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "短重步，便于0.3秒冲撞节奏。"
+    },
+    {
+      "id": "heavy-charge-step-03",
+      "file": "mp3/heavy-charge-step-03.mp3",
+      "duration": 0.31,
+      "pcm_sha256": "7cbba811a1d8776669c021d71b098b865900eb63afeec6b28cf8525db43abfaa",
+      "loop": false,
+      "cue": "heavy-charge-step",
+      "group": "heavy",
+      "seed": 2758921845,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "短重步，便于0.3秒冲撞节奏。"
+    },
+    {
+      "id": "heavy-armor-hit-01",
+      "file": "mp3/heavy-armor-hit-01.mp3",
+      "duration": 0.24,
+      "pcm_sha256": "8365736f773ce1a75b66cd29c5650074c9573d4a61de4c97bafe5298db878811",
+      "loop": false,
+      "cue": "heavy-armor-hit",
+      "group": "heavy",
+      "seed": 3954763415,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "厚甲挡击，不代表造成有效伤害。"
+    },
+    {
+      "id": "heavy-armor-hit-02",
+      "file": "mp3/heavy-armor-hit-02.mp3",
+      "duration": 0.24,
+      "pcm_sha256": "427bb2ee78029ec068f54b2c364421edd685020ec5e924935df7fd6b38ea9bee",
+      "loop": false,
+      "cue": "heavy-armor-hit",
+      "group": "heavy",
+      "seed": 1924249389,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "厚甲挡击，不代表造成有效伤害。"
+    },
+    {
+      "id": "heavy-weak-hit-01",
+      "file": "mp3/heavy-weak-hit-01.mp3",
+      "duration": 0.36,
+      "pcm_sha256": "c71e3a7a3ccdb810aed9e24c2629d8e059970fd9b9ffa6f241a1eb3280df1917",
+      "loop": false,
+      "cue": "heavy-weak-hit",
+      "group": "heavy",
+      "seed": 3477262271,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "装甲失效时的有效受击。"
+    },
+    {
+      "id": "heavy-weak-hit-02",
+      "file": "mp3/heavy-weak-hit-02.mp3",
+      "duration": 0.36,
+      "pcm_sha256": "e8ff09e813c2eb81ddbce4adf34e661f43b64bf9d379824d3a596bb6fc2defd8",
+      "loop": false,
+      "cue": "heavy-weak-hit",
+      "group": "heavy",
+      "seed": 1447796229,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "装甲失效时的有效受击。"
+    },
+    {
+      "id": "ui-click-01",
+      "file": "mp3/ui-click-01.mp3",
+      "duration": 0.12,
+      "pcm_sha256": "d78a2e8975f14987a0d7c7948308c193436d793326f632d2b57dad804bd82a12",
+      "loop": false,
+      "cue": "ui-click",
+      "group": "ui",
+      "seed": 732515716,
+      "one_shot": true,
+      "decision": "retain-remix-candidate",
+      "description_zh": "保留V1短反馈结构，降低纯音主导程度并加入短机械接触。"
+    },
+    {
+      "id": "ui-click-02",
+      "file": "mp3/ui-click-02.mp3",
+      "duration": 0.12,
+      "pcm_sha256": "4017bdae26675e65348e3915a0f2d45fad80f500130345ceba6b1a6029603277",
+      "loop": false,
+      "cue": "ui-click",
+      "group": "ui",
+      "seed": 2996837438,
+      "one_shot": true,
+      "decision": "retain-remix-candidate",
+      "description_zh": "保留V1短反馈结构，降低纯音主导程度并加入短机械接触。"
+    },
+    {
+      "id": "ui-click-03",
+      "file": "mp3/ui-click-03.mp3",
+      "duration": 0.12,
+      "pcm_sha256": "73dc048524bfebb17457d691262edae8aa5dcab32e38188bf9e519b444213a3b",
+      "loop": false,
+      "cue": "ui-click",
+      "group": "ui",
+      "seed": 3316067496,
+      "one_shot": true,
+      "decision": "retain-remix-candidate",
+      "description_zh": "保留V1短反馈结构，降低纯音主导程度并加入短机械接触。"
+    },
+    {
+      "id": "ui-confirm-01",
+      "file": "mp3/ui-confirm-01.mp3",
+      "duration": 0.28,
+      "pcm_sha256": "2db86df3fc7fde27b5a7193fc767ce6277576a220ba179c00147c427df34eb98",
+      "loop": false,
+      "cue": "ui-confirm",
+      "group": "ui",
+      "seed": 1071583164,
+      "one_shot": true,
+      "decision": "retain-remix-candidate",
+      "description_zh": "保留V1短反馈结构，降低纯音主导程度并加入短机械接触。"
+    },
+    {
+      "id": "ui-cancel-01",
+      "file": "mp3/ui-cancel-01.mp3",
+      "duration": 0.24,
+      "pcm_sha256": "bebce6172aeca062a57283c996cfa73d177202f96010d79929648243b2a3f044",
+      "loop": false,
+      "cue": "ui-cancel",
+      "group": "ui",
+      "seed": 3293126027,
+      "one_shot": true,
+      "decision": "retain-remix-candidate",
+      "description_zh": "保留V1短反馈结构，降低纯音主导程度并加入短机械接触。"
+    },
+    {
+      "id": "ui-error-01",
+      "file": "mp3/ui-error-01.mp3",
+      "duration": 0.28,
+      "pcm_sha256": "08b8e6fc8383c7510db5ea0206deb534d7504d50660c91a24db7f329cf6032b6",
+      "loop": false,
+      "cue": "ui-error",
+      "group": "ui",
+      "seed": 1540859100,
+      "one_shot": true,
+      "decision": "retain-remix-candidate",
+      "description_zh": "保留V1短反馈结构，降低纯音主导程度并加入短机械接触。"
+    },
+    {
+      "id": "terminal-key-01",
+      "file": "mp3/terminal-key-01.mp3",
+      "duration": 0.17,
+      "pcm_sha256": "171d87b39364e77286c937d8fdb5eb6a121d1e97e373ecc958dafa4051851856",
+      "loop": false,
+      "cue": "terminal-key",
+      "group": "terminal",
+      "seed": 44310421,
+      "one_shot": true,
+      "decision": "retain-remix-candidate",
+      "description_zh": "保留V1短反馈结构，降低纯音主导程度并加入短机械接触。"
+    },
+    {
+      "id": "terminal-key-02",
+      "file": "mp3/terminal-key-02.mp3",
+      "duration": 0.17,
+      "pcm_sha256": "f0412b9ee444e49a8f5686537f70f0daf28802522099fd1b53da82ce4556d4c4",
+      "loop": false,
+      "cue": "terminal-key",
+      "group": "terminal",
+      "seed": 2611826223,
+      "one_shot": true,
+      "decision": "retain-remix-candidate",
+      "description_zh": "保留V1短反馈结构，降低纯音主导程度并加入短机械接触。"
+    },
+    {
+      "id": "terminal-key-03",
+      "file": "mp3/terminal-key-03.mp3",
+      "duration": 0.17,
+      "pcm_sha256": "8d55414fa9a661049c4db0ef5cd38b5ffacf6a0bc735b774ef3ca0473b5a2472",
+      "loop": false,
+      "cue": "terminal-key",
+      "group": "terminal",
+      "seed": 3970596537,
+      "one_shot": true,
+      "decision": "retain-remix-candidate",
+      "description_zh": "保留V1短反馈结构，降低纯音主导程度并加入短机械接触。"
+    },
+    {
+      "id": "terminal-error-01",
+      "file": "mp3/terminal-error-01.mp3",
+      "duration": 0.3,
+      "pcm_sha256": "91f1ae045424dbd78879fcf42698ebb3957317e603cc9d2d3e3266f9959ba914",
+      "loop": false,
+      "cue": "terminal-error",
+      "group": "terminal",
+      "seed": 2296764994,
+      "one_shot": true,
+      "decision": "retain-remix-candidate",
+      "description_zh": "保留V1短反馈结构，降低纯音主导程度并加入短机械接触。"
+    },
+    {
+      "id": "terminal-error-02",
+      "file": "mp3/terminal-error-02.mp3",
+      "duration": 0.3,
+      "pcm_sha256": "a0a3e7e771bf1eb771a5e57fd32c1de21c48f4be6d7759932aa5cac94b1308fd",
+      "loop": false,
+      "cue": "terminal-error",
+      "group": "terminal",
+      "seed": 300715000,
+      "one_shot": true,
+      "decision": "retain-remix-candidate",
+      "description_zh": "保留V1短反馈结构，降低纯音主导程度并加入短机械接触。"
+    },
+    {
+      "id": "terminal-success-01",
+      "file": "mp3/terminal-success-01.mp3",
+      "duration": 1.22,
+      "pcm_sha256": "9c4fc71ff38d797f6101917d194ea9d9aef1f759190c7dd74c5cfd871a809f7f",
+      "loop": false,
+      "cue": "terminal-success",
+      "group": "terminal",
+      "seed": 1253678391,
+      "one_shot": true,
+      "decision": "remake-v2",
+      "description_zh": "独立工业机械／系统状态声；组合演示不改变游戏状态。"
+    },
+    {
+      "id": "terminal-all-confirm-01",
+      "file": "mp3/terminal-all-confirm-01.mp3",
+      "duration": 1.1,
+      "pcm_sha256": "a9b3bb428b7f8ffdf3e7320419d9b6d527e66e7459fa366708ab3ee61bda0312",
+      "loop": false,
+      "cue": "terminal-all-confirm",
+      "group": "terminal",
+      "seed": 4147081748,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "独立工业机械／系统状态声；组合演示不改变游戏状态。"
+    },
+    {
+      "id": "power-instability-01",
+      "file": "mp3/power-instability-01.mp3",
+      "duration": 0.28,
+      "pcm_sha256": "bf9138a291254027793154b71e9a44e693fc2e15ab485c3aa4ea23b1703f6a2d",
+      "loop": false,
+      "cue": "power-instability",
+      "group": "terminal",
+      "seed": 3288506694,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "独立工业机械／系统状态声；组合演示不改变游戏状态。"
+    },
+    {
+      "id": "power-down-01",
+      "file": "mp3/power-down-01.mp3",
+      "duration": 0.85,
+      "pcm_sha256": "6fe7bede9ce4f102309e5d395b2e2f919ab016fa948b6f2b1b51736dae53ccb0",
+      "loop": false,
+      "cue": "power-down",
+      "group": "terminal",
+      "seed": 1003249194,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "独立工业机械／系统状态声；组合演示不改变游戏状态。"
+    },
+    {
+      "id": "emergency-system-01",
+      "file": "mp3/emergency-system-01.mp3",
+      "duration": 0.58,
+      "pcm_sha256": "d6ae002024c9bd7f5eb0526568be54dc992303c56373a8023b69862eff897a41",
+      "loop": false,
+      "cue": "emergency-system",
+      "group": "terminal",
+      "seed": 805314157,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "独立工业机械／系统状态声；组合演示不改变游戏状态。"
+    },
+    {
+      "id": "extraction-ready-01",
+      "file": "mp3/extraction-ready-01.mp3",
+      "duration": 0.55,
+      "pcm_sha256": "b84f6fb353680d6fae4ab10815ad5ea50ff80cd8499748da3c31d49196a1e828",
+      "loop": false,
+      "cue": "extraction-ready",
+      "group": "terminal",
+      "seed": 3049464136,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "独立工业机械／系统状态声；组合演示不改变游戏状态。"
+    },
+    {
+      "id": "airlock-seal-01",
+      "file": "mp3/airlock-seal-01.mp3",
+      "duration": 0.72,
+      "pcm_sha256": "2138883cc9ef13b5a997e7d359532bc70d2bd05d8304215dc0f13f72961ab977",
+      "loop": false,
+      "cue": "airlock-seal",
+      "group": "outcome",
+      "seed": 1927551226,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "独立工业机械／系统状态声；组合演示不改变游戏状态。"
+    },
+    {
+      "id": "engine-start-01",
+      "file": "mp3/engine-start-01.mp3",
+      "duration": 3.35,
+      "pcm_sha256": "6335d4d5ca3487ef8b39958bff4ea38791be0c9347c0a49f95f203978df76858",
+      "loop": false,
+      "cue": "engine-start",
+      "group": "outcome",
+      "seed": 1639018436,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "独立工业机械／系统状态声；组合演示不改变游戏状态。"
+    },
+    {
+      "id": "victory-impact-01",
+      "file": "mp3/victory-impact-01.mp3",
+      "duration": 1.5,
+      "pcm_sha256": "2cb035d1ce2fbc8c137078fe78d758ae95344d572c0d8d16a96e734669d10868",
+      "loop": false,
+      "cue": "victory-impact",
+      "group": "outcome",
+      "seed": 2699145737,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "独立工业机械／系统状态声；组合演示不改变游戏状态。"
+    },
+    {
+      "id": "failure-device-stop-01",
+      "file": "mp3/failure-device-stop-01.mp3",
+      "duration": 1.4,
+      "pcm_sha256": "17638fde937206d4d03bc445fbf862b1c4e7c5467a768299777e39c3a10c7fb6",
+      "loop": false,
+      "cue": "failure-device-stop",
+      "group": "outcome",
+      "seed": 429873026,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "独立工业机械／系统状态声；组合演示不改变游戏状态。"
+    },
+    {
+      "id": "failure-impact-01",
+      "file": "mp3/failure-impact-01.mp3",
+      "duration": 1.15,
+      "pcm_sha256": "83688d6064c9a3c7c158210023dc9053d1188ac96438d07aa701dcc0eac877bc",
+      "loop": false,
+      "cue": "failure-impact",
+      "group": "outcome",
+      "seed": 3706944903,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "独立工业机械／系统状态声；组合演示不改变游戏状态。"
+    },
+    {
+      "id": "result-tick-01",
+      "file": "mp3/result-tick-01.mp3",
+      "duration": 0.11,
+      "pcm_sha256": "6867979e1f2aa820820bf5dd541e6e882a94dd5b1d8cf7ccd40cfa27abd26ed0",
+      "loop": false,
+      "cue": "result-tick",
+      "group": "outcome",
+      "seed": 2321741329,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "独立工业机械／系统状态声；组合演示不改变游戏状态。"
+    },
+    {
+      "id": "result-confirm-01",
+      "file": "mp3/result-confirm-01.mp3",
+      "duration": 0.35,
+      "pcm_sha256": "97ffafdf57ac296d67b6543bbfede420badf027c48ed290a1c4476025e6d045d",
+      "loop": false,
+      "cue": "result-confirm",
+      "group": "outcome",
+      "seed": 3525090171,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "独立工业机械／系统状态声；组合演示不改变游戏状态。"
+    },
+    {
+      "id": "ui-purchase-01",
+      "file": "mp3/ui-purchase-01.mp3",
+      "duration": 0.34,
+      "pcm_sha256": "d64ed7b40d12c1f1f972bcec80d45a6070a4fbbdfbf1a633656a075d8b8ea13f",
+      "loop": false,
+      "cue": "ui-purchase",
+      "group": "ui",
+      "seed": 2309773163,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "独立工业机械／系统状态声；组合演示不改变游戏状态。"
+    },
+    {
+      "id": "ui-sell-01",
+      "file": "mp3/ui-sell-01.mp3",
+      "duration": 0.34,
+      "pcm_sha256": "ab5df88ddb3d257d75ef8e6e42aec09ec6e4dedb7c578d30c59028b5e7d2fac2",
+      "loop": false,
+      "cue": "ui-sell",
+      "group": "ui",
+      "seed": 1475938857,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "独立工业机械／系统状态声；组合演示不改变游戏状态。"
+    },
+    {
+      "id": "ui-equip-01",
+      "file": "mp3/ui-equip-01.mp3",
+      "duration": 0.34,
+      "pcm_sha256": "fab2762639ad48c72e54f9f33951bac8127a37d73b571f22f138ed9fd4f701a8",
+      "loop": false,
+      "cue": "ui-equip",
+      "group": "ui",
+      "seed": 1383314386,
+      "one_shot": true,
+      "decision": "new-v2",
+      "description_zh": "独立工业机械／系统状态声；组合演示不改变游戏状态。"
+    }
+  ],
+  "auditions": [
+    {
+      "id": "01-four-weapons",
+      "file": "auditions/01-four-weapons.mp3",
+      "duration": 11.6,
+      "pcm_sha256": "c3c9665c4ff6acb5be5bf62df9feb1a016212fd9fe90032608341670d1cfe920",
+      "loop": false,
+      "events": [
+        {
+          "at": 0.2,
+          "clip": "pistol-shot-01",
+          "gain": 1
+        },
+        {
+          "at": 0.8,
+          "clip": "pistol-shot-02",
+          "gain": 1
+        },
+        {
+          "at": 1.4,
+          "clip": "pistol-shot-03",
+          "gain": 1
+        },
+        {
+          "at": 2.6,
+          "clip": "smg-shot-01",
+          "gain": 1
+        },
+        {
+          "at": 2.7,
+          "clip": "smg-shot-02",
+          "gain": 1
+        },
+        {
+          "at": 2.8,
+          "clip": "smg-shot-03",
+          "gain": 1
+        },
+        {
+          "at": 2.9,
+          "clip": "smg-shot-01",
+          "gain": 1
+        },
+        {
+          "at": 3.0,
+          "clip": "smg-shot-02",
+          "gain": 1
+        },
+        {
+          "at": 3.1,
+          "clip": "smg-shot-03",
+          "gain": 1
+        },
+        {
+          "at": 3.2,
+          "clip": "smg-shot-01",
+          "gain": 1
+        },
+        {
+          "at": 3.3,
+          "clip": "smg-shot-02",
+          "gain": 1
+        },
+        {
+          "at": 3.4,
+          "clip": "smg-shot-03",
+          "gain": 1
+        },
+        {
+          "at": 3.5,
+          "clip": "smg-shot-01",
+          "gain": 1
+        },
+        {
+          "at": 3.6,
+          "clip": "smg-shot-02",
+          "gain": 1
+        },
+        {
+          "at": 3.7,
+          "clip": "smg-shot-03",
+          "gain": 1
+        },
+        {
+          "at": 3.8,
+          "clip": "smg-shot-01",
+          "gain": 1
+        },
+        {
+          "at": 3.9,
+          "clip": "smg-shot-02",
+          "gain": 1
+        },
+        {
+          "at": 4.0,
+          "clip": "smg-shot-03",
+          "gain": 1
+        },
+        {
+          "at": 5.2,
+          "clip": "revolver-shot-01",
+          "gain": 1
+        },
+        {
+          "at": 6.4,
+          "clip": "revolver-shot-02",
+          "gain": 1
+        },
+        {
+          "at": 7.6,
+          "clip": "revolver-shot-03",
+          "gain": 1
+        },
+        {
+          "at": 9.0,
+          "clip": "shotgun-shot-01",
+          "gain": 1
+        },
+        {
+          "at": 9.8,
+          "clip": "shotgun-shot-02",
+          "gain": 1
+        },
+        {
+          "at": 10.6,
+          "clip": "shotgun-shot-03",
+          "gain": 1
+        }
+      ],
+      "description_zh": "手枪 → SMG 15发短连射 → 左轮 → 散弹枪；单发峰值接近，比较结构而非音量。",
+      "ducks": [
+        {
+          "at": 9,
+          "depth_db": 4,
+          "hold": 0.12
+        },
+        {
+          "at": 9.8,
+          "depth_db": 4,
+          "hold": 0.12
+        },
+        {
+          "at": 10.6,
+          "depth_db": 4,
+          "hold": 0.12
+        }
+      ],
+      "world_isolated_at": null,
+      "offline_presentation_only": true
+    },
+    {
+      "id": "02-hunter-lifecycle",
+      "file": "auditions/02-hunter-lifecycle.mp3",
+      "duration": 14.5,
+      "pcm_sha256": "86b5e05aaf6916386af9a7d640dc1541d05bde2d9f577ccf51b5f281355d24e1",
+      "loop": false,
+      "events": [
+        {
+          "at": 0.2,
+          "clip": "hunter-step-01",
+          "gain": 1
+        },
+        {
+          "at": 1.2,
+          "clip": "hunter-step-02",
+          "gain": 1
+        },
+        {
+          "at": 2.2,
+          "clip": "hunter-step-03",
+          "gain": 1
+        },
+        {
+          "at": 3.2,
+          "clip": "hunter-step-04",
+          "gain": 1
+        },
+        {
+          "at": 4.3,
+          "clip": "hunter-chase-01",
+          "gain": 1
+        },
+        {
+          "at": 4.64,
+          "clip": "hunter-chase-02",
+          "gain": 1
+        },
+        {
+          "at": 4.98,
+          "clip": "hunter-chase-03",
+          "gain": 1
+        },
+        {
+          "at": 5.32,
+          "clip": "hunter-chase-01",
+          "gain": 1
+        },
+        {
+          "at": 5.66,
+          "clip": "hunter-chase-02",
+          "gain": 1
+        },
+        {
+          "at": 6.3,
+          "clip": "hunter-attack-01",
+          "gain": 1
+        },
+        {
+          "at": 6.8,
+          "clip": "hunter-hit-01",
+          "gain": 1
+        },
+        {
+          "at": 7.2,
+          "clip": "hunter-death-01",
+          "gain": 1
+        },
+        {
+          "at": 12.45,
+          "clip": "hunter-revive-01",
+          "gain": 1
+        }
+      ],
+      "description_zh": "慢走 → 追击 → 攻击 → 受击 → 倒地 → 安静 → 起身。倒下到站稳相隔7秒。",
+      "ducks": [
+        {
+          "at": 7.2,
+          "depth_db": 3,
+          "hold": 0.08
+        }
+      ],
+      "world_isolated_at": null,
+      "offline_presentation_only": true
+    },
+    {
+      "id": "03-monster-dormancy",
+      "file": "auditions/03-monster-dormancy.mp3",
+      "duration": 8.35,
+      "pcm_sha256": "8b8cf650ee2f8f8a834aa92cacedc5fe72fda7377ae6c8743e95408062393006",
+      "loop": false,
+      "events": [
+        {
+          "at": 0.2,
+          "clip": "monster-step-01",
+          "gain": 1
+        },
+        {
+          "at": 0.83,
+          "clip": "monster-step-02",
+          "gain": 1
+        },
+        {
+          "at": 1.46,
+          "clip": "monster-step-03",
+          "gain": 1
+        },
+        {
+          "at": 2.09,
+          "clip": "monster-step-04",
+          "gain": 1
+        },
+        {
+          "at": 2.72,
+          "clip": "monster-step-01",
+          "gain": 1
+        },
+        {
+          "at": 3.6,
+          "clip": "monster-attack-01",
+          "gain": 1
+        },
+        {
+          "at": 4.1,
+          "clip": "monster-hit-01",
+          "gain": 1
+        },
+        {
+          "at": 4.7,
+          "clip": "monster-dormant-01",
+          "gain": 1
+        },
+        {
+          "at": 6.8,
+          "clip": "monster-wake-01",
+          "gain": 1
+        }
+      ],
+      "description_zh": "多爪移动 → 攻击 → 受击 → 休眠倒下 → 苏醒；为试听压缩了等待，游戏20秒休眠不变。",
+      "ducks": [],
+      "world_isolated_at": null,
+      "offline_presentation_only": true
+    },
+    {
+      "id": "04-heavy-weight",
+      "file": "auditions/04-heavy-weight.mp3",
+      "duration": 13.7,
+      "pcm_sha256": "8e45e036f14e0e98a93d16de30a0872c76d4c742c81c66dee23a0e70aadf809a",
+      "loop": false,
+      "events": [
+        {
+          "at": 0.2,
+          "clip": "heavy-step-01",
+          "gain": 1
+        },
+        {
+          "at": 1.13,
+          "clip": "heavy-step-02",
+          "gain": 1
+        },
+        {
+          "at": 2.06,
+          "clip": "heavy-step-03",
+          "gain": 1
+        },
+        {
+          "at": 2.99,
+          "clip": "heavy-step-04",
+          "gain": 1
+        },
+        {
+          "at": 4.2,
+          "clip": "heavy-windup-01",
+          "gain": 1
+        },
+        {
+          "at": 6.2,
+          "clip": "heavy-charge-start-01",
+          "gain": 1
+        },
+        {
+          "at": 6.55,
+          "clip": "heavy-charge-step-01",
+          "gain": 1
+        },
+        {
+          "at": 6.85,
+          "clip": "heavy-charge-step-02",
+          "gain": 1
+        },
+        {
+          "at": 7.15,
+          "clip": "heavy-charge-step-03",
+          "gain": 1
+        },
+        {
+          "at": 7.45,
+          "clip": "heavy-charge-step-01",
+          "gain": 1
+        },
+        {
+          "at": 7.75,
+          "clip": "heavy-charge-step-02",
+          "gain": 1
+        },
+        {
+          "at": 8.2,
+          "clip": "heavy-wall-impact-01",
+          "gain": 1
+        },
+        {
+          "at": 10.1,
+          "clip": "heavy-armor-hit-01",
+          "gain": 1
+        },
+        {
+          "at": 10.7,
+          "clip": "heavy-weak-hit-01",
+          "gain": 1
+        },
+        {
+          "at": 11.5,
+          "clip": "heavy-death-01",
+          "gain": 1
+        }
+      ],
+      "description_zh": "行走 → 蓄力 → 蹬地冲撞 → 撞墙 → 护甲挡击／弱点受击对比 → 死亡；后半为分段展示。",
+      "ducks": [
+        {
+          "at": 8.2,
+          "depth_db": 5,
+          "hold": 0.14
+        },
+        {
+          "at": 11.5,
+          "depth_db": 5,
+          "hold": 0.14
+        }
+      ],
+      "world_isolated_at": null,
+      "offline_presentation_only": true
+    },
+    {
+      "id": "05-terminal-single",
+      "file": "auditions/05-terminal-single.mp3",
+      "duration": 1.7,
+      "pcm_sha256": "716e1f463b0a37c5ee784ca4c617685ba140f3de6d0ce47f3c30d4daf71abbaf",
+      "loop": false,
+      "events": [
+        {
+          "at": 0,
+          "clip": "terminal-key-03",
+          "gain": 1
+        },
+        {
+          "at": 0.15,
+          "clip": "terminal-success-01",
+          "gain": 1
+        }
+      ],
+      "description_zh": "最后输入 → 150ms停顿 → 系统确认、继电器与设备启动。",
+      "ducks": [
+        {
+          "at": 0,
+          "depth_db": 3,
+          "hold": 0.12
+        }
+      ],
+      "world_isolated_at": null,
+      "offline_presentation_only": true
+    },
+    {
+      "id": "06-terminal-all",
+      "file": "auditions/06-terminal-all.mp3",
+      "duration": 3.6,
+      "pcm_sha256": "ab10768230c2413f57e5af034bb1be4eb00a58f7cad909bbe374306a6f471b85",
+      "loop": false,
+      "events": [
+        {
+          "at": 0,
+          "clip": "terminal-key-03",
+          "gain": 1
+        },
+        {
+          "at": 0.15,
+          "clip": "terminal-all-confirm-01",
+          "gain": 1
+        },
+        {
+          "at": 0.5,
+          "clip": "power-instability-01",
+          "gain": 1
+        },
+        {
+          "at": 1,
+          "clip": "power-instability-01",
+          "gain": 1
+        },
+        {
+          "at": 1.5,
+          "clip": "power-instability-01",
+          "gain": 1
+        },
+        {
+          "at": 2,
+          "clip": "power-down-01",
+          "gain": 1
+        },
+        {
+          "at": 2.2,
+          "clip": "emergency-system-01",
+          "gain": 1
+        },
+        {
+          "at": 2.8,
+          "clip": "extraction-ready-01",
+          "gain": 1
+        }
+      ],
+      "description_zh": "最终输入 → 深沉确认 → 电力不稳 → 停电 → 应急系统 → 撤离可用。",
+      "ducks": [
+        {
+          "at": 0,
+          "depth_db": 6,
+          "hold": 0.16
+        },
+        {
+          "at": 2,
+          "depth_db": 4,
+          "hold": 0.13
+        }
+      ],
+      "world_isolated_at": null,
+      "offline_presentation_only": true
+    },
+    {
+      "id": "07-victory",
+      "file": "auditions/07-victory.mp3",
+      "duration": 6.5,
+      "pcm_sha256": "37555dee5bd264371cb81c6df1df19ba38fa112418f16883ec6d4738e8af3fb3",
+      "loop": false,
+      "events": [
+        {
+          "at": 0.3,
+          "clip": "airlock-seal-01",
+          "gain": 1
+        },
+        {
+          "at": 1.2,
+          "clip": "engine-start-01",
+          "gain": 1
+        },
+        {
+          "at": 1.8,
+          "clip": "victory-impact-01",
+          "gain": 1
+        },
+        {
+          "at": 2.6,
+          "clip": "result-tick-01",
+          "gain": 1
+        },
+        {
+          "at": 3.2,
+          "clip": "result-tick-01",
+          "gain": 1
+        },
+        {
+          "at": 3.8,
+          "clip": "result-tick-01",
+          "gain": 1
+        },
+        {
+          "at": 4.4,
+          "clip": "result-tick-01",
+          "gain": 1
+        },
+        {
+          "at": 5.0,
+          "clip": "result-tick-01",
+          "gain": 1
+        },
+        {
+          "at": 5.5,
+          "clip": "result-tick-01",
+          "gain": 1
+        },
+        {
+          "at": 5.6,
+          "clip": "result-confirm-01",
+          "gain": 1
+        }
+      ],
+      "description_zh": "0.3s封舱、0.8s隔绝危险、1.2s引擎、1.8s任务完成、2.5s后统计、6.5s结果；没有音乐或配音。",
+      "ducks": [
+        {
+          "at": 1.8,
+          "depth_db": 6,
+          "hold": 0.18
+        }
+      ],
+      "world_isolated_at": 0.8,
+      "offline_presentation_only": true
+    },
+    {
+      "id": "08-failure",
+      "file": "auditions/08-failure.mp3",
+      "duration": 2.5,
+      "pcm_sha256": "598a5ca7ca2146310aae33f4120d3d2f6c0d449a54557a1f9ee3faece578dc55",
+      "loop": false,
+      "events": [
+        {
+          "at": 0,
+          "clip": "failure-device-stop-01",
+          "gain": 1
+        },
+        {
+          "at": 0.65,
+          "clip": "failure-impact-01",
+          "gain": 1
+        }
+      ],
+      "description_zh": "危险环境压低、设备失去动力、冷峻失败确认；无Jumpscare。",
+      "ducks": [
+        {
+          "at": 0,
+          "depth_db": 4,
+          "hold": 0.18
+        }
+      ],
+      "world_isolated_at": 0.25,
+      "offline_presentation_only": true
+    },
+    {
+      "id": "09-ui-mechanical",
+      "file": "auditions/09-ui-mechanical.mp3",
+      "duration": 4.6,
+      "pcm_sha256": "b7782d00e70b61fb6e79846954bc598934ea135cb6a9a1de3de984db26cd6438",
+      "loop": false,
+      "events": [
+        {
+          "at": 0.15,
+          "clip": "ui-click-01",
+          "gain": 1
+        },
+        {
+          "at": 0.7,
+          "clip": "ui-confirm-01",
+          "gain": 1
+        },
+        {
+          "at": 1.3,
+          "clip": "ui-cancel-01",
+          "gain": 1
+        },
+        {
+          "at": 1.9,
+          "clip": "ui-error-01",
+          "gain": 1
+        },
+        {
+          "at": 2.6,
+          "clip": "ui-purchase-01",
+          "gain": 1
+        },
+        {
+          "at": 3.3,
+          "clip": "ui-sell-01",
+          "gain": 1
+        },
+        {
+          "at": 4,
+          "clip": "ui-equip-01",
+          "gain": 1
+        }
+      ],
+      "description_zh": "点击 → 确认 → 取消 → 错误 → 购买 → 出售 → 装备；不使用金币或闪耀音。",
+      "ducks": [],
+      "world_isolated_at": null,
+      "offline_presentation_only": true
+    },
+    {
+      "id": "00-feedback-ladder",
+      "file": "auditions/00-feedback-ladder.mp3",
+      "duration": 19.5,
+      "pcm_sha256": "3b00a90b659abd175258387e216855c707da8239fcbb26164debd171c7da652f",
+      "loop": false,
+      "events": [
+        {
+          "at": 0.2,
+          "clip": "ui-click-01",
+          "gain": 1
+        },
+        {
+          "at": 1.2,
+          "clip": "hunter-hit-01",
+          "gain": 1
+        },
+        {
+          "at": 2.5,
+          "clip": "hunter-death-01",
+          "gain": 1
+        },
+        {
+          "at": 5,
+          "clip": "heavy-death-01",
+          "gain": 1
+        },
+        {
+          "at": 8.0,
+          "clip": "terminal-success-01",
+          "gain": 1
+        },
+        {
+          "at": 10.2,
+          "clip": "terminal-all-confirm-01",
+          "gain": 1
+        },
+        {
+          "at": 11.3,
+          "clip": "power-down-01",
+          "gain": 1
+        },
+        {
+          "at": 12.3,
+          "clip": "extraction-ready-01",
+          "gain": 1
+        },
+        {
+          "at": 14.1,
+          "clip": "airlock-seal-01",
+          "gain": 1
+        },
+        {
+          "at": 15.0,
+          "clip": "engine-start-01",
+          "gain": 1
+        },
+        {
+          "at": 15.6,
+          "clip": "victory-impact-01",
+          "gain": 1
+        },
+        {
+          "at": 18.2,
+          "clip": "result-confirm-01",
+          "gain": 1
+        }
+      ],
+      "description_zh": "层级方向试听：操作 → 命中 → Hunter倒地 → Heavy死亡 → 单终端 → 全终端 → 安全撤离。不是游戏流程时间轴。",
+      "ducks": [
+        {
+          "at": 2.5,
+          "depth_db": 3,
+          "hold": 0.08
+        },
+        {
+          "at": 5,
+          "depth_db": 5,
+          "hold": 0.14
+        },
+        {
+          "at": 8,
+          "depth_db": 4,
+          "hold": 0.12
+        },
+        {
+          "at": 10.2,
+          "depth_db": 6,
+          "hold": 0.16
+        },
+        {
+          "at": 15.6,
+          "depth_db": 6,
+          "hold": 0.18
+        }
+      ],
+      "world_isolated_at": 14.6,
+      "offline_presentation_only": true
+    }
+  ],
+  "not_implemented": [
+    "runtime audio routing",
+    "gameplay visuals",
+    "voice manager",
+    "network V16",
+    "outcome state machine"
+  ]
+}

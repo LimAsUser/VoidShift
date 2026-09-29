@@ -1,0 +1,1427 @@
+diff --git a/tmp/v18-baseline/config.js b/js/config.js
+index 4e8420b9..6d744de9 100644
+--- a/tmp/v18-baseline/config.js
++++ b/js/config.js
+@@ -17,9 +17,9 @@ const Config = {
+ 
+   // Functional compartments only; transit corridors are generated separately.
+   mapScales: {
+-    small: { id: 'small', label: '小型 (16 舱)', cols: 4, rows: 4, roomCount: 16, quota: 420, terminals: 3, hunters: 8, hunterSpawnInterval: 30, hunterRespawnCount: 2, hunterMaxHp: 2 },
+-    medium: { id: 'medium', label: '中型 (26 舱)', cols: 7, rows: 4, roomCount: 26, quota: 780, terminals: 4, hunters: 12, hunterSpawnInterval: 30, hunterRespawnCount: 4, hunterMaxHp: 2 },
+-    large: { id: 'large', label: '大型 (36 舱)', cols: 9, rows: 4, roomCount: 36, quota: 1200, terminals: 5, hunters: 16, hunterSpawnInterval: 30, hunterRespawnCount: 6, hunterMaxHp: 2 }
++    small: { id: 'small', label: '小型 (16 舱)', cols: 4, rows: 4, roomCount: 16, quota: 420, terminals: 3, hunters: 14, hunterSpawnInterval: 30, hunterRespawnCount: 4, hunterMaxHp: 3 },
++    medium: { id: 'medium', label: '中型 (26 舱)', cols: 7, rows: 4, roomCount: 26, quota: 780, terminals: 4, hunters: 18, hunterSpawnInterval: 30, hunterRespawnCount: 6, hunterMaxHp: 3 },
++    large: { id: 'large', label: '大型 (36 舱)', cols: 9, rows: 4, roomCount: 36, quota: 1200, terminals: 5, hunters: 30, hunterSpawnInterval: 30, hunterRespawnCount: 8, hunterMaxHp: 3 }
+   },
+   currentScale: 'small',
+ 
+@@ -63,32 +63,32 @@ const Config = {
+       id: 'easy', label: '简单', finalTerminalSpawnCount: 6, finalTerminalSpawnInterval: 30,
+       maps: {
+         small: { hunters: 10, hunterMaxHp: 2, hunterRespawnCount: 2, hunterSpawnInterval: 30 },
+-        medium: { hunters: 16, hunterMaxHp: 2, hunterRespawnCount: 2, hunterSpawnInterval: 30 },
+-        large: { hunters: 24, hunterMaxHp: 2, hunterRespawnCount: 2, hunterSpawnInterval: 30 }
++        medium: { hunters: 16, hunterMaxHp: 2, hunterRespawnCount: 3, hunterSpawnInterval: 30 },
++        large: { hunters: 24, hunterMaxHp: 2, hunterRespawnCount: 4, hunterSpawnInterval: 30 }
+       }
+     },
+     medium: {
+       id: 'medium', label: '中等', finalTerminalSpawnCount: 10, finalTerminalSpawnInterval: 30,
+       maps: {
+-        small: { hunters: 10, hunterMaxHp: 2, hunterRespawnCount: 2, hunterSpawnInterval: 30 },
+-        medium: { hunters: 16, hunterMaxHp: 2, hunterRespawnCount: 4, hunterSpawnInterval: 30 },
+-        large: { hunters: 24, hunterMaxHp: 2, hunterRespawnCount: 6, hunterSpawnInterval: 30 }
++        small: { hunters: 14, hunterMaxHp: 3, hunterRespawnCount: 4, hunterSpawnInterval: 30 },
++        medium: { hunters: 18, hunterMaxHp: 3, hunterRespawnCount: 6, hunterSpawnInterval: 30 },
++        large: { hunters: 30, hunterMaxHp: 3, hunterRespawnCount: 8, hunterSpawnInterval: 30 }
+       }
+     },
+     hard: {
+       id: 'hard', label: '困难', finalTerminalSpawnCount: 16, finalTerminalSpawnInterval: 30,
+       maps: {
+-        small: { hunters: 20, hunterMaxHp: 3, hunterRespawnCount: 4, hunterSpawnInterval: 30 },
+-        medium: { hunters: 32, hunterMaxHp: 3, hunterRespawnCount: 6, hunterSpawnInterval: 30 },
+-        large: { hunters: 46, hunterMaxHp: 3, hunterRespawnCount: 8, hunterSpawnInterval: 30 }
++        small: { hunters: 24, hunterMaxHp: 5, hunterRespawnCount: 6, hunterSpawnInterval: 20 },
++        medium: { hunters: 34, hunterMaxHp: 5, hunterRespawnCount: 8, hunterSpawnInterval: 20 },
++        large: { hunters: 50, hunterMaxHp: 5, hunterRespawnCount: 10, hunterSpawnInterval: 20 }
+       }
+     }
+   },
+ 
+   encounterRules: {
+-    easy: { nightmareCounts: [1, 1, 1], nightmareSleep: 40, heavyCounts: [0, 0, 0], heavyHp: 0 },
+-    medium: { nightmareCounts: [1, 2, 3], nightmareSleep: 40, heavyCounts: [2, 3, 4], heavyHp: 5 },
+-    hard: { nightmareCounts: [2, 3, 4], nightmareSleep: 30, heavyCounts: [3, 4, 5], heavyHp: 10 }
++    easy: { nightmareHp: 1, nightmareCounts: [1, 1, 1], nightmareSleep: 40, heavyCounts: [0, 0, 0], heavyHp: 0, rescueWait: 20 },
++    medium: { nightmareHp: 3, nightmareCounts: [1, 2, 3], nightmareSleep: 30, heavyCounts: [2, 3, 4], heavyHp: 10, rescueWait: 40 },
++    hard: { nightmareHp: 5, nightmareCounts: [2, 3, 4], nightmareSleep: 20, heavyCounts: [3, 4, 5], heavyHp: 20, rescueWait: 60 }
+   },
+ 
+   // Calculated dynamic world dimensions
+@@ -330,8 +330,8 @@ const Config = {
+   },
+ 
+   skills: {
+-    flashbang: { id: 'flashbang', label: '闪光弹', price: 1000, cooldown: 15, image: 'resources/images/flashbang.png', description: '投掷后落地 1 秒引爆，晕眩 80 范围内无遮挡的所有活体 5 秒，包括自己与队友。' },
+-    grenade: { id: 'grenade', label: '手榴弹', price: 5000, cooldown: 20, image: 'resources/images/equipment-v17/grenade.png', description: '80 范围爆炸造成 5 点伤害，可击穿 Heavy 护甲；会伤到自己，队友遵循友伤设置。' },
++    flashbang: { id: 'flashbang', label: '闪光弹', price: 1000, cooldown: 15, image: 'resources/images/flashbang.png', description: '投距 50–600；落地 1 秒后晕眩半径 120 内无遮挡的所有活体 5 秒，包括自己与队友。' },
++    grenade: { id: 'grenade', label: '手榴弹', price: 5000, cooldown: 20, image: 'resources/images/equipment-v17/grenade.png', description: '投距 50–600；半径 120 内爆炸造成 5 点伤害，可击穿 Heavy 护甲；会伤到自己，队友遵循友伤设置。' },
+     barrier: { id: 'barrier', label: '磁锁隔离栅', price: 5000, cooldown: 30, image: 'resources/images/equipment-v17/barrier.png', description: '放置隔离栅阻挡敌人通过，冷却 30 秒。' }
+   },
+   passives: {
+@@ -345,9 +345,9 @@ const Config = {
+     speed: 450,
+     radius: 3,
+     minDistance: 50,
+-    maxDistance: 300,
++    maxDistance: 600,
+     fuse: 1,
+-    blastRadius: 80,
++    blastRadius: 120,
+     stunDuration: 5
+   },
+ 
+
+diff --git a/tmp/v18-baseline/entities.js b/js/entities.js
+index 65416094..2686502b 100644
+--- a/tmp/v18-baseline/entities.js
++++ b/js/entities.js
+@@ -920,6 +920,8 @@ class Monster {
+     this.slowTimer = 0;
+     this.stagger = 0;
+     this.shotCount = 0;
++    this.maxHp = 1;
++    this.hp = this.maxHp;
+     this.recoverTimer = 0;
+     this.flashStunTimer = 0;
+     this.waypoints = [];
+@@ -934,19 +936,22 @@ class Monster {
+    * Registers bullet hit from player.
+    * An effective hit starts one difficulty-specific Nightmare sleep cycle.
+    */
+-  registerHit() {
++  registerHit(damage = 1) {
+     if (this.recoverTimer > 0) {
+       return { hit: true, triggeredRecovery: false, recovering: true };
+     }
+ 
+-    this.shotCount++;
++    const amount = Math.max(0, Number(damage) || 0);
++    if (!amount) return { hit: false, recovering: false, hp: this.hp };
++    this.hp = Math.max(0, this.hp - amount);
++    this.shotCount = this.maxHp - this.hp;
+ 
+-    if (this.shotCount >= Config.monster.recoveryHits) {
++    if (this.hp === 0) {
+       this.sleepCycle = (this.sleepCycle || 0) + 1;
+       this.recoverTimer = this.recoveryDuration || Config.monster.recoveryDuration;
+       this.stagger = this.recoverTimer;
+       this.shotCount = 0;
+-      return { hit: true, triggeredRecovery: true, recovering: true, shotCount: Config.monster.recoveryHits };
++      return { hit: true, triggeredRecovery: true, recovering: true, hp: 0, shotCount: this.maxHp };
+     }
+ 
+     this.stagger = Config.monster.hitStagger;
+
+warning: in the working copy of 'js/game.js', LF will be replaced by CRLF the next time Git touches it
+diff --git a/tmp/v18-baseline/game.js b/js/game.js
+index 27a63a55..77f32f44 100644
+--- a/tmp/v18-baseline/game.js
++++ b/js/game.js
+@@ -15,7 +15,7 @@ const TUTORIAL_STEPS = [
+   { title: '战术地图', body: '按 M 查看完整设施地图；可用滚轮缩放、拖动查看，按 M 或 Esc 关闭。', objective: '打开并关闭一次地图。', actions: ['map-open', 'map-close'] },
+   { title: '启动全部终端', body: '找到设施里的每个终端并完成屏幕上的按键序列。全部启动后，撤离舱才会解锁。', objective: '启动本设施的全部终端。', actions: ['terminals'] },
+   { title: '呼叫救援', body: '启动全部终端后，地图会标出远端逃生舱。到那里按 E 呼叫救援。', objective: '在远端逃生舱呼叫救援。', actions: ['extraction'] },
+-  { title: '等待救援', body: '救援需要 30 秒抵达。抵达后让所有队员进入逃生舱范围；倒地队友也可爬进范围。', objective: '全员在远端逃生舱完成撤离。', actions: ['returned'] }
++  { title: '等待救援', body: '正式简单／中等／困难任务的救援分别需要 20／40／60 秒。抵达后让所有队员进入逃生舱范围；倒地队友也可爬进范围。', objective: '全员在远端逃生舱完成撤离。', actions: ['returned'] }
+ ];
+ 
+ const DESCENT_TIPS = [
+@@ -562,6 +562,7 @@ class Game {
+     if (this.state.coop.role !== 'host' || (!this.state.coop.connected && !targetConnected)) return false;
+     const roster = {
+       hostReady: !!this.state.coop.localReady,
++      hostAdvancedUnlocked: this.state.advancedUnlocked === true,
+       difficulty: this.state.selectedDifficulty,
+       hostLoadout: { ...(this.player?.armory?.loadout || this.state.armory?.loadout || { primary: null, sidearm: 'pistol' }) },
+       hostSummary: this._preparedSummary(this.player.armory, this.backpack?.items),
+@@ -588,6 +589,7 @@ class Game {
+   getCoopStartBlocker(ignoreRegistration = false) {
+     const coop = this.state.coop;
+     if (coop.role !== 'host') return '只有房主可以开始任务。';
++    if (!this.canSelectMission()) return this.advancedUnlockHint();
+     if (coop.starting && !ignoreRegistration) return '正在登记任务，请稍候…';
+     if (coop.mapIncompatible) return '地图结构不一致，请房主重建房间后再开始。';
+     if (coop.running) return '任务已经开始。';
+@@ -846,6 +848,7 @@ class Game {
+     this.pendingCoopFinishes.clear();
+     this._syncLegacyRemoteAliases();
+     this.ui.setCoopPaused?.(false);
++    this._restorePersonalMissionChoice();
+     this.updateCoopUI();
+   }
+ 
+@@ -1103,6 +1106,7 @@ class Game {
+     const payload = {
+       mapSeed,
+       missionFxId: this._newMissionId(),
++      hostAdvancedUnlocked: this.state.advancedUnlocked === true,
+       scale: Config.currentScale,
+       friendlyFire: coop.friendlyFire !== false,
+       difficultyMultiplier: scaled.multiplier,
+@@ -1192,6 +1196,10 @@ class Game {
+   }
+ 
+   _beginCoopMission(payload) {
++    if ((payload.scale === 'large' || payload.difficulty === 'hard') &&
++        !(this.state.coop.role === 'guest' ? payload.hostAdvancedUnlocked === true : this.state.advancedUnlocked === true)) {
++      this.ui.showToast('房主尚未解锁本局内容，请重新选择任务'); return false;
++    }
+     Config.currentScale = payload.scale;
+     this.state.selectedDifficulty = Config.difficultyPresets[payload.difficulty] ? payload.difficulty : 'medium';
+     const profile = this._getDifficultyProfile(this.state.selectedDifficulty);
+@@ -1349,6 +1357,15 @@ class Game {
+   }
+ 
+   async _handleCoopMessage(channel, message, peerId = null) {
++    if (channel === 'events' && message.type === 'monster-contact' && this.state.coop.role === 'guest') {
++      this._acceptMonsterContact(message); return;
++    }
++    if (channel === 'events' && message.type === 'corpse-motion' && this.state.coop.role === 'guest' &&
++        this.state.coop.running && message.missionId === this.state.missionFxId && Array.isArray(message.poses) && message.poses.length <= 16) {
++      const records = new Map((this.corpseRegistry || []).map(record=>[record.id,record]));
++      for (const pose of message.poses) if (records.has(pose?.id)) CorpseEffects.applyPose(records.get(pose.id),pose);
++      return;
++    }
+     if (channel === 'events' && message.type === 'equipment-state-page' && this.state.coop.role === 'guest') {
+       this.equipment?.receivePage(message); return;
+     }
+@@ -1413,6 +1430,7 @@ class Game {
+       if (revision && revision < (coop.rosterRevision || 0)) return;
+       coop.rosterRevision = revision;
+       coop.hostReady = !!message.hostReady;
++      coop.hostAdvancedUnlocked = message.hostAdvancedUnlocked === true;
+       coop.hostDifficulty = Config.difficultyPresets[message.difficulty] ? message.difficulty : null;
+       coop.hostLoadout = message.hostLoadout || null;
+       coop.hostSummary = message.hostSummary || null;
+@@ -1719,6 +1737,7 @@ class Game {
+         timeLeft: entry.qte.timeLeft
+       })),
+       nightmares: (this.nightmares || []).map(monster => ({ id: monster.id,
++        hp: monster.hp, maxHp: monster.maxHp,
+         x: monster.x, y: monster.y, angle: monster.angle,
+         active: monster.active, alerted: monster.alerted,
+         recoverTimer: monster.recoverTimer, flashStunTimer: monster.flashStunTimer || 0,
+@@ -1747,6 +1766,8 @@ class Game {
+       scrap: this.map.scrap.map((item) => ({ id: item.id, found: item.found, x: item.x, y: item.y })),
+       terminals: this.map.terminals.map((terminal) => ({ solved: terminal.solved })),
+       mission: {
++        reinforcementPhase: this.state.extractionCalled && this.state.selectedDifficulty !== 'easy' ? 'extraction' : 'normal',
++        hunterSpawnTimer: this.state.hunterSpawnTimer,
+         elapsed: this.state.elapsed, extractionCalled: this.state.extractionCalled,
+         rescueRemaining: this.state.rescueRemaining, rescueArrived: this.state.rescueArrived,
+         rescuePresent: this.state.rescuePresent, rescueRequired: this.state.rescueRequired,
+@@ -1964,7 +1985,9 @@ class Game {
+     if (snapshot.mission) {
+       const pressureWasActive = this.state.finalTerminalPressure;
+       Object.assign(this.state, snapshot.mission, {
+-        finalTerminalPressure: !!snapshot.mission.finalTerminalPressure
++        finalTerminalPressure: !!snapshot.mission.finalTerminalPressure,
++        reinforcementPhase: snapshot.mission.reinforcementPhase === 'extraction' ? 'extraction' : 'normal',
++        hunterSpawnTimer: Math.max(0, Number(snapshot.mission.hunterSpawnTimer) || 0)
+       });
+       this._lockFinalTerminalNoise();
+       this.ui.updateExtractionProgress?.(this.state);
+@@ -2371,7 +2394,8 @@ class Game {
+ 
+   _updateCoopRevivePrompt() {
+     const coop = this.state.coop;
+-    const updatePrompt = text => this.ui?.updateCoopRevivePrompt?.(text);
++    const updatePrompt = (text, progress = false) => this.ui?.updateCoopRevivePrompt?.(
++      progress || this.trainingSession || !this.state.hideInteractionHints ? text : '');
+     const lootBox = !this.player.downed && !(this.player.stunned > 0) && !this.state.activeQte && !this.state.inventoryOpen &&
+       !this.state.fullMapOpen && this.state.running ? this.loot?.nearest() : null;
+     const lootPrompt = lootBox ? `按 E 搜刮${lootBox.fixed ? '物资箱' : '物资包'} · 世界不会暂停` : '';
+@@ -2397,7 +2421,7 @@ class Game {
+       ? `队员 ${slot} · 队友正在救援`
+       : inProgress
+         ? `队员 ${slot} · 救援中 ${progress}% · 移动会中断`
+-        : `队员 ${slot} 倒地 · 按 E 开始救援 · 移动会中断`);
++        : `队员 ${slot} 倒地 · 按 E 开始救援 · 移动会中断`, inProgress);
+   }
+ 
+   _finishGuestCoop(message) {
+@@ -2445,6 +2469,7 @@ class Game {
+       monster.reset(this.map);
+       monster.id = `nightmare-${index + 1}`;
+       monster.recoveryDuration = this.trainingSession ? 40 : settings.nightmareSleep;
++      monster.hp = monster.maxHp = this.trainingSession ? 1 : settings.nightmareHp;
+       monster.sleepCycle = 0;
+       return monster;
+     });
+@@ -2476,6 +2501,7 @@ class Game {
+     if (!candidates.length) { monster.recoverTimer = 1; monster.stagger = 1; return false; }
+     const point = candidates[Math.floor(Math.random() * candidates.length)];
+     Object.assign(monster, point, { recoverTimer: 0, stagger: 0, alerted: false, lostTime: 0,
++      hp: monster.maxHp,
+       waypoints: [], waypointTimer: 0, _stuckTimer: 0, _lastX: null, _lastY: null });
+     return true;
+   }
+@@ -2524,7 +2550,7 @@ class Game {
+     const index = Math.max(0, ['small', 'medium', 'large'].indexOf(scale));
+     const multiplier = this.state.coop?.running ? this.state.coop.difficultyMultiplier || 1 : 1;
+     return { heavyHp: rules.heavyHp, heavyCount: Math.ceil(rules.heavyCounts[index] * multiplier),
+-      nightmareCount: Math.ceil(rules.nightmareCounts[index] * multiplier), nightmareSleep: rules.nightmareSleep };
++      nightmareCount: Math.ceil(rules.nightmareCounts[index] * multiplier), nightmareSleep: rules.nightmareSleep, nightmareHp: rules.nightmareHp };
+   }
+ 
+   _spawnHeavy() {
+@@ -2566,6 +2592,66 @@ class Game {
+     this.state.corpses = [];
+     this.state.shakeX = 0;
+     this.state.shakeY = 0;
++    this.corpseGrid = null;
++    this.corpseActive = new Set();
++    this.corpsePosePending = new Map();
++    this.corpsePlayerPositions = new WeakMap();
++    this.corpsePoseTimer = 0;
++    this.contactSequence = this.lastContactSequence = 0;
++    this.renderer?.corpseLayouts?.clear();
++  }
++
++  _rebuildCorpseGrid() {
++    this.corpseGrid = new EntitySpatialGrid(64);
++    this.corpsePieceOwners = new WeakMap();
++    this.corpseActive = new Set();
++    const pieces=[];
++    for (const record of this.corpseRegistry || []) if (record.fragments) {
++      for (const piece of record.fragments) {pieces.push(piece);this.corpsePieceOwners.set(piece,record);}
++      if(record.fragments.some(piece=>!piece.sleeping))this.corpseActive.add(record);
++    }
++    this.corpseGrid.rebuild(pieces);
++    const ids=new Set((this.corpseRegistry||[]).map(record=>record.id));
++    for(const pending of this.corpsePosePending?.values()||[])for(const id of pending.keys())if(!ids.has(id))pending.delete(id);
++  }
++
++  _updateCorpsePhysics(dt) {
++    if (this.state.coop?.role === 'guest' || typeof CorpseEffects === 'undefined') return;
++    if (!this.corpseGrid) this._rebuildCorpseGrid();
++    this.corpsePlayerPositions ||= new WeakMap();
++    const touched=new Map();
++    for(const player of this._onlineCoopPlayers()){
++      const before=this.corpsePlayerPositions.get(player)||player;
++      const mover={x:player.x,y:player.y,radius:player.radius,dx:player.x-before.x,dy:player.y-before.y};
++      this.corpsePlayerPositions.set(player,{x:player.x,y:player.y});
++      if(Math.hypot(mover.dx,mover.dy)<.01)continue;
++      for(const piece of this.corpseGrid.nearby(player.x,player.y,(player.radius||10)+8)){
++        const record=this.corpsePieceOwners.get(piece);
++        if(!touched.has(record))touched.set(record,new Set());touched.get(record).add(mover);
++      }
++    }
++    const candidates=new Set([...this.corpseActive,...touched.keys()]);
++    this.corpsePosePending ||= new Map();
++    for(const record of candidates){
++      if(CorpseEffects.advance(record,dt,this.map,[...(touched.get(record)||[])])){
++        record.fragments.forEach(piece=>this.corpseGrid.reindex(piece));
++        if(this.state.coop.running&&this.state.coop.role==='host')for(const entry of this.remotePlayers.values()){
++          if(entry.online===false)continue;
++          if(!this.corpsePosePending.has(entry.id))this.corpsePosePending.set(entry.id,new Map());
++          this.corpsePosePending.get(entry.id).set(record.id,CorpseEffects.pose(record));
++        }
++      }
++      if(record.fragments.every(piece=>piece.sleeping))this.corpseActive.delete(record);else this.corpseActive.add(record);
++    }
++    this.corpsePoseTimer=(this.corpsePoseTimer||0)-dt;
++    if(this.corpsePoseTimer>0)return;this.corpsePoseTimer=.05;
++    for(const [peerId,pending]of this.corpsePosePending){
++      if(!this.remotePlayers?.get(peerId)?.online){this.corpsePosePending.delete(peerId);continue;}
++      if(this.remotePlayers.get(peerId).equipmentSyncing)continue;
++      if((this.coopSession?.peers?.get(peerId)?.eventChannel?.bufferedAmount||0)>64000)continue;
++      const poses=[...pending.values()].slice(0,16);
++      if(poses.length&&this.coopSession.sendEvent('corpse-motion',{missionId:this.state.missionFxId,poses},peerId))for(const pose of poses)pending.delete(pose.id);
++    }
+   }
+ 
+   _refreshCorpses(revivedIds = []) {
+@@ -2589,8 +2675,10 @@ class Game {
+         if (actor.dead && !actor.corpseId) {
+           actor.corpseId = `${this.state.missionFxId || 'solo'}:corpse:${this.corpseSequence = (this.corpseSequence || 0) + 1}`;
+           const record = { id: actor.corpseId, kind, x: actor.x, y: actor.y, angle: actor.angle || 0,
++            seed: BackpackManager.hash(actor.corpseId), born: this.state.elapsed || 0, intact: !!actor.revivePending,
+             effectKey: this.equipment?.enemyKey(actor), hitFlashUntil: actor.hitFlashUntil || 0,
+             width: Config[kind].spriteWidth || (kind === 'heavy' ? 112 : 63) };
++          if (!record.intact && typeof CorpseEffects !== 'undefined') CorpseEffects.initialize(record, this.map);
+           added.push(record);
+           this.corpseRegistry.push(record);
+         } else if (!actor.dead && actor.corpseId) {
+@@ -2605,6 +2693,7 @@ class Game {
+     const retained = new Set(this.corpseRegistry.map(record => record.id));
+     this.corpseRevision = (this.corpseRevision || 0) + 1;
+     this._refreshCorpses(revived);
++    this._rebuildCorpseGrid();
+     if (this.state.coop?.running && this.state.coop.role === 'host') this.coopSession.sendEvent('corpse-delta', {
+       missionId: this.state.missionFxId, revision: this.corpseRevision,
+       add: added.filter(record => retained.has(record.id)), remove: [...revived, ...evicted.filter(id => previousIds.has(id))], revived
+@@ -2618,11 +2707,14 @@ class Game {
+         !Array.isArray(message.add) || message.add.length > 200 || !Array.isArray(message.remove)) return false;
+     if (message.add.some(record => !record || typeof record.id !== 'string' || !['hunter', 'heavy'].includes(record.kind) ||
+         !['x', 'y', 'angle', 'width'].every(key => Number.isFinite(record[key])) || record.width <= 0 || record.width > 200)) return false;
++    if (message.add.some(record => record.fragments && (!Array.isArray(record.fragments) || record.fragments.length < 4 || record.fragments.length > 8 ||
++        record.fragments.some(part => !part || !['x','y','angle'].every(key=>Number.isFinite(part[key])))))) return false;
+     const removed = new Set(message.remove);
+     const records = new Map((replacement ? [] : this.corpseRegistry || []).filter(record => !removed.has(record.id)).map(record => [record.id, record]));
+     message.add.forEach(record => {
+       const actor = [...(this.hunters || []), ...(this.heavies || [])].find(enemy => this.equipment?.enemyKey(enemy) === record.effectKey);
+-      records.set(record.id, { ...record, hitFlashUntil: replacement ? 0 : Math.max(record.hitFlashUntil || 0, actor?.hitFlashUntil || 0) });
++      records.set(record.id, { ...record, suppressBurst: replacement, burstAt: this.state.elapsed,
++        hitFlashUntil: replacement ? 0 : Math.max(record.hitFlashUntil || 0, actor?.hitFlashUntil || 0) });
+     });
+     this.corpseRegistry = [...records.values()].slice(-200);
+     this.corpseRevision = message.revision;
+@@ -2639,8 +2731,8 @@ class Game {
+     this.seenWallImpacts.add(message.id);
+     if (this.seenWallImpacts.size > 128) this.seenWallImpacts.delete(this.seenWallImpacts.values().next().value);
+     if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return;
+-    const strength = 3 * Math.max(0, 1 - Math.hypot(message.x - this.player.x, message.y - this.player.y) / 500);
+-    if (strength > 0) this.wallShake = { remaining: .18, strength: Math.min(3, Math.max(strength, this.wallShake?.strength || 0)) };
++    const strength = 6 * Math.max(0, 1 - Math.hypot(message.x - this.player.x, message.y - this.player.y) / 500);
++    if (strength > 0) this.wallShake = { remaining: .24, strength: Math.min(6, Math.max(strength, this.wallShake?.strength || 0)) };
+   }
+ 
+   _emitWallImpact(point) {
+@@ -2657,8 +2749,8 @@ class Game {
+     if (!this.wallShake) return;
+     this.wallShake.remaining = Math.max(0, this.wallShake.remaining - dt);
+     if (!this.wallShake.remaining || window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) { this.wallShake = null; return; }
+-    const time = .18 - this.wallShake.remaining;
+-    const amplitude = this.wallShake.strength * this.wallShake.remaining / .18;
++    const time = .24 - this.wallShake.remaining;
++    const amplitude = this.wallShake.strength * this.wallShake.remaining / .24;
+     const zoom = this.state.cameraZoom || Config.camera.baseZoom;
+     const rect = this.ui?.frame?.getBoundingClientRect?.();
+     const scaleX = rect?.width > 0 ? rect.width / Config.VIEW_W : 1;
+@@ -2957,9 +3049,55 @@ class Game {
+       );
+   }
+ 
++  advancedUnlockHint() { return '需单人使用标准中等难度通关中型地图，解锁大型地图和困难模式'; }
++
++  canSelectMission(scale = Config.currentScale, difficulty = this.state.selectedDifficulty, allowHost = false) {
++    return (scale !== 'large' && difficulty !== 'hard') || this.state.advancedUnlocked === true ||
++      (allowHost && this.state.coop?.role === 'guest' && this.state.coop.hostAdvancedUnlocked === true);
++  }
++
++  _acceptMonsterContact(message) {
++    if (!this.state.running || message.missionId !== this.state.missionFxId || !Number.isSafeInteger(message.seq) ||
++        message.seq <= (this.lastContactSequence || 0) || !Number.isFinite(message.x) || !Number.isFinite(message.y) || typeof message.victimId !== 'string') return false;
++    this.lastContactSequence = message.seq;
++    const local = message.victimId === (this.state.coop.playerId || 'host');
++    this.audio.playMonsterHit?.(this.player, message, this.map, message.victimId, local);
++    return true;
++  }
++
++  _emitMonsterContact(actor) {
++    const victimId = actor === this.player ? this.state.coop.playerId || 'host' : this._remoteEntryForActor(actor)?.id;
++    if (!victimId) return;
++    const message={missionId:this.state.missionFxId,seq:this.contactSequence=(this.contactSequence||0)+1,victimId,x:actor.x,y:actor.y};
++    this._acceptMonsterContact(message);
++    if(this.state.coop.running&&this.state.coop.role==='host')this.coopSession.sendEvent('monster-contact',message);
++  }
++
++  _restorePersonalMissionChoice() {
++    if (this.state.coop?.role !== 'guest') {
++      this.state.selectedDifficulty = this.state.personalDifficulty || 'medium';
++      Config.currentScale = this.state.personalScale || 'small';
++      if (!this.state.advancedUnlocked) {
++        if (this.state.selectedDifficulty === 'hard') this.state.selectedDifficulty = 'medium';
++        if (Config.currentScale === 'large') Config.currentScale = 'medium';
++      }
++      this.state.hunterSettings = this._buildDifficultySettings(this.state.selectedDifficulty);
++      this.state.finalTerminalSettings = this._finalTerminalSettings(this._getDifficultyProfile());
++    }
++  }
++
++  _refreshLocalProgress() {
++    SaveRewards.mergeForSave(this.state, SaveRewards.read());
++    this.ui.updatePersonalRecords?.(this.getPersonalRecords());
++    this.updateDifficultyUI();
++    this.ui.updateScaleButtons?.(Config.currentScale);
++  }
++
+   _applyDifficultyProfile(difficultyId, refreshHunterArray = true) {
+     if (!Config.difficultyPresets[difficultyId]) return false;
++    if (!this.canSelectMission(Config.currentScale, difficultyId)) { this.ui.showToast(this.advancedUnlockHint()); return false; }
+     this.state.selectedDifficulty = difficultyId;
++    this.state.personalDifficulty = difficultyId;
+     this.state.hunterSettings = this._buildDifficultySettings(difficultyId);
+     this.state.finalTerminalSettings = this._finalTerminalSettings(this._getDifficultyProfile(difficultyId));
+     this.state.hunterSpawnTimer = this._getHunterSettings().hunterSpawnInterval;
+@@ -3916,10 +4054,40 @@ class Game {
+     return profiles;
+   }
+ 
++  _migrateV18Profiles(data = {}) {
++    const profiles = this._migratePlayerFeedbackProfiles(data);
++    if (Number(data.balanceVersion) !== 18) for (const [id, preset] of Object.entries(Config.difficultyPresets)) {
++      for (const [scale, settings] of Object.entries(preset.maps)) Object.assign(profiles[id].maps[scale], settings);
++      profiles[id].finalTerminalSpawnCount = preset.finalTerminalSpawnCount;
++      profiles[id].finalTerminalSpawnInterval = preset.finalTerminalSpawnInterval;
++    }
++    this.state.balanceVersion = 18;
++    return profiles;
++  }
++
++  setUserPreference(key, value) {
++    if (!['masterVolume','ambientVolume','hideInteractionHints'].includes(key)) return false;
++    if (key !== 'hideInteractionHints' && !Number.isFinite(Number(value))) return false;
++    this.state[key] = key === 'hideInteractionHints' ? value === true : Math.max(0, Math.min(100, Number(value)));
++    this.audio.setVolumes?.(this.state.masterVolume ?? 100, this.state.ambientVolume ?? 100);
++    this.ui.updatePreferences?.(this.state);
++    if (this.trainingSession) {
++      this.trainingSession.backup.state[key] = this.state[key];
++      try { localStorage.setItem(SaveRewards.key, JSON.stringify({ ...SaveRewards.read(), [key]:this.state[key] })); }
++      catch (_) { this.ui.showToast('设置未能保存，请检查浏览器存储权限'); }
++    } else this._save();
++    return true;
++  }
++
+   _loadSave() {
+     try {
+       const data = SaveRewards.read();
+       SaveRewards.restore(this.state, data);
++      this.state.masterVolume = Number.isFinite(data.masterVolume) ? Math.max(0, Math.min(100, data.masterVolume)) : 100;
++      this.state.ambientVolume = Number.isFinite(data.ambientVolume) ? Math.max(0, Math.min(100, data.ambientVolume)) : 100;
++      this.state.hideInteractionHints = data.hideInteractionHints === true;
++      this.audio.setVolumes?.(this.state.masterVolume, this.state.ambientVolume);
++      this.ui.updatePreferences?.(this.state);
+       if (data.money != null) this.state.money = data.money;
+       if (Array.isArray(data.backpackItems)) this.state.inventory = data.backpackItems;
+       if (Array.isArray(data.storageItems)) this.state.storageItems = data.storageItems;
+@@ -3931,10 +4099,15 @@ class Game {
+       }
+       this.state.storageCapacity = Math.max(Config.storage.capacityCells, Number(data.storageCapacityCells) || Config.storage.capacityCells);
+       this._initializeStorage();
+-      this.state.difficultyProfiles = this._migratePlayerFeedbackProfiles(data);
++      this.state.difficultyProfiles = this._migrateV18Profiles(data);
+       this.state.selectedDifficulty = Config.difficultyPresets[data.difficultyPreset]
+         ? data.difficultyPreset
+         : 'medium';
++      if (!this.state.advancedUnlocked && this.state.selectedDifficulty === 'hard') this.state.selectedDifficulty = 'medium';
++      this.state.personalDifficulty = this.state.selectedDifficulty;
++      this.state.personalScale = Config.mapScales[data.personalScale] ? data.personalScale : 'small';
++      if (!this.state.advancedUnlocked && this.state.personalScale === 'large') this.state.personalScale = 'medium';
++      Config.currentScale = this.state.personalScale;
+       this.state.hunterSettings = this._buildDifficultySettings(this.state.selectedDifficulty);
+       this.state.finalTerminalSettings = this._finalTerminalSettings(this._getDifficultyProfile());
+       this.state.armory = data.armoryVersion === 1 && data.armory
+@@ -3948,7 +4121,7 @@ class Game {
+       this._bindBackpackInventories();
+       this._migrateStarshipSupplies(data);
+       this._refreshFlashbangStock();
+-      if (Number(data.enemyCountMigrationVersion) !== 1 || Number(data.playerFeedbackMigrationVersion) !== 1) this._save();
++      if (Number(data.enemyCountMigrationVersion) !== 1 || Number(data.playerFeedbackMigrationVersion) !== 1 || Number(data.balanceVersion) !== 18) this._save();
+     } catch (e) { /* ignore corrupt save */ }
+   }
+ 
+@@ -3971,7 +4144,11 @@ class Game {
+         storageOverflowItems: this.state.storageOverflowItems,
+         storageCapacityCells: this.state.storageCapacity,
+         difficultyProfiles: this.state.difficultyProfiles,
+-        difficultyPreset: this.state.selectedDifficulty,
++        difficultyPreset: this.state.personalDifficulty || this.state.selectedDifficulty,
++        personalScale: this.state.personalScale || Config.currentScale,
++        balanceVersion: this.state.balanceVersion || 18,
++        masterVolume: this.state.masterVolume ?? 100, ambientVolume: this.state.ambientVolume ?? 100,
++        hideInteractionHints: this.state.hideInteractionHints === true,
+         fpsCap: this.state.fpsCap,
+         corpseLimit: this.state.corpseLimit || 100,
+         enemyCountMigrationVersion: this.state.enemyCountMigrationVersion || 1,
+@@ -4152,7 +4329,9 @@ class Game {
+       return;
+     }
+     if (!Config.mapScales || !Config.mapScales[scaleKey]) return;
++    if (!this.canSelectMission(scaleKey)) { this.ui.showToast(this.advancedUnlockHint()); return false; }
+     Config.currentScale = scaleKey;
++    this.state.personalScale = scaleKey;
+     const scaleConfig = Config.mapScales[scaleKey];
+     this.state.hunterSpawnTimer = this._getHunterSettings(scaleKey).hunterSpawnInterval;
+ 
+@@ -4172,6 +4351,7 @@ class Game {
+     this.render();
+     this.ui.log(`设施规模重构: ${scaleConfig.label} (共 ${scaleConfig.roomCount} 舱室)`);
+     this.ui.showToast(`设施已重构: ${scaleConfig.label}`);
++    this._save();
+     this.menu?.queueRefresh();
+     if (this.state.coop.role === 'host') this._broadcastCoopRoster();
+   }
+@@ -4257,6 +4437,9 @@ class Game {
+     if (tutorialMode && !this.trainingSession) { this.startTutorial(); return; }
+     if (this.trainingSession && !tutorialMode) return;
+     if (this.state.running || this.state.transitioning) return;
++    if (!this.trainingSession && !this.canSelectMission(Config.currentScale, this.state.selectedDifficulty, true)) {
++      this.ui.showToast(this.advancedUnlockHint()); return;
++    }
+     if ((this.state.coop.role || this.state.coop.roomPending) && !this.state.coop.running) {
+       this.ui.showToast('请在 CO-OP 大厅准备后由房主开始任务');
+       return;
+@@ -4294,7 +4477,9 @@ class Game {
+   }
+ 
+   _beginDive(tutorialMode = false) {
+-    if (!this.trainingSession && typeof SaveRewards !== 'undefined') SaveRewards.startProfileMission(this.state.missionFxId, this.state.selectedDifficulty)
++    this.state.missionStartContext = { scale: Config.currentScale, solo: !this.state.coop.running && !this.state.coop.role,
++      standard: !this._difficultyProfileIsModified(this.state.selectedDifficulty), version:18 };
++    if (!this.trainingSession && typeof SaveRewards !== 'undefined') SaveRewards.startProfileMission(this.state.missionFxId, this.state.selectedDifficulty, this.state.missionStartContext)
+       .catch(() => this.ui.showToast('个人战绩暂无法保存，请检查浏览器存储权限'));
+     this.state.rewardDepartureOutcome = null;
+     if (!this.trainingSession && this.state.coop.role !== 'guest') {
+@@ -4355,7 +4540,8 @@ class Game {
+     }
+ 
+     this.state.extractionCalled = true;
+-    this.state.rescueRemaining = this.trainingSession ? 8 : 30;
++    this.state.rescueRemaining = this._rescueWaitSeconds();
++    if (!this.trainingSession && this.state.selectedDifficulty !== 'easy') this.state.hunterSpawnTimer = 10;
+     this.state.rescueArrived = false;
+     this.state.rescuePresent = 0;
+     this.state.rescueRequired = this.state.coop.running ? this._coopRosterEntries().length : 1;
+@@ -4483,6 +4669,14 @@ class Game {
+     return toRevive;
+   }
+ 
++  _reinforcementInterval() {
++    return this.state.extractionCalled && this.state.selectedDifficulty !== 'easy' ? 10 : this._getHunterSettings().hunterSpawnInterval;
++  }
++
++  _rescueWaitSeconds() {
++    return this.trainingSession ? 8 : (Config.encounterRules[this.state.selectedDifficulty] || Config.encounterRules.medium).rescueWait;
++  }
++
+   _activateFinalTerminalPressure() {
+     if (this.state.finalTerminalPressure || !this.map.terminals.length ||
+         this.map.terminals.some(terminal => !terminal.solved)) return false;
+@@ -4492,13 +4686,13 @@ class Game {
+     this._lockFinalTerminalNoise();
+     this.ui.updateExtractionProgress?.(this.state);
+ 
+-    const settings = this._getFinalTerminalSettings();
++    const settings = { spawnCount: this._getHunterSettings().hunterRespawnCount, spawnInterval: this._reinforcementInterval() };
+     const authoritative = this.state.coop.role !== 'guest';
+     if (authoritative) this._spawnNewHunters(settings.spawnCount);
+     if (authoritative) this._spawnHeavy();
+     this.state.hunterSpawnTimer = settings.spawnInterval;
+ 
+-    this.ui.showToast(this._hasEnemyType('hunter') ? '舱室供电中断 · 撤离点已标记：噪音锁定 100 / 无限猎手增援' : '舱室供电中断 · 撤离点已标记：全员噪音锁定 100');
++    this.ui.showToast(this._hasEnemyType('hunter') ? '舱室供电中断 · 撤离点已标记：噪音锁定 100 / 持续补充敌人空缺' : '舱室供电中断 · 撤离点已标记：全员噪音锁定 100');
+     this.ui.log(`警报：噪音锁定 100；本局敌人按 ${settings.spawnInterval} 秒轮次增援，Heavy 上限为 ${this._getEncounterSettings().heavyCount} 只。`);
+     return true;
+   }
+@@ -4507,7 +4701,7 @@ class Game {
+    * Concludes the exploration run with a final report status
+    */
+   getPersonalRecords() {
+-    try { return SaveRewards.profileCounts(); }
++    try { return { ...SaveRewards.profileCounts(), defeats:SaveRewards.defeatTotals(), advancedUnlocked:SaveRewards.read().advancedUnlocked === true }; }
+     catch (_) { return {easy:{success:0,failure:0},medium:{success:0,failure:0},hard:{success:0,failure:0}}; }
+   }
+ 
+@@ -4583,7 +4777,7 @@ class Game {
+     SaveRewards.mergeForSave(state, result.data);
+     if (this.trainingSession) return;
+     this.updateMoneyUI();
+-    this.ui.updatePersonalRecords?.(this.getPersonalRecords());
++    this._refreshLocalProgress();
+     if (state.settlement?.missionId === receipt.missionId) {
+       state.settlement.rewardStatus = '已到账';
+       state.settlement.personalReward = receipt;
+@@ -4595,16 +4789,17 @@ class Game {
+   finish(success) {
+     if (this.trainingSession) { this.trainingSession.finish(success); return; }
+     if (this.state.completed && !this.state.running) return;
+-    if (this.state.running && typeof SaveRewards !== 'undefined') SaveRewards.settleProfileMission(this.state.missionFxId,
+-      success ? 'success' : this.state.rewardDepartureOutcome || 'failure')
+-      .then(() => this.ui.updatePersonalRecords?.(this.getPersonalRecords()))
+-      .catch(() => this.ui.showToast('个人战绩待保存，结算回执到达后会重试'));
+     this.loot?.close();
+     const settlement = this.buildSettlementSummary(success);
+     this.equipment?.reset();
+     for (const player of this._onlineCoopPlayers()) { player.supplyUse = null; player.barrierRemoval = null; }
+     settlement.rewards = this.state.coop.role === 'guest' ? this.state.authoritativeRewardRows || [] :
+       this._freezeRewardRows(success ? 'success' : this.state.rewardDepartureOutcome || 'failure');
++    if (this.state.running && typeof SaveRewards !== 'undefined') {
++      const own = settlement.rewards.find(row => row.playerId === (this.state.coop.playerId || 'host'));
++      SaveRewards.settleProfileMission(this.state.missionFxId, success ? 'success' : this.state.rewardDepartureOutcome || 'failure', own?.counts)
++        .then(() => this._refreshLocalProgress()).catch(() => this.ui.showToast('个人战绩待保存，结算回执到达后会重试'));
++    }
+     settlement.rewardStatus = '待结算';
+     const coopHostFinishing = this.state.coop.running && this.state.coop.role === 'host';
+     const roster = this._coopRosterEntries();
+@@ -5885,7 +6080,7 @@ class Game {
+       if (hit.triggeredRecovery) {
+         this.ui.showToast(`Nightmare 进入休眠 ${target.recoverTimer} 秒`);
+       } else if (!hit.recovering) {
+-        this.ui.showToast(`命中 / 目标硬直${Config.monster.hitStagger}s [${hit.shotCount}/${Config.monster.recoveryHits}]`);
++        this.ui.showToast(`命中 / 目标生命 ${target.hp}/${target.maxHp}`);
+       } else {
+         this.ui.showToast(`目标瘫痪中 [${target.recoverTimer.toFixed(1)}s]`);
+       }
+@@ -6155,8 +6350,8 @@ class Game {
+     const blend = 1 - Math.exp(-Math.max(0, dt) / Config.camera.smoothingSeconds);
+     state.cameraLookX = Math.max(-maxX, Math.min(maxX, state.cameraLookX + (targetX - state.cameraLookX) * blend));
+     state.cameraLookY = Math.max(-maxY, Math.min(maxY, state.cameraLookY + (targetY - state.cameraLookY) * blend));
+-    state.mouseX = this.player.x + state.cameraLookX + state.recoilX + (state.shakeX || 0) + screenOffsetX / zoom;
+-    state.mouseY = this.player.y + state.cameraLookY + state.recoilY + (state.shakeY || 0) + screenOffsetY / zoom;
++    state.mouseX = this.player.x + state.cameraLookX + state.recoilX + screenOffsetX / zoom;
++    state.mouseY = this.player.y + state.cameraLookY + state.recoilY + screenOffsetY / zoom;
+     this.player.angle = Math.atan2(state.mouseY - this.player.y, state.mouseX - this.player.x);
+   }
+ 
+@@ -6394,14 +6589,8 @@ class Game {
+       this.state.hunterSpawnTimer -= dt;
+       if (this.state.hunterSpawnTimer <= 0) {
+         this._spawnHeavy();
+-        if (this.state.finalTerminalPressure) {
+-          const settings = this._getFinalTerminalSettings();
+-          if (this.state.coop.role !== 'guest') this._spawnNewHunters(settings.spawnCount);
+-          this.state.hunterSpawnTimer = settings.spawnInterval;
+-        } else {
+-          this._respawnDeadHunters(hunterSettings.hunterRespawnCount);
+-          this.state.hunterSpawnTimer = hunterSettings.hunterSpawnInterval;
+-        }
++        this._respawnDeadHunters(hunterSettings.hunterRespawnCount);
++        this.state.hunterSpawnTimer = this._reinforcementInterval();
+       }
+     }
+ 
+@@ -6445,7 +6634,7 @@ class Game {
+           if (monsterTarget === this.player) this.ui.triggerDamageFlash(0.75, 130);
+           monsterTarget.noise = 100;
+           this.ui.log('警告：未知生命体接触！');
+-          this.audio.playSound('resources/injured-140224.mp3', 0.8);
++          this._emitMonsterContact(monsterTarget);
+         }
+       }
+ 
+@@ -6502,6 +6691,7 @@ class Game {
+           if (hunterTarget === this.player) this.ui.triggerDamageFlash(0.75, 130);
+           hunterTarget.noise = 100;
+           this.ui.log('警告：猎手接触！');
++          this._emitMonsterContact(hunterTarget);
+         }
+       }
+ 
+@@ -6522,12 +6712,14 @@ class Game {
+       for (const player of heavyResult.hits) {
+         const hit = this._applyDamage(player, Config.heavy.chargeDamage);
+         if (hit.blocked) continue;
++        this._emitMonsterContact(player);
+         this._knockbackPlayer(player, heavy.chargeAngle, Config.heavy.knockback);
+         if (player === this.player) this.ui.triggerDamageFlash(0.6, 130);
+       }
+       this.equipment?.attackObstacle(heavy, this._getThreatTarget(heavy), dt, 'heavy');
+     }
+     this._syncEnemyCorpses();
++    this._updateCorpsePhysics(dt);
+ 
+     this.trainingSession?.tick();
+     if (this.state.tutorial?.paused) return;
+
+diff --git a/tmp/v18-baseline/audio.js b/js/audio.js
+index da85a98d..d96847d8 100644
+--- a/tmp/v18-baseline/audio.js
++++ b/js/audio.js
+@@ -27,6 +27,18 @@ class AudioManager {
+     this.audioGeneration = 0;
+     this.missionAudioMuted = false;
+     this.heavySteps = new Map();
++    this.masterVolume = 100;
++    this.ambientVolume = 100;
++    this.hitVoices = new Map();
++    this.lastHitSounds = new Map();
++  }
++
++  setVolumes(master = this.masterVolume, ambient = this.ambientVolume) {
++    this.masterVolume = Math.max(0, Math.min(100, Number(master) || 0));
++    this.ambientVolume = Math.max(0, Math.min(100, Number(ambient) || 0));
++    const now = this.context?.currentTime || 0;
++    this.master?.gain.setTargetAtTime(this.missionAudioMuted ? 0 : 1.2 * this.masterVolume / 100, now, .025);
++    this.ambientGain?.gain.setTargetAtTime(.22 * this.ambientVolume / 100, now, .025);
+   }
+ 
+   /**
+@@ -47,8 +59,11 @@ class AudioManager {
+     this.hasStereoPanner = typeof this.context.createStereoPanner === 'function';
+ 
+     this.master = this.context.createGain();
+-    this.master.gain.value = 1.2;
++    this.master.gain.value = this.missionAudioMuted ? 0 : 1.2 * this.masterVolume / 100;
+     this.master.connect(this.context.destination);
++    this.ambientGain = this.context.createGain();
++    this.ambientGain.gain.value = .22 * this.ambientVolume / 100;
++    this.ambientGain.connect(this.master);
+ 
+     // Setup Monster Proximity Rumble with Directional Panner
+     this.proximityGain = this.context.createGain();
+@@ -74,27 +89,24 @@ class AudioManager {
+    * Loads and plays the casual horror background noise in an infinite loop
+    */
+   async playAmbientNoiseLoop() {
+-    if (!this.context || this.missionAudioMuted || this.ambientSource) return;
++    if (!this.context || this.missionAudioMuted || this.ambientSource || this.ambientLoading) return;
+     const generation = this.audioGeneration;
++    const loading = this.ambientLoading = {};
+     try {
+-      const response = await fetch('resources/casual horror background white noise-253834.mp3');
+-      const arrayBuffer = await response.arrayBuffer();
+-      const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
+-      if (this.missionAudioMuted || generation !== this.audioGeneration) return;
++      const audioBuffer = await this.preloadSound('resources/casual horror background white noise-253834.mp3');
++      if (!audioBuffer || this.missionAudioMuted || generation !== this.audioGeneration) return;
+ 
+       this.ambientSource = this.context.createBufferSource();
+       this.ambientSource.buffer = audioBuffer;
+       this.ambientSource.loop = true;
+ 
+-      const ambientGain = this.context.createGain();
+-      ambientGain.gain.value = 0.22; // Low background white noise volume
+-
+-      this.ambientSource.connect(ambientGain);
+-      ambientGain.connect(this.master);
++      this.ambientSource.connect(this.ambientGain);
+       this._trackSource(this.ambientSource);
+       this.ambientSource.start(0);
+     } catch (e) {
+       console.warn('Failed to load background white noise:', e);
++    } finally {
++      if (this.ambientLoading === loading) this.ambientLoading = null;
+     }
+   }
+ 
+@@ -142,6 +154,9 @@ class AudioManager {
+     });
+     this.activeSources.clear();
+     this.ambientSource = null;
++    this.ambientLoading = null;
++    this.hitVoices.clear();
++    this.lastHitSounds.clear();
+     const now = this.context ? this.context.currentTime : 0;
+     [this.master?.gain, this.proximityGain?.gain].forEach(param => {
+       if (!param) return;
+@@ -161,7 +176,7 @@ class AudioManager {
+     this.missionAudioMuted = false;
+     this.heavySteps.clear();
+     const now = this.context.currentTime;
+-    if (this.master) this.master.gain.setValueAtTime(1.2, now);
++    if (this.master) this.master.gain.setValueAtTime(1.2 * this.masterVolume / 100, now);
+     if (this.proximityGain) this.proximityGain.gain.setValueAtTime(0, now);
+     this.preloadSound('resources/gun-shot-359196.mp3');
+     this.playAmbientNoiseLoop();
+@@ -395,6 +410,30 @@ class AudioManager {
+     source.start(0);
+   }
+ 
++  async playMonsterHit(listener, position, mapManager, victimId, local = false) {
++    if (!this.context || this.missionAudioMuted || !listener || !position) return;
++    const now = this.context.currentTime;
++    if (now - (this.lastHitSounds.get(victimId) ?? -Infinity) < .12) return;
++    this.lastHitSounds.set(victimId, now);
++    const generation = this.audioGeneration;
++    const buffer = await this.preloadSound('resources/injured-140224.mp3');
++    if (!buffer || this.missionAudioMuted || generation !== this.audioGeneration) return;
++    const spatial = local ? {distance:0,distanceGain:1,pan:0} : this.calculateSpatial(listener.x,listener.y,listener.angle || 0,position.x,position.y,650);
++    let volume = .8 * spatial.distanceGain;
++    if (!local && spatial.distance > 0 && mapManager?.rayWallDistance &&
++      mapManager.rayWallDistance(listener.x,listener.y,(position.x-listener.x)/spatial.distance,(position.y-listener.y)/spatial.distance,spatial.distance)<spatial.distance-8) volume *= .24;
++    if (volume < .001) return;
++    const source=this.context.createBufferSource(),gain=this.context.createGain();source.buffer=buffer;gain.gain.value=volume;
++    source.connect(gain);
++    if (this.hasStereoPanner) {const pan=this.context.createStereoPanner();pan.pan.value=spatial.pan;gain.connect(pan);pan.connect(this.master);}
++    else gain.connect(this.master);
++    const voices=this.hitVoices.get(victimId)||[];
++    while(voices.length>=2){const old=voices.shift();old.gain.gain.linearRampToValueAtTime(0,this.context.currentTime+.02);try{old.source.stop(this.context.currentTime+.025);}catch(_){} }
++    const voice={source,gain};voices.push(voice);this.hitVoices.set(victimId,voices);this._trackSource(source);
++    source.onended=()=>{this.activeSources.delete(source);const index=voices.indexOf(voice);if(index>=0)voices.splice(index,1);source.disconnect?.();gain.disconnect?.();};
++    source.start(0);
++  }
++
+   /**
+    * Plays a single synthetic sound effect (center mono)
+    */
+
+warning: in the working copy of 'tmp/v18-baseline/rewards.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'js/rewards.js', LF will be replaced by CRLF the next time Git touches it
+diff --git a/tmp/v18-baseline/rewards.js b/js/rewards.js
+index 2d783dab..2458e8ac 100644
+--- a/tmp/v18-baseline/rewards.js
++++ b/js/rewards.js
+@@ -13,6 +13,8 @@ class SaveRewards {
+     data.dailyRewardDate = [data.dailyRewardDate, journal.dailyRewardDate].filter(Boolean).sort().pop() || null;
+     data.appliedRewardReceipts = { ...data.appliedRewardReceipts, ...journal.appliedRewardReceipts };
+     data.profileMissions = { ...data.profileMissions, ...journal.profileMissions };
++    data.profileDefeats = { ...data.profileDefeats, ...journal.profileDefeats };
++    data.advancedUnlocked = data.advancedUnlocked === true || journal.advancedUnlocked === true;
+     return data;
+   }
+ 
+@@ -21,7 +23,8 @@ class SaveRewards {
+     // the asset snapshot, but read() reapplies the missing credit delta and IDs.
+     localStorage.setItem(this.journalKey, JSON.stringify({ money: data.money,
+       rewardCreditsTotal: data.rewardCreditsTotal, dailyRewardDate: data.dailyRewardDate,
+-      appliedRewardReceipts: data.appliedRewardReceipts, profileMissions: data.profileMissions }));
++      appliedRewardReceipts: data.appliedRewardReceipts, profileMissions: data.profileMissions,
++      profileDefeats: data.profileDefeats, advancedUnlocked: data.advancedUnlocked === true }));
+     localStorage.setItem(this.key, JSON.stringify(data));
+   }
+ 
+@@ -61,6 +64,7 @@ class SaveRewards {
+     return this.locked(() => {
+       const data = this.read();
+       this.setProfileOutcome(data, receipt.missionId, receipt.outcome);
++      this.recordDefeats(data, receipt.missionId, receipt.counts);
+       data.appliedRewardReceipts ||= {};
+       if (Object.hasOwn(data.appliedRewardReceipts, receipt.id)) { this.commit(data); return { applied: false, data }; }
+       for (const [id, expiry] of Object.entries(data.appliedRewardReceipts)) {
+@@ -79,13 +83,16 @@ class SaveRewards {
+     state.dailyRewardDate = typeof data.dailyRewardDate === 'string' ? data.dailyRewardDate : null;
+     state.appliedRewardReceipts = { ...(data.appliedRewardReceipts || {}) };
+     state.profileMissions = { ...(data.profileMissions || {}) };
++    state.profileDefeats = { ...(data.profileDefeats || {}) };
++    state.advancedUnlocked = data.advancedUnlocked === true;
+   }
+ 
+-  static startProfileMission(id, difficulty) {
++  static startProfileMission(id, difficulty, context = {}) {
+     if (typeof id !== 'string' || !id || !['easy','medium','hard'].includes(difficulty)) return Promise.resolve(false);
+     return this.locked(() => {
+       const data = this.read(); data.profileMissions ||= {};
+-      if (!Object.hasOwn(data.profileMissions,id)) data.profileMissions[id] = { difficulty, outcome:null };
++      if (!Object.hasOwn(data.profileMissions,id)) data.profileMissions[id] = { difficulty, outcome:null,
++        context:{scale:context.scale,solo:context.solo===true,standard:context.standard===true,version:context.version} };
+       this.commit(data); return true;
+     });
+   }
+@@ -93,16 +100,35 @@ class SaveRewards {
+   static setProfileOutcome(data, id, outcome) {
+     const entry = data.profileMissions?.[id];
+     if (!entry || entry.outcome || !['success','failure','quit','kicked','timeout'].includes(outcome)) return false;
+-    entry.outcome = outcome === 'success' ? 'success' : 'failure'; return true;
++    entry.outcome = outcome === 'success' ? 'success' : 'failure';
++    if (entry.outcome === 'success' && entry.difficulty === 'medium' && entry.context?.scale === 'medium' &&
++        entry.context.solo === true && entry.context.standard === true && entry.context.version === 18) data.advancedUnlocked = true;
++    return true;
+   }
+ 
+-  static settleProfileMission(id, outcome) {
++  static settleProfileMission(id, outcome, counts) {
+     return this.locked(() => {
+       const data = this.read(), changed = this.setProfileOutcome(data,id,outcome);
+-      if (changed) this.commit(data); return changed;
++      const counted = Object.hasOwn(data.profileMissions || {},id) && this.recordDefeats(data,id,counts);
++      if (changed || counted) this.commit(data); return changed;
+     });
+   }
+ 
++  static recordDefeats(data, id, counts) {
++    if (typeof id !== 'string' || !id || Object.hasOwn(data.profileDefeats || {},id) || !counts ||
++        ['hunter','monster','heavy'].some(key => !Number.isSafeInteger(counts[key]) || counts[key] < 0 || counts[key] > 1000000)) return false;
++    data.profileDefeats = { ...data.profileDefeats, [id]:{hunter:counts.hunter,monster:counts.monster,heavy:counts.heavy} };
++    return true;
++  }
++
++  static defeatTotals() {
++    const totals = {hunter:0,monster:0,heavy:0};
++    for (const counts of Object.values(this.read().profileDefeats || {})) for (const key of Object.keys(totals)) {
++      if (Number.isSafeInteger(counts?.[key]) && counts[key] >= 0) totals[key] += counts[key];
++    }
++    return totals;
++  }
++
+   static profileCounts() {
+     const counts = {easy:{success:0,failure:0},medium:{success:0,failure:0},hard:{success:0,failure:0}};
+     for (const entry of Object.values(this.read().profileMissions || {})) {
+@@ -118,7 +144,10 @@ class SaveRewards {
+     state.dailyRewardDate = [state.dailyRewardDate, stored.dailyRewardDate].filter(Boolean).sort().pop() || null;
+     state.appliedRewardReceipts = { ...state.appliedRewardReceipts, ...stored.appliedRewardReceipts };
+     state.profileMissions = { ...state.profileMissions, ...stored.profileMissions };
+-    return { rewardCreditsTotal: total, dailyRewardDate: state.dailyRewardDate, appliedRewardReceipts: state.appliedRewardReceipts, profileMissions: state.profileMissions };
++    state.profileDefeats = { ...state.profileDefeats, ...stored.profileDefeats };
++    state.advancedUnlocked = state.advancedUnlocked === true || stored.advancedUnlocked === true;
++    return { rewardCreditsTotal: total, dailyRewardDate: state.dailyRewardDate, appliedRewardReceipts: state.appliedRewardReceipts,
++      profileMissions: state.profileMissions, profileDefeats: state.profileDefeats, advancedUnlocked: state.advancedUnlocked };
+   }
+ }
+ 
+
+diff --git a/tmp/v18-baseline/ui.js b/js/ui.js
+index 264374d8..f5dcdf6c 100644
+--- a/tmp/v18-baseline/ui.js
++++ b/js/ui.js
+@@ -108,6 +108,10 @@ class UIManager {
+     this.settingsCloseButton = document.querySelector('#hunterSettingsClose');
+     const refreshRecords = () => this.updatePersonalRecords(window.game?.getPersonalRecords?.());
+     this.settingsOpenButton?.addEventListener('click', refreshRecords);
++    for (const key of ['masterVolume','ambientVolume','hideInteractionHints']) {
++      document.getElementById(key)?.addEventListener(key === 'hideInteractionHints' ? 'change' : 'input', event =>
++        window.game?.setUserPreference(key, key === 'hideInteractionHints' ? event.target.checked : Number(event.target.value)));
++    }
+     this.descentTransition = document.querySelector('#descentTransition');
+     this.descentTip = document.querySelector('#descentTip');
+     this.settlementDialog = document.querySelector('#settlementDialog');
+@@ -307,6 +311,9 @@ class UIManager {
+         const btn = this.scaleButtons[key];
+         if (btn) {
+           btn.classList.toggle('active', key === scaleKey);
++          const locked = window.game?.canSelectMission?.(key, 'medium') === false;
++          btn.disabled = locked || !!window.game?.state?.running || window.game?.state?.coop?.role === 'guest';
++          btn.title = locked ? window.game.advancedUnlockHint() : '';
+         }
+       });
+     }
+@@ -322,7 +329,7 @@ class UIManager {
+     Object.entries(this.finalTerminalSettingInputs).forEach(([key, input]) => {
+       if (!input) return;
+       input.value = profile[key];
+-      input.disabled = disabled;
++      input.disabled = true;
+     });
+     if (this.resetHunterSettingsButton) {
+       this.resetHunterSettingsButton.disabled = disabled;
+@@ -339,7 +346,8 @@ class UIManager {
+       if (!button) return;
+       button.classList.toggle('active', difficultyId === editingDifficulty);
+       button.setAttribute('aria-pressed', String(difficultyId === editingDifficulty));
+-      button.disabled = false;
++      button.disabled = window.game?.canSelectMission?.('medium', difficultyId) === false;
++      button.title = button.disabled ? window.game.advancedUnlockHint() : '';
+     });
+     if (this.currentDifficultyText) {
+       const preset = Config.difficultyPresets[editingDifficulty];
+@@ -352,6 +360,7 @@ class UIManager {
+   }
+ 
+   showSettingsSection(sectionId) {
++    if (sectionId === 'audioSettingsContent') this.updatePreferences(window.game?.state || {});
+     if (sectionId === 'personalRecordsContent') this.updatePersonalRecords(window.game?.getPersonalRecords?.());
+     this.settingsSectionButtons.forEach(button => {
+       const active = button.dataset.settingsSection === sectionId;
+@@ -360,6 +369,16 @@ class UIManager {
+     });
+   }
+ 
++  updatePreferences(state) {
++    for (const key of ['masterVolume','ambientVolume']) {
++      const value = state[key] ?? 100, input = document.getElementById(key), output = document.getElementById(`${key}Value`);
++      if (input) input.value = String(value);
++      if (output) output.textContent = `${value}%`;
++    }
++    const hide = document.getElementById('hideInteractionHints');
++    if (hide) hide.checked = state.hideInteractionHints === true;
++  }
++
+   updateFpsCap(fpsCap) {
+     if (this.fpsCapSelect) this.fpsCapSelect.value = fpsCap;
+   }
+@@ -448,6 +467,12 @@ class UIManager {
+   }
+ 
+   updatePersonalRecords(records = {}) {
++    for (const key of ['hunter','monster','heavy']) {
++      const node = document.querySelector(`[data-defeats="${key}"]`);
++      if (node) node.textContent = String(Math.max(0, Number(records.defeats?.[key]) || 0));
++    }
++    const unlock = document.getElementById('advancedUnlockStatus');
++    if (unlock) unlock.textContent = records.advancedUnlocked ? '大型地图与困难模式已解锁' : '进阶内容未解锁：单人使用标准中等难度通关中型地图。';
+     for (const difficulty of ['easy', 'medium', 'hard']) for (const outcome of ['success', 'failure']) {
+       const node = document.querySelector(`[data-record="${difficulty}-${outcome}"]`);
+       if (node) node.textContent = String(Math.max(0, Math.floor(Number(records?.[difficulty]?.[outcome]) || 0)));
+
+warning: in the working copy of 'tmp/v18-baseline/menu.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'js/menu.js', LF will be replaced by CRLF the next time Git touches it
+diff --git a/tmp/v18-baseline/menu.js b/js/menu.js
+index eb966aa8..a39a5c46 100644
+--- a/tmp/v18-baseline/menu.js
++++ b/js/menu.js
+@@ -143,6 +143,7 @@ class SafehouseMenu {
+ 
+   selectDraftMapScale(scale) {
+     if (!this.mapDraft || !Config.mapScales[scale] || this.game.state.coop.role === 'guest') return false;
++    if (this.game.canSelectMission?.(scale) === false) return false;
+     this.mapDraft.scale = scale;
+     this._refreshMapDialog();
+     return true;
+@@ -150,6 +151,7 @@ class SafehouseMenu {
+ 
+   refreshDraftMapPreview(scale) {
+     if (!this.mapDraft || !Config.mapScales[scale] || this.game.state.coop.role === 'guest') return false;
++    if (this.game.canSelectMission?.(scale) === false) return false;
+     const previous = this.mapDraft.seeds[scale];
+     const next = this.game._newMenuSeed();
+     this.mapDraft.seeds[scale] = next === previous ? (next + 1) >>> 0 : next;
+@@ -168,16 +170,26 @@ class SafehouseMenu {
+     }
+     document.querySelectorAll('[data-draft-scale]').forEach(card => {
+       const selected = card.dataset.draftScale === this.mapDraft.scale;
++      const locked = this.game.canSelectMission?.(card.dataset.draftScale, this.game._previewDifficulty(), true) === false;
+       card.classList.toggle('active', selected);
++      card.classList.toggle('progress-locked', locked);
+       card.setAttribute('aria-pressed', String(selected));
+-      card.disabled = guest;
+-      card.querySelector('.facility-select').textContent = selected ? '✓ 待选布局' : '选择设施';
++      card.disabled = guest || locked;
++      card.querySelector('.facility-select').textContent = locked ? '未解锁 · 单人中等通关中型地图' : selected ? '✓ 待选布局' : '选择设施';
+     });
+-    document.querySelectorAll('[data-refresh-map]').forEach(button => { button.disabled = guest; });
++    document.querySelectorAll('[data-refresh-map]').forEach(button => { button.disabled = guest || this.game.canSelectMission?.(button.dataset.refreshMap) === false; });
+     document.getElementById('menuMapConfirm').hidden = guest;
+     document.getElementById('menuMapReadOnly').hidden = !guest;
++    if (guest) document.getElementById('menuMapReadOnly').textContent = this.game.state.advancedUnlocked
++      ? '当前布局由房主选择' : '随房主参与 · 大型地图和困难模式不会因此解锁到个人资料';
+     document.querySelectorAll('[data-map-preview]').forEach(canvas => {
+       const scale = canvas.dataset.mapPreview;
++      if (this.game.canSelectMission?.(scale, this.game._previewDifficulty(), true) === false) {
++        delete this.mapDraftMaps[scale];
++        this.setMapPreviewStatus(scale, 'locked', '未解锁：单人标准中等难度通关中型地图');
++        document.querySelector(`[data-map-enemies="${scale}"]`)?.replaceChildren();
++        this.drawMapPreview(canvas, null); return;
++      }
+       const seed = this.mapDraft.seeds[scale];
+       const difficulty = this.game._previewDifficulty();
+       const cachedError = this.mapDraftErrors?.[scale];
+@@ -227,9 +239,9 @@ class SafehouseMenu {
+   updateMapPreviewControls() {
+     const guest = this.game.state.coop.role === 'guest';
+     document.querySelectorAll('[data-draft-scale]').forEach(card => {
+-      card.disabled = guest || !!this.mapDraftErrors?.[card.dataset.draftScale];
++      card.disabled = guest || this.game.canSelectMission?.(card.dataset.draftScale) === false || !!this.mapDraftErrors?.[card.dataset.draftScale];
+     });
+-    document.getElementById('menuMapConfirm').disabled = guest || !this.mapDraftMaps?.[this.mapDraft.scale] || !!this.mapDraftErrors?.[this.mapDraft.scale];
++    document.getElementById('menuMapConfirm').disabled = guest || this.game.canSelectMission?.(this.mapDraft.scale) === false || !this.mapDraftMaps?.[this.mapDraft.scale] || !!this.mapDraftErrors?.[this.mapDraft.scale];
+   }
+ 
+   queueMapPreviewPaint() {
+@@ -262,6 +274,7 @@ class SafehouseMenu {
+ 
+   commitMapDraft() {
+     if (!this.mapDraft || this.game.state.coop.role === 'guest' || this.mapDraftErrors?.[this.mapDraft.scale]) return false;
++    if (this.game.canSelectMission?.(this.mapDraft.scale) === false) return false;
+     const { scale, seeds } = this.mapDraft;
+     this.game.state.menuMapSeeds = { ...seeds };
+     this.game._menuPreviewMaps = {};
+@@ -760,7 +773,10 @@ class SafehouseMenu {
+       const active = button.dataset.selectMissionDifficulty === selectedDifficulty;
+       button.classList.toggle('active', active);
+       button.setAttribute('aria-pressed', String(active));
+-      button.disabled = state.running || state.coop.role === 'guest';
++      const locked = game.canSelectMission?.('medium', button.dataset.selectMissionDifficulty) === false;
++      button.disabled = state.running || state.coop.role === 'guest' || locked;
++      button.textContent = `${Config.difficultyPresets[button.dataset.selectMissionDifficulty].label}${locked ? ' · 未解锁' : ''}`;
++      button.title = locked ? game.advancedUnlockHint() : '';
+     });
+     setText('briefAmmoRisk', `已装备武器：${loss}`);
+     setText('launchAmmoLossWarning', `⚠　${difficulty} · 失败${loss}`);
+@@ -890,7 +906,7 @@ class SafehouseMenu {
+       ['入口舱','从出生点学习移动、冲刺、手电与开门。跟随目标标记进入下一训练区域。','W A S D / Shift / F / E','先移动到标记，再开启通往补给舱的舱门'],
+       ['补给舱','打开训练箱子，学习双栏取放、背包整理、C 补氧及 H 急救。所有物资仅供训练，不带回真实背包。','E / B / C / H / R','训练箱子在补给工作间，跟随当前目标练习'],
+       ['Hunter 舱','单独面对 Hunter，熟悉它的追击方式，使用借用武器完成击杀。','鼠标右键 / 鼠标左键 / R','瞄准射击 · 保持距离 · 完成装填'],
+-      ['Nightmare 舱','一次有效命中即可让 Nightmare 休眠 40 秒。苏醒后会换到远离队员、正常视野外的其他舱室；困难任务休眠为 30 秒。','鼠标右键 / 鼠标左键 / R / T','命中使其休眠 · 保持距离 · 观察苏醒转移'],
++      ['Nightmare 舱','训练目标受到一次有效命中后休眠 40 秒。正式简单／中等／困难生命为 1／3／5，休眠 40／30／20 秒；苏醒后转移至玩家视野外。','鼠标右键 / 鼠标左键 / R / T','命中使其休眠 · 保持距离 · 观察苏醒转移'],
+       ['Heavy 舱','利用舱内障碍让 Heavy 冲锋撞墙，再趁眩晕击杀；随后练习地图缩放、平移和第一个终端。','Space / 鼠标左键 / M / E','诱导撞墙 · 完成击杀 · 破解终端 1'],
+       ['撤离舱','破解第二个终端，呼叫救援并等待 8 秒后登舱，完成整个训练。','E','破解终端 2 · 呼叫救援 · 登舱返回安全屋']
+     ];
+
+diff --git a/tmp/v18-baseline/renderer.js b/js/renderer.js
+index d04a03fe..0a01cdfa 100644
+--- a/tmp/v18-baseline/renderer.js
++++ b/js/renderer.js
+@@ -145,6 +145,47 @@ class Renderer {
+     if (state.barrierBlueprint) draw(state.barrierBlueprint, true);
+   }
+ 
++  drawCorpseFragments(ctx, corpse, player, mapManager, state) {
++    this.corpseLayouts ||= new Map();
++    let layout=this.corpseLayouts.get(corpse.id);
++    if(!layout){
++      const random=CorpseEffects.random(corpse.seed^0x72be31);
++      const stains=Array.from({length:11},(_,i)=>{
++        const angle=random()*Math.PI*2,distance=i?random()*corpse.width*.48:0;
++        const reach=mapManager.rayWallDistance?.(corpse.x,corpse.y,Math.cos(angle),Math.sin(angle),distance)??distance;
++        const d=Math.max(0,Math.min(distance,reach-2));
++        return {x:corpse.x+Math.cos(angle)*d,y:corpse.y+Math.sin(angle)*d,r:i?2+random()*corpse.width*.075:corpse.width*.2};
++      });
++      const spray=Array.from({length:corpse.kind==='heavy'?18:12},()=>({angle:random()*Math.PI*2,speed:40+random()*90,r:1+random()*2.4}));
++      layout={parts:CorpseEffects.geometry(corpse.seed,corpse.fragments.length),stains,spray};this.corpseLayouts.set(corpse.id,layout);
++    }
++    const fade=corpse.fadeRemaining==null?1:Math.max(0,Math.min(1,corpse.fadeRemaining));
++    ctx.save();ctx.globalAlpha=fade*.64;ctx.fillStyle='#701c2b';ctx.beginPath();
++    for(const stain of layout.stains)if(this.visibleWorldPoint(stain,player,mapManager,state)){ctx.moveTo(stain.x+stain.r,stain.y);ctx.arc(stain.x,stain.y,stain.r,0,Math.PI*2);}
++    ctx.fill();ctx.restore();
++    const width=corpse.width,height=width*corpse.aspect;
++    corpse.fragments.forEach((part,i)=>{
++      if(!this.visibleWorldPoint(part,player,mapManager,state))return;
++      const shape=layout.parts[i];ctx.save();ctx.globalAlpha=fade;ctx.translate(part.x,part.y);
++      ctx.rotate(this.motionQuery?.matches?corpse.angle:part.angle);
++      ctx.translate(-shape.cx*width,-shape.cy*height);ctx.beginPath();
++      shape.polygon.forEach((p,j)=>{if(j)ctx.lineTo(p.x*width,p.y*height);else ctx.moveTo(p.x*width,p.y*height);});ctx.closePath();ctx.clip();
++      this.drawEnemyBody(ctx,corpse.kind,width,corpse.hitFlashUntil>state.elapsed);ctx.restore();
++    });
++    const age=Math.max(0,state.elapsed-(corpse.burstAt??corpse.born));
++    if(!this.motionQuery?.matches&&!corpse.suppressBurst&&age<.45){
++      ctx.save();ctx.globalAlpha=fade*(1-age/.45);ctx.fillStyle='#b33447';ctx.beginPath();
++      for(const particle of layout.spray){
++        const distance=particle.speed*age;
++        const reach=mapManager.rayWallDistance?.(corpse.x,corpse.y,Math.cos(particle.angle),Math.sin(particle.angle),distance)??distance;
++        const d=Math.max(0,Math.min(distance,reach-2));const x=corpse.x+Math.cos(particle.angle)*d,y=corpse.y+Math.sin(particle.angle)*d;
++        if(!this.visibleWorldPoint({x,y},player,mapManager,state))continue;
++        ctx.moveTo(x+particle.r,y);ctx.arc(x,y,particle.r,0,Math.PI*2);
++      }
++      ctx.fill();ctx.restore();
++    }
++  }
++
+   drawEnemyRing(ctx, bodyWidth, originalWidth = bodyWidth) {
+     ctx.save();
+     ctx.beginPath();
+@@ -181,7 +222,8 @@ class Renderer {
+     ctx.fillStyle = '#eaff90';
+     ctx.font = 'bold 14px monospace';
+     ctx.textAlign = 'center';
+-    ctx.fillText(state?.rescueArrived ? '撤离点 · 救援已抵达' : state?.extractionCalled ? '撤离点 · 救援途中' : '撤离点 · 按 E 呼叫', 0, -52);
++    ctx.fillText(state?.rescueArrived ? '撤离点 · 救援已抵达' : state?.extractionCalled ? '撤离点 · 救援途中'
++      : state?.hideInteractionHints && state?.missionMode !== 'training' ? '撤离点 · 已解锁' : '撤离点 · 按 E 呼叫', 0, -52);
+     ctx.restore();
+   }
+ 
+@@ -705,7 +747,7 @@ class Renderer {
+         if (dist < 55 && !term.solved) {
+           ctx.fillStyle = '#f5a623';
+           ctx.font = 'bold 10px Space Mono';
+-          ctx.fillText('[E] OVERRIDE', 0, -25);
++          if (!gameState.hideInteractionHints || gameState.missionMode === 'training') ctx.fillText('[E] OVERRIDE', 0, -25);
+         } else if (dist < 55 && term.solved) {
+           ctx.fillStyle = '#50e3c2';
+           ctx.font = '9px Space Mono';
+@@ -780,7 +822,12 @@ class Renderer {
+     this.drawBarriers(ctx, player, mapManager, gameState);
+ 
+     const hasCorpseRegistry = Array.isArray(gameState.corpses);
++    if (this.corpseLayouts) {
++      const retained=new Set((gameState.corpses||[]).map(corpse=>corpse.id));
++      for(const id of this.corpseLayouts.keys())if(!retained.has(id))this.corpseLayouts.delete(id);
++    }
+     for (const corpse of gameState.corpses || []) {
++      if(corpse.fragments?.length){this.drawCorpseFragments(ctx,corpse,player,mapManager,gameState);continue;}
+       const width = corpse.width;
+       const image = this.sprite(`${corpse.kind}-down`);
+       const height = image.naturalWidth ? width * image.naturalHeight / image.naturalWidth : width;
+@@ -914,7 +961,7 @@ class Renderer {
+     const remoteEntries = Array.isArray(remotePlayers)
+       ? remotePlayers
+       : remotePlayers ? [{ player: remotePlayers, slot: 2, online: true }] : [];
+-    const playerColors = ['#75ddd0', '#e875d8', '#f5a623', '#a78bfa'];
++    const playerColors = ['#75ddd0', '#75ddd0', '#75ddd0', '#75ddd0'];
+     remoteEntries.forEach(entry => {
+       const remotePlayer = entry.player || entry;
+       const color = playerColors[(Math.max(1, entry.slot || 2) - 1) % playerColors.length];
+@@ -1691,8 +1738,8 @@ class Renderer {
+     miniCtx.fill();
+ 
+     // Player sharp triangle
+-    miniCtx.fillStyle = '#00ffff';
+-    miniCtx.shadowColor = '#00ffff';
++    miniCtx.fillStyle = '#75ddd0';
++    miniCtx.shadowColor = '#75ddd0';
+     miniCtx.shadowBlur = 6;
+     miniCtx.beginPath();
+     miniCtx.moveTo(9, 0);
+@@ -1987,7 +2034,7 @@ class Renderer {
+       ctx.save();
+       ctx.translate(teammate.x, teammate.y);
+       ctx.rotate(teammate.angle || 0);
+-      ctx.fillStyle = teammate.downed ? '#e9a950' : '#d7f36b';
++      ctx.fillStyle = '#75ddd0';
+       ctx.strokeStyle = '#06121a';
+       ctx.lineWidth = 3;
+       ctx.beginPath();
+@@ -1998,7 +2045,7 @@ class Renderer {
+       ctx.closePath();
+       ctx.fill();
+       ctx.stroke();
+-      ctx.fillStyle = teammate.downed ? '#e9a950' : '#d7f36b';
++      ctx.fillStyle = '#75ddd0';
+       ctx.font = 'bold 12px monospace';
+       ctx.textAlign = 'center';
+       ctx.fillText(`CREW ${member.slot || '?'}`, 0, -14);
+@@ -2027,8 +2074,8 @@ class Renderer {
+     ctx.fill();
+ 
+     // Solid player dot & ring
+-    ctx.fillStyle = '#00ffff';
+-    ctx.shadowColor = '#00ffff';
++    ctx.fillStyle = '#75ddd0';
++    ctx.shadowColor = '#75ddd0';
+     ctx.shadowBlur = 12;
+     ctx.beginPath();
+     ctx.arc(player.x, player.y, 10, 0, Math.PI * 2);
+@@ -2036,7 +2083,7 @@ class Renderer {
+ 
+     // Operator label
+     ctx.shadowBlur = 0;
+-    ctx.fillStyle = '#00ffff';
++    ctx.fillStyle = '#75ddd0';
+     ctx.font = 'bold 13px monospace';
+     ctx.textAlign = 'center';
+     ctx.fillText('YOU [OPERATOR]', player.x, player.y - 18);
+
+warning: in the working copy of 'tmp/v18-baseline/network.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'js/network.js', LF will be replaced by CRLF the next time Git touches it
+diff --git a/tmp/v18-baseline/network.js b/js/network.js
+index 140b1e46..dcd5d5cf 100644
+--- a/tmp/v18-baseline/network.js
++++ b/js/network.js
+@@ -1,4 +1,4 @@
+-const COOP_PROTOCOL_VERSION = 17;
++const COOP_PROTOCOL_VERSION = 18;
+ const MAX_STATE_BUFFERED_BYTES = 64_000;
+ const COOP_MAX_GUESTS = 3;
+ const COOP_RECONNECT_WINDOW_MS = 5 * 60 * 1000;
+
+diff --git a/tmp/v18-baseline/index.html b/index.html
+index 57989600..39d5a974 100644
+--- a/tmp/v18-baseline/index.html
++++ b/index.html
+@@ -10,7 +10,7 @@
+   <link rel="preconnect" href="https://fonts.googleapis.com" />
+   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+-  <link rel="stylesheet" href="styles.css?v=14" />
++  <link rel="stylesheet" href="styles.css?v=15" />
+   <link rel="stylesheet" href="menu.css?v=22" />
+ </head>
+ <body data-menu-screen="title">
+@@ -56,6 +56,7 @@
+         <div class="settings-modal-tabs" role="tablist" aria-label="配置与版本">
+           <button class="settings-section-btn active" type="button" data-settings-section="hunterSettingsContent">Hunter 设置</button>
+           <button class="settings-section-btn" type="button" data-settings-section="performanceSettingsContent">性能</button>
++          <button class="settings-section-btn" type="button" data-settings-section="audioSettingsContent">声音与提示</button>
+           <button class="settings-section-btn" type="button" data-settings-section="personalRecordsContent">个人战绩</button>
+           <button class="settings-section-btn" type="button" data-settings-section="versionLogContent">更新日志</button>
+         </div>
+@@ -80,7 +81,8 @@
+               </tbody>
+             </table>
+           </div>
+-          <div class="final-spawn-settings">
++          <p class="reinforcement-rules">最后终端按本地图的普通重生数立即补一波；中等／困难呼叫撤离后每 10 秒补充空缺。存活数量不超过本局上限。</p>
++          <div class="final-spawn-settings" hidden>
+             <p class="update-category">FINAL TERMINAL // UNLIMITED REINFORCEMENTS</p>
+             <label>每轮新增<input id="finalTerminalSpawnCount" type="number" min="0" max="200" step="1"></label>
+             <label>增援间隔(秒)<input id="finalTerminalSpawnInterval" type="number" min="1" max="120" step="1"></label>
+@@ -91,12 +93,28 @@
+         <section class="settings-modal-content" id="personalRecordsContent" hidden>
+           <p class="update-category">PERSONAL RECORDS // MISSIONS</p>
+           <h3>个人任务战绩</h3>
++          <p id="advancedUnlockStatus" class="unlock-status">进阶内容未解锁：单人标准中等难度通关中型地图。</p>
++          <div class="defeat-totals">
++            <article><img src="resources/images/hunter-topdown.png" alt="Hunter"><span>Hunter 击杀</span><strong data-defeats="hunter">0</strong></article>
++            <article><img src="resources/images/monster-topdown.png" alt="Nightmare"><span>Nightmare 压制次数</span><strong data-defeats="monster">0</strong></article>
++            <article><img src="resources/images/heavy-topdown.png" alt="Heavy"><span>Heavy 击杀</span><strong data-defeats="heavy">0</strong></article>
++          </div>
+           <table class="personal-records-table"><thead><tr><th>难度</th><th>成功</th><th>失败</th></tr></thead><tbody>
+             <tr><th>简单</th><td data-record="easy-success">0</td><td data-record="easy-failure">0</td></tr>
+             <tr><th>中等</th><td data-record="medium-success">0</td><td data-record="medium-failure">0</td></tr>
+             <tr><th>困难</th><td data-record="hard-success">0</td><td data-record="hard-failure">0</td></tr>
+           </tbody></table><small>按任务难度分别记录；训练不计入战绩。</small>
+         </section>
++        <section class="settings-modal-content audio-settings-content" id="audioSettingsContent" hidden>
++          <h3>声音与交互提示</h3>
++          <label for="masterVolume">总音量 <output id="masterVolumeValue">100%</output></label>
++          <input id="masterVolume" type="range" min="0" max="100" step="1" value="100">
++          <label for="ambientVolume">背景氛围音量 <output id="ambientVolumeValue">100%</output></label>
++          <input id="ambientVolume" type="range" min="0" max="100" step="1" value="100">
++          <small>调节现有船内恐怖氛围循环，不影响游戏中的噪音、敌人感知或任务规则。</small>
++          <label class="hint-preference"><input id="hideInteractionHints" type="checkbox">隐藏靠近物体时的交互按键提示</label>
++          <small>保留任务目标、使用与救援进度、QTE按键。训练舰仍显示必要教学。</small>
++        </section>
+         <section class="settings-modal-content performance-settings-content" id="performanceSettingsContent" hidden>
+           <p class="update-category">LOCAL DISPLAY // FRAME RATE</p>
+           <label for="fpsCapSelect">画面帧率上限</label>
+@@ -114,9 +132,10 @@
+             <option value="100" selected>100 具 · 推荐</option>
+             <option value="200">200 具</option>
+           </select>
+-          <small id="corpseLimitHelp">最多保留所选数量的静态尸体；超过时以短暂、有数量上限的淡出移除最旧尸体。此选项仅影响本机显示并保存在本机存档。</small>
++          <small id="corpseLimitHelp">限制本机显示的碎尸和关联血迹数量，超过后最旧的淡出；残骸可踩过拨动，不会堵住通路。</small>
+         </section>
+         <section class="settings-modal-content version-log-content" id="versionLogContent" hidden>
++          <div class="noise-update-notice"><span>V18 // 当前规则</span><strong>碎尸反馈与进阶资格</strong><p>大型地图与困难模式需要单人标准中等通关中型地图。救援等待为简单 20／中等 40／困难 60 秒，中等／困难呼叫后每 10 秒补怪；仅补存活上限内的空缺。</p><p>新增总音量、背景氛围音量、交互提示开关与累计击败统计。以下为历史版本记录。</p></div>
+           <div class="noise-update-notice" role="note" aria-label="战斗与噪音协议更新">
+             <span>SYSTEM UPDATE // HUNTER PROFILES</span>
+             <strong>猎手数量与无限增援</strong>
+@@ -259,7 +278,7 @@
+             <div class="brief-main">
+               <div class="brief-location"><img class="brief-location-art" src="resources/images/menu/facility-briefing.png" alt="ARCADIA-9 废弃气象观测站" draggable="false"><div><h2>ARCADIA-9</h2><p>废弃气象观测站</p></div></div>
+               <section class="brief-objective menu-card"><h2>本次任务</h2><p>收集物资，启动终端，安全撤离。</p>
+-              <div class="mission-steps"><article><h3><b>1</b>搜刮物资</h3><div class="menu-media-frame mission-step-art"><img class="" src="resources/images/menu/mission-salvage.png" alt="搜刮物资" draggable="false"></div><p>探索舱室，收集有价值的物资与资源。</p></article><article><h3><b>2</b>启动全部终端</h3><div class="menu-media-frame mission-step-art"><img class="" src="resources/images/menu/mission-terminal.png" alt="启动全部终端" draggable="false"></div><p>找到并启动所有终端，恢复设施数据。</p></article><article><h3><b>3</b>呼叫救援</h3><div class="menu-media-frame mission-step-art"><img class="" src="resources/images/menu/mission-extract.png" alt="呼叫救援" draggable="false"></div><p>终端全部启动后，前往地图标记的远端逃生舱按 E；救援 30 秒后抵达，全员到场才能撤离。</p></article></div>
++              <div class="mission-steps"><article><h3><b>1</b>搜刮物资</h3><div class="menu-media-frame mission-step-art"><img class="" src="resources/images/menu/mission-salvage.png" alt="搜刮物资" draggable="false"></div><p>探索舱室，收集有价值的物资与资源。</p></article><article><h3><b>2</b>启动全部终端</h3><div class="menu-media-frame mission-step-art"><img class="" src="resources/images/menu/mission-terminal.png" alt="启动全部终端" draggable="false"></div><p>找到并启动所有终端，恢复设施数据。</p></article><article><h3><b>3</b>呼叫救援</h3><div class="menu-media-frame mission-step-art"><img class="" src="resources/images/menu/mission-extract.png" alt="呼叫救援" draggable="false"></div><p>终端全部启动后，前往地图标记的远端逃生舱按 E；救援按简单／中等／困难分别在 20／40／60 秒后抵达，全员到场才能撤离。</p></article></div>
+               </section>
+             </div>
+             <div class="brief-side">
+@@ -549,21 +568,22 @@
+     <section class="result-strip panel"><div><p class="kicker">CONTRACT OUTCOME</p><h2 id="resultTitle">今晚的账单还没写完</h2></div><div class="result-metric"><span>预测结算</span><strong id="predictedValue"><span class="credit-value" aria-label="0 信用点"><img class="credit-token-image" src="resources/images/equipment-v17/credit.png" alt="" aria-hidden="true"><span>0</span></span></strong></div><div class="result-metric"><span>航程状态</span><strong id="missionState">未开始</strong></div></section>
+     <footer><span>VOID SHIFT <b>•</b> RECOVERY OPERATIONS DIVISION</span><span>DEMO BUILD 0.7</span></footer>
+   </main>
+-  <script src="js/config.js?v=8"></script>
+-  <script src="js/audio.js?v=2"></script>
+-  <script src="js/ui.js?v=23"></script>
+-  <script src="js/entities.js?v=8"></script>
++  <script src="js/config.js?v=9"></script>
++  <script src="js/audio.js?v=3"></script>
++  <script src="js/ui.js?v=24"></script>
++  <script src="js/entities.js?v=9"></script>
+   <script src="js/map.js?v=9"></script>
+-  <script src="js/training.js?v=3"></script>
+-  <script src="js/renderer.js?v=12"></script>
+-  <script src="js/network.js?v=17"></script>
++  <script src="js/training.js?v=4"></script>
++  <script src="js/corpses.js?v=1"></script>
++  <script src="js/renderer.js?v=13"></script>
++  <script src="js/network.js?v=18"></script>
+   <script src="js/inventory.js?v=4"></script>
+-  <script src="js/rewards.js?v=2"></script>
++  <script src="js/rewards.js?v=3"></script>
+   <script src="js/reward-client.js?v=1"></script>
+   <script src="js/loot.js?v=2"></script>
+   <script src="js/equipment.js?v=1"></script>
+-  <script src="js/game.js?v=24"></script>
+-  <script src="js/menu.js?v=17"></script>
++  <script src="js/game.js?v=25"></script>
++  <script src="js/menu.js?v=18"></script>
+ </body>
+ </html>
+ 
+
+diff --git a/tmp/v18-baseline/styles.css b/styles.css
+index 404227f9..2cc17eb7 100644
+--- a/tmp/v18-baseline/styles.css
++++ b/styles.css
+@@ -2253,6 +2253,18 @@ body.in-dive .game-frame .hud-overlay {
+ .personal-records-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+ .personal-records-table th, .personal-records-table td { padding: 15px; border: 1px solid var(--line); text-align: center; }
+ .personal-records-table td { color: var(--acid); font-weight: 600; }
++.final-spawn-settings[hidden] { display: none; }
++.audio-settings-content { max-width: 720px; }
++.audio-settings-content > label { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 18px 0 8px; }
++.audio-settings-content > input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--acid); }
++.audio-settings-content .hint-preference { justify-content: flex-start; }
++.hint-preference input { width: 22px; height: 22px; accent-color: var(--acid); }
++.defeat-totals { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
++.defeat-totals article { display: grid; justify-items: center; gap: 8px; padding: 12px; border: 1px solid var(--line); text-align: center; }
++.defeat-totals img { width: 76px; height: 70px; object-fit: contain; }
++.defeat-totals strong { font-size: 24px; color: var(--acid); }
++.unlock-status, .reinforcement-rules { line-height: 1.6; color: #a8d8e4; }
++@media (max-width: 540px) { .defeat-totals { grid-template-columns: 1fr; } .defeat-totals article { grid-template-columns: 60px 1fr auto; align-items: center; text-align: left; } .defeat-totals img { width: 54px; height: 48px; } }
+ @media (max-width: 700px) {
+   .hud-party { top: 110px; left: 10px; width: min(210px, 42vw); gap: 4px; }
+   .hud-party-card { padding: 5px 7px; font-size: 10px; }
+

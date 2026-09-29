@@ -1,0 +1,931 @@
+/* Approved menu-concepts-v1. Deliberately isolated from the in-mission HUD. */
+/* All image/effect coordinates share the original 1672 x 941 cover plane. */
+.menu-motion { --look-x: 0px; --look-y: 0px; --drift: 8px; --cycle: 24s; --lamp-peak: .27; position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; contain: strict; }
+.menu-motion[hidden] { display: none !important; }
+.menu-motion[data-menu-motion="prep"] { --drift: 4px; --cycle: 32s; --lamp-peak: .14; }
+.menu-motion-plane { position: absolute; left: 50%; top: 50%; width: max(100vw,177.6833156vh); height: max(100vh,56.2799043vw); transform: translate(-50%,-50%); }
+@supports (height: 100dvh) {
+  .menu-motion-plane { width: max(100vw,177.6833156dvh); height: max(100dvh,56.2799043vw); }
+}
+.menu-motion-look, .menu-motion-plane > img, .menu-motion-look > img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; }
+.menu-motion-look { transform: translate(var(--look-x),var(--look-y)); transition: transform .25s ease-out; }
+.menu-motion-look > img { object-fit: fill; user-select: none; }
+.menu-motion-exterior { animation: menu-space-drift var(--cycle) ease-in-out infinite; }
+.menu-motion-debris { animation: menu-debris-drift calc(var(--cycle) * 1.5) ease-in-out infinite; opacity: .55; }
+.menu-motion[data-menu-motion="prep"] .menu-motion-debris { opacity: .32; }
+.menu-motion-cockpit { object-fit: fill; user-select: none; }
+.menu-motion-lamp, .menu-motion-screen { position: absolute; left: var(--x); top: var(--y); width: var(--w); height: var(--h); }
+.menu-motion-lamp { background: #ffd994; box-shadow: 0 0 9px 3px #ffb45b55; transform: rotate(var(--angle,0deg)); animation: menu-lamp-breathe 6s ease-in-out var(--delay,0s) infinite; }
+.menu-motion-screen { overflow: hidden; clip-path: polygon(8% 0,98% 0,94% 100%,0 100%); }
+.menu-motion-screen::after { content: ''; position: absolute; inset: 0; background: linear-gradient(transparent 35%,#70eaff28 49%,#bdffff66 50%,#70eaff18 52%,transparent 65%); animation: menu-screen-scan 8s linear var(--delay,0s) infinite; }
+.menu-motion-radar { clip-path: ellipse(48% 49% at 50% 50%); }
+.menu-motion-radar::after { background: conic-gradient(from 0deg,transparent 285deg,#6bf5e522 342deg,#a7fff966 359deg,transparent); animation-name: menu-radar-sweep; }
+.menu-motion[data-menu-motion="prep"] .menu-motion-screen { opacity: .5; }
+.menu-motion *, .menu-motion *::after { animation-play-state: paused; }
+.menu-motion[data-running="true"] *, .menu-motion[data-running="true"] *::after { animation-play-state: running; }
+body.in-dive .menu-motion, body.descent-active .menu-motion { display: none !important; }
+body[data-menu-screen="prep"]:not(.in-dive) .app-shell { position: relative; z-index: 1; }
+.title-menu, .title-settings-icon { z-index: 1; }
+@keyframes menu-space-drift {
+  0%,100% { transform: translate(0,0) scale(1.035); }
+  35% { transform: translate(var(--drift),calc(var(--drift) * -.5)) scale(1.035); }
+  70% { transform: translate(calc(var(--drift) * -.5),var(--drift)) scale(1.035); }
+}
+@keyframes menu-debris-drift {
+  0%,100% { transform: translate(calc(var(--drift) * -1),0); }
+  50% { transform: translate(var(--drift),calc(var(--drift) * -.75)); }
+}
+@keyframes menu-lamp-breathe { 0%,100% { opacity: .06; } 50% { opacity: var(--lamp-peak); } }
+@keyframes menu-screen-scan { from { transform: translateY(-100%); } to { transform: translateY(100%); } }
+@keyframes menu-radar-sweep { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .menu-motion { display: none !important; }
+  .menu-motion *, .menu-motion *::after { animation: none !important; transition: none !important; }
+}
+body[data-menu-screen]:not(.in-dive) { background: #03111a url('resources/images/menu/prep-background.png') center/cover fixed; overflow: hidden; }
+body[data-menu-screen]:not(.in-dive)::before, body[data-menu-screen]:not(.in-dive)::after { display: none; }
+body[data-menu-screen]:not(.in-dive) .app-shell { width: 100%; max-width: none; height: 100vh; height: 100dvh; min-height: 0; padding: 12px; margin: 0; display: block !important; }
+body[data-menu-screen]:not(.in-dive) .game-layout { display: block !important; height: 100%; min-height: 0; padding: 0 !important; margin: 0; }
+body[data-menu-screen]:not(.in-dive) .topbar, body[data-menu-screen]:not(.in-dive) .result-strip, body[data-menu-screen]:not(.in-dive) .app-shell > footer { display: none; }
+body[data-menu-screen="title"]:not(.in-dive) .game-layout { visibility: hidden; pointer-events: none; }
+.title-screen { display: none; }
+body[data-menu-screen="title"]:not(.in-dive) .title-screen { display: block; position: fixed; inset: 0; z-index: 5; background: #03101b url('resources/images/menu/title-background.png') center/cover no-repeat; font-family: 'Microsoft YaHei', system-ui, sans-serif; }
+.title-menu { position: absolute; top: 15.4%; left: 50%; transform: translateX(-50%); width: 34%; text-align: center; }
+.title-menu { width: 33.19%; left: 50.09%; }
+.title-menu h1 { margin: 0 0 8%; line-height: 0; }
+.title-menu h1 img { width: 100%; }
+.title-menu button { display: block; width: 62%; min-height: 64px; margin: 0 auto; border: 1px solid #64eafa; border-radius: 5px; color: #daf7ff; background: #02121bbe; font: 600 clamp(18px, 1.65vw, 32px)/1.2 'Microsoft YaHei', sans-serif; cursor: pointer; }
+.title-menu #enterPreparationButton { color: #102109; background: linear-gradient(110deg,#d3f45b,#c5f851); border-color: #e5ff94; box-shadow: 0 0 18px #cafa5b44; clip-path: polygon(4% 0,96% 0,100% 20%,100% 80%,96% 100%,4% 100%,0 80%,0 20%); }
+.title-menu p { margin: 8px 0 20px; color: #aac8d4; font-size: clamp(12px,1vw,18px); }
+.title-menu button:hover { filter: brightness(1.15); }
+.title-menu button:focus-visible, .menu-confirm button:focus-visible { outline: 3px solid #e8ffa0; outline-offset: 4px; }
+.menu-confirm { border: 1px solid #5bdde8; border-radius: 8px; background: #071923; color: #dcf4ff; padding: 28px; max-width: min(480px,90vw); font: 16px/1.6 'Microsoft YaHei',sans-serif; }
+.menu-confirm::backdrop { background: #000b; }
+.menu-confirm form { display: flex; gap: 12px; }
+.menu-confirm button { padding: 12px 20px; min-height: 44px; background: #133646; color: #d6f6ff; border: 1px solid #5bdde8; cursor: pointer; }
+#preparationScreen { --menu-line: #326176; --menu-cyan: #69e5f0; --menu-lime: #dcfa65; --menu-gap: clamp(10px,1vw,20px); display: grid; grid-template-rows: 62px minmax(0,1fr) 90px; gap: 32px; height: 100%; min-height: 0; width: 100%; padding: 0; border: 0; box-shadow: none; background: none; font: 400 clamp(16px,1.3vw,25px)/1.4 'Microsoft YaHei','Noto Sans SC',system-ui,sans-serif; color: #dff6ff; }
+#preparationScreen::before, #preparationScreen::after { display: none; }
+#preparationScreen { grid-template-columns: minmax(0,1fr); }
+#preparationScreen > * { min-width: 0; }
+body.in-dive #preparationScreen { display: none; }
+#preparationScreen [hidden] { display: none !important; }
+#preparationScreen h2, #preparationScreen h3, #preparationScreen p { margin: 0; letter-spacing: 0; }
+#preparationScreen h2 { font-family: inherit; font-weight: 600; line-height: 1.25; font-size: clamp(19px,1.7vw,32px); }
+#preparationScreen h3 { font-size: clamp(16px,1.38vw,26px); font-weight: 600; }
+#preparationScreen small { font-size: clamp(12px,1.05vw,20px) !important; line-height: 1.5; color: #99bed0; }
+#preparationScreen img { max-width: 100%; }
+#preparationScreen .menu-media-frame { position: relative; min-width: 0; min-height: 0; }
+#preparationScreen .menu-media-frame > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+#preparationScreen button, #preparationScreen input { font-family: inherit; letter-spacing: 0; text-transform: none; }
+#preparationScreen button { min-height: 44px; font-size: inherit; border: 1px solid var(--menu-cyan); border-radius: 5px; color: #d5f5ff; background: linear-gradient(120deg,#06304599,#041720cc); cursor: pointer; transition: border-color .15s,box-shadow .15s,transform .15s; }
+#preparationScreen button:hover:not(:disabled):not(.active) { box-shadow: 0 0 14px #56dcec44, inset 0 0 12px #56dcec12; border-color: #a5f7ff; transform: translateY(-1px); }
+#preparationScreen button:active:not(:disabled) { transform: translateY(1px); box-shadow: inset 0 2px 10px #0008; }
+#preparationScreen button:focus-visible, #preparationScreen input:focus-visible { outline: 3px solid #d9ff82; outline-offset: 3px; }
+#preparationScreen button:disabled { color: #71909f; background: #0b1721bb; border-color: #405968; opacity: .65; transform: none; box-shadow: none; cursor: not-allowed; }
+#preparationScreen button.active, #preparationScreen .tab-btn.active, #preparationScreen .action-button, #preparationScreen .coop-action.primary:not(:disabled) { background: linear-gradient(110deg,#dbfa64,#c8f63e); border-color: #eaff9c; color: #142301; box-shadow: 0 0 15px #c6ff4f22; }
+#preparationScreen .tab-btn.active { background: linear-gradient(110deg,#526734bb,#263b15dd); color: #e0ff70; }
+#preparationScreen .action-button:disabled { background: #26333bbb; border-color: #617682; color: #8497a2; box-shadow: none; }
+#preparationScreen .safehouse-tabs { display: flex; align-items: stretch; gap: 0; margin: 0; padding: 0; height: 100%; min-height: 0; border: 1px solid var(--menu-line); border-radius: 6px; background: #03131de8; overflow: visible; }
+#preparationScreen .safehouse-tabs button { background: none; border: 0; border-radius: 3px; white-space: nowrap; padding: 0 clamp(12px,1.8vw,35px); min-width: 0; font-size: clamp(14px,1.3vw,25px); }
+#preparationScreen .menu-home { flex: 0 0 15.5%; text-align: left; }
+#preparationScreen .menu-tab-list { display: flex; min-width: 0; align-items: stretch; flex: 1; }
+#preparationScreen .menu-tab-list .tab-btn { flex: 1; position: relative; }
+#preparationScreen .menu-tab-list .tab-btn.active { border: 1px solid #d7f363; }
+#preparationScreen .menu-utilities { display: flex; align-items: center; justify-content: end; gap: 12px; flex: 0 0 22%; }
+#preparationScreen .menu-utilities .credit-token-image { width: 30px; height: 30px; }
+#preparationScreen .menu-utilities #moneyDisplay { color: #ebf588; white-space: nowrap; }
+#preparationScreen .menu-utilities .settings-launch { align-self: stretch; padding: 0 22px; }
+#preparationScreen .menu-pages { min-height: 0; margin: 0 22px; padding: 0; display: block; overflow: hidden; }
+#preparationScreen .menu-page { height: 100%; min-height: 0; padding: 0; margin: 0; overflow: auto; font: inherit; scrollbar-width: thin; scrollbar-color: #33667b #05121b; }
+#preparationScreen .menu-card, #preparationScreen .loadout-slot, #preparationScreen .storage-grid-panel, #preparationScreen .storage-controls, #preparationScreen .selected-item-detail, #preparationScreen .ammo-depot-panel, #preparationScreen .tutorial-lessons, #preparationScreen .tutorial-preview { border: 1px solid var(--menu-line); border-radius: 7px; background: #01141ef5; }
+#preparationScreen .safehouse-footer { display: grid; grid-template-columns: 1fr auto minmax(240px,18%); align-items: center; gap: 24px; padding: 8px 16px 8px 28px; margin: 0; min-height: 0; border: 1px solid var(--menu-line); border-radius: 5px; background: #03131deb; }
+#preparationScreen .safehouse-footer .launch-ammo-loss { display: block; max-width: none; color: #ffc165; font-size: clamp(14px,1.25vw,24px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#preparationScreen .selected-facility { min-width: 180px; margin-right: 15vw; font-size: clamp(14px,1.15vw,22px); }
+#preparationScreen .selected-facility strong { color: #d5effa; font-size: inherit; }
+#preparationScreen .safehouse-footer #startButton { width: 100%; height: 100%; min-height: 44px; max-width: none; flex-basis: auto; font-size: clamp(20px,1.75vw,34px); padding: 8px 22px; }
+#preparationScreen .safehouse-footer #startButton b { font-size: 1.3em; }
+/* Briefing: 60/40 split, no duplicated page heading. */
+#preparationScreen .briefing-page { display: grid !important; grid-template-columns: 60% minmax(0,1fr); gap: 10px; overflow: auto; }
+#preparationScreen .briefing-page[style*="none"] { display: none !important; }
+#preparationScreen .brief-main, #preparationScreen .brief-side { min-height: min-content; min-width: 0; display: grid; gap: 12px; }
+#preparationScreen .brief-main { grid-template-rows: minmax(160px,1.45fr) minmax(min-content,1fr) auto; }
+#preparationScreen .brief-side { grid-template-rows: auto auto minmax(min-content,1fr) minmax(min-content,1.1fr) auto; }
+#preparationScreen .brief-location { min-height: 0; position: relative; border: 1px solid var(--menu-line); padding: 16px; border-radius: 6px; overflow: hidden; background: #061521; }
+#preparationScreen .brief-location-art { width: 100%; height: 100%; object-fit: cover; }
+#preparationScreen .brief-location > div { position: absolute; left: 32px; bottom: 26px; text-shadow: 0 2px 6px #000; }
+#preparationScreen .brief-location h2 { font-size: clamp(30px,2.75vw,52px); }
+#preparationScreen .brief-location p { font-size: clamp(18px,1.7vw,32px); }
+#preparationScreen .brief-objective { padding: 14px; display: flex; flex-direction: column; min-height: min-content; }
+#preparationScreen .mission-steps { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 22px; flex: 1; min-height: min-content; padding-top: 10px; }
+#preparationScreen .mission-steps article { border: 1px solid var(--menu-line); border-radius: 4px; padding: 10px; display: grid; grid-template-rows: auto minmax(40px,1fr) auto; min-height: min-content; min-width: 0; }
+#preparationScreen .mission-steps h3 { font-size: clamp(14px,1.2vw,23px); white-space: normal; overflow-wrap: anywhere; }
+#preparationScreen .mission-steps b { display: inline-grid; place-items: center; width: 1.65em; height: 1.65em; margin-right: 10px; border: 1px solid #75dcec; border-radius: 50%; }
+#preparationScreen .mission-steps img { width: 100%; height: 100%; min-height: 0; object-fit: contain; mix-blend-mode: lighten; }
+#preparationScreen .mission-steps p { font-size: clamp(12px,1.1vw,21px); }
+#preparationScreen .brief-tips, #preparationScreen .brief-settings { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+#preparationScreen .brief-tips p { padding: 10px 16px; border: 1px solid var(--menu-line); border-radius: 5px; font-size: clamp(14px,1.2vw,23px); background: #001822e8; }
+#preparationScreen .brief-settings > *, #preparationScreen .brief-quota { padding: 12px 22px; }
+#preparationScreen .brief-settings span, #preparationScreen .brief-settings strong, #preparationScreen .brief-quota > span { display: block; text-align: left; }
+#preparationScreen .brief-settings button strong { color: #f7c571; }
+#preparationScreen .brief-quota strong { color: #d6f367; }
+#preparationScreen .brief-terminals { padding: 14px 22px; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px 12px; }
+#preparationScreen .brief-terminals h2 { grid-column: 1/-1; }
+#preparationScreen .brief-terminals p { max-width: 8em; font-size: clamp(14px,1.15vw,22px); }
+#preparationScreen .brief-terminals .terminal-icon-strip { gap: 24px; }
+#preparationScreen .brief-terminals .terminal-pixel-icon { width: clamp(60px,6vw,115px); height: clamp(60px,6vw,115px); background: none; filter: none; }
+#preparationScreen .brief-terminals .terminal-icon-strip:has(:nth-child(4)) { gap: 8px; }
+#preparationScreen .brief-terminals .terminal-icon-strip:has(:nth-child(4)) .terminal-pixel-icon { width: clamp(40px,5vw,92px); }
+#preparationScreen .brief-prepared { padding: 14px 22px; display: grid; grid-template-columns: 28% minmax(0,1fr); grid-template-rows: auto minmax(min-content,1fr); gap: 8px 18px; min-height: min-content; }
+#preparationScreen .brief-prepared h2 { grid-column: 1/-1; }
+#preparationScreen .brief-supply-art { width: 100%; height: 100%; min-height: 0; object-fit: contain; mix-blend-mode: lighten; }
+#preparationScreen .brief-prepared > div:not(.menu-media-frame) { display: grid; gap: 8px; min-width: 0; }
+#preparationScreen .brief-prepared p { border: 1px solid var(--menu-line); border-radius: 5px; padding: 8px 12px; font-size: clamp(14px,1.2vw,23px); }
+#preparationScreen .brief-risk { padding: 10px 20px; border-color: #b28c42; }
+#preparationScreen .brief-risk h2 { color: #ffc55f; }
+#preparationScreen .brief-risk ul { padding-left: 26px; margin: 4px 0 0; font-size: clamp(14px,1.15vw,22px); }
+/* Facilities. */
+#preparationScreen .map-page { display: flex !important; flex-direction: column; gap: 12px; }
+#preparationScreen .map-page[style*="none"] { display: none !important; }
+#preparationScreen .map-scale-cards { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; min-height: 0; flex: 1; }
+#preparationScreen .map-scale-wrap { display: grid; grid-template-rows: minmax(0,1fr) 44px; gap: 6px; min-height: 0; min-width: 0; }
+#preparationScreen .map-scale-card { min-height: 0; display: grid; grid-template-rows: auto auto minmax(100px,1.15fr) minmax(100px,1fr) 62px; text-align: left; gap: 12px; padding: 14px; border: 1px solid var(--menu-line); border-radius: 6px; background: #03151ff5; box-shadow: none; }
+#preparationScreen .map-scale-card.active { border: 2px solid #d5ed65; background: #071b16e8; }
+#preparationScreen .map-scale-card, #preparationScreen .map-scale-card.active { color: #dff4ff; font-weight: 400; }
+#preparationScreen .map-scale-card > strong { font-size: clamp(24px,2.1vw,40px); color: #dff7ff; }
+#preparationScreen .facility-facts { display: flex; justify-content: space-between; gap: 6px; font-size: clamp(14px,1.2vw,23px); }
+#preparationScreen .facility-art { height: 100%; width: 100%; object-fit: cover; border-radius: 3px; }
+#preparationScreen .facility-schematic { min-height: 0; display: flex; flex-direction: column; padding: 10px; border: 1px solid var(--menu-line); border-radius: 5px; color: #95cbdf; font-size: clamp(12px,1vw,19px); }
+#preparationScreen .facility-map-preview { display: block; min-height: 0; width: 100%; height: 0; flex: 1; background: #041b29; }
+#preparationScreen [data-map-preview-status][data-state="error"] { color: #ffbc87; }
+#preparationScreen .quick-use-slot[data-auto-supply] { cursor: default; }
+#preparationScreen .map-refresh { width: 100%; min-height: 44px; border: 1px solid #5ca9bc; border-radius: 5px; background: #05212bbd; color: #b9eafa; font: 600 clamp(14px,1vw,18px)/1.1 'Microsoft YaHei',sans-serif; cursor: pointer; }
+#preparationScreen .map-refresh:disabled { opacity: .5; cursor: not-allowed; }
+#preparationScreen .map-refresh:focus-visible { outline: 3px solid #deff75; outline-offset: 2px; }
+#preparationScreen .facility-select { display: grid; place-items: center; border: 1px solid #66dce9; border-radius: 5px; font-weight: 600; }
+#preparationScreen .map-scale-card.active .facility-select { border-color: #dff87e; background: #d7f36b26; color: #dcfc64; }
+#preparationScreen .map-preview-note { margin: 0; text-align: center; color: #9bc5d8; font-size: clamp(14px,1.15vw,22px); }
+.menu-map-dialog { width: min(1480px,calc(100vw - 28px)); max-width: none; max-height: 90dvh; margin: auto; padding: 0; border: 1px solid #66dce9; border-radius: 8px; background: #041923; color: #e2f5fa; font: 15px/1.4 'Microsoft YaHei',sans-serif; }
+.menu-map-dialog::backdrop { background: #000b; }
+.menu-map-shell { display: grid; grid-template-rows: auto minmax(0,1fr) auto; gap: 12px; height: min(85dvh,820px); padding: 16px; }
+.menu-map-shell > header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 24px; }
+.menu-map-shell > header h2 { margin: 0; font-size: clamp(20px,2vw,30px); }
+.menu-map-shell > header p { margin: 0; color: #a8d4e1; font-size: 14px; }
+#preparationScreen .menu-map-dialog .map-page { height: auto; overflow-y: auto; }
+.menu-map-actions { display: flex; justify-content: end; align-items: center; gap: 12px; padding: 0; border: 0; }
+#preparationScreen .menu-map-actions button { min-width: 160px; min-height: 52px; padding: 8px 16px; font-size: 20px; font-weight: 700; }
+.menu-map-actions #menuMapConfirm { background: #d8f565; color: #11210d; }
+.brief-difficulty { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.brief-difficulty > span { font-size: 14px; }
+#preparationScreen .mission-difficulty-choices { display: flex; gap: 5px; min-width: 0; }
+#preparationScreen .mission-difficulty-choices button { flex: 1 1 0; min-width: 0; min-height: 44px; padding: 4px; font-size: 14px; }
+#preparationScreen .mission-difficulty-choices button.active { border-color: #e7fa8e; background: #425e2c; color: #eaff81; }
+/* Warehouse: data uses original cell coordinates; zoom affects only presentation. */
+#preparationScreen .storage-page { overflow: hidden; }
+#preparationScreen .storage-workspace { height: 100%; display: grid; grid-template-columns: minmax(0,1.28fr) minmax(200px,.5fr) minmax(0,1fr); gap: 12px; }
+#preparationScreen .warehouse-panel { min-height: 0; display: flex; flex-direction: column; }
+#preparationScreen .storage-grid-panel { padding: 16px; min-width: 0; }
+#preparationScreen .storage-stats { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 14px; padding: 0 0 8px; min-height: 0; border: 0; border-bottom: 1px solid var(--menu-line); background: none; }
+#preparationScreen .storage-stats strong { font-size: clamp(14px,1.3vw,25px); white-space: nowrap; }
+#preparationScreen .storage-stats h2 { white-space: nowrap; }
+#preparationScreen .storage-grid-viewport { position: relative; min-height: 0; flex: 1; overflow: auto; }
+#preparationScreen .pack-grid-viewport { position: relative; overflow: auto; }
+#preparationScreen .grid-x-axis { display: grid; padding-left: 20px; height: 22px; font-size: 14px; text-align: center; }
+#preparationScreen .grid-y-axis { position: absolute; left: 0; top: 22px; display: grid; width: 18px; font-size: 14px; align-items: center; text-align: center; }
+#preparationScreen .storage-grid { width: max-content; max-width: none; padding: 0; margin: 0; overflow: visible; border: none; background: none; }
+#preparationScreen .bp-cell { border-color: #28516b; background: #092330a8; border-radius: 2px; }
+#preparationScreen .bp-block { border-radius: 2px; background: transparent; }
+#preparationScreen .bp-item.selected .bp-block { border: 2px solid #e9ff73 !important; background: #d8f7684d; box-shadow: inset 0 0 0 2px #081d26, 0 0 10px #dbff78cc; }
+#preparationScreen .bp-item.selected::after { content: '✓'; position: absolute; left: 2px; top: 2px; z-index: 6; padding: 0 3px; background: #deff75; color: #092019; font: 700 11px/15px 'Microsoft YaHei',sans-serif; pointer-events: none; }
+#preparationScreen .bp-item.quick-equipped::before { content: 'C'; position: absolute; right: 2px; top: 2px; z-index: 7; padding: 0 3px; background: #61ecf3; color: #061b25; font: 700 11px/15px monospace; pointer-events: none; }
+#preparationScreen .bp-item:focus-visible .bp-block { outline: 2px solid #e9ff73; outline-offset: -2px; }
+#preparationScreen .bp-item-art { position: absolute; inset: 2px; width: calc(100% - 4px); height: calc(100% - 4px); object-fit: contain; opacity: 1; image-rendering: auto; pointer-events: none; mix-blend-mode: lighten; }
+#preparationScreen .bp-art-mask { position: absolute; inset: 0; pointer-events: none; mask-size: 100% 100%; mask-repeat: no-repeat; }
+#preparationScreen .bp-art-mask .bp-item-art { inset: auto; left: 50%; top: 50%; max-width: none; }
+#preparationScreen .bp-item-name { display: none; }
+#preparationScreen .bp-item-value { font: 600 8px/1.1 'Microsoft YaHei',sans-serif; bottom: 1px; color: #d2eef4; padding: 1px; background: #03121eb8; }
+#preparationScreen .bp-item-value .credit-token-image { display: none; }
+#preparationScreen .menu-item-price { position: absolute; right: 1px; bottom: 1px; color: #d0e6ec; font: 500 7px/1.2 'Microsoft YaHei',sans-serif; background: #03121cba; padding: 1px; pointer-events: none; z-index: 2; }
+#preparationScreen .menu-item-price .credit-token-image { display: none; }
+#preparationScreen .menu-item-price .credit-value { font: inherit; gap: 0; }
+#preparationScreen .storage-controls { display: flex; flex-direction: column; min-height: 0; padding: 14px 20px; }
+#preparationScreen .storage-selection-summary { padding-bottom: 12px; min-height: 80px; }
+#preparationScreen .storage-selection-summary p { margin: 6px 0 0; color: #a0c9db; font-size: clamp(12px,1.05vw,20px); }
+#preparationScreen .storage-selection-summary p:empty { display: none; }
+#preparationScreen .storage-actions { display: flex; flex-direction: column; justify-content: space-between; gap: 10px; min-height: 0; flex: 1; padding-bottom: 16px; }
+#preparationScreen .storage-actions button { width: 100%; min-height: 44px; height: clamp(44px,6vh,66px); font-size: clamp(14px,1.2vw,23px); padding: 8px 4px; }
+#preparationScreen .storage-actions .organize { margin: clamp(0px,2vh,28px) 0; }
+#preparationScreen .storage-actions .organize { margin: 8px 0; }
+#preparationScreen .storage-actions .purchase { border-color: #cf9f48; color: #ffc064; background: #251b0d40; }
+#preparationScreen .storage-actions .purchase:disabled { border-color: #425360; color: #758493; background: #10192066; }
+#preparationScreen .storage-actions .bulk { background: #151a2080; }
+#preparationScreen .prep-backpack-panel { display: grid; grid-template-rows: auto minmax(0,1fr); gap: 12px; min-width: 0; min-height: 0; }
+#preparationScreen .prep-grid-row { display: grid; grid-template-columns: minmax(0,1fr) clamp(82px,6.2vw,120px); gap: 10px; min-width: 0; }
+#preparationScreen .quick-use-slot { min-width: 0; min-height: 130px; align-self: start; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 8px 4px; border: 2px dashed #438195; border-radius: 6px; background: #071b26d9; color: #d2eaf2; cursor: pointer; text-align: center; }
+#preparationScreen .quick-use-slot strong { color: #dbf969; font-size: 24px; }
+#preparationScreen .quick-use-slot img { width: 56px; height: 68px; object-fit: contain; }
+#preparationScreen .quick-use-slot:not(.equipped) img { opacity: .28; filter: grayscale(1); }
+#preparationScreen .quick-use-slot small { overflow-wrap: anywhere; }
+#preparationScreen .quick-use-slot.equipped, #preparationScreen .quick-use-slot.drop-valid { border-style: solid; border-color: #ddfa6d; box-shadow: inset 0 0 18px #d6f76b24; }
+#preparationScreen .quick-use-slot.drop-invalid { border-color: #ed795b; }
+@media (max-width: 1450px) {
+  #preparationScreen .prep-grid-row { grid-template-columns: 1fr; }
+  #preparationScreen .quick-use-slot { min-height: 70px; flex-direction: row; justify-content: flex-start; padding: 8px 14px; }
+  #preparationScreen .quick-use-slot img { width: 36px; height: 50px; }
+}
+#preparationScreen .selected-item-detail { min-height: 0; padding: 20px; display: grid; grid-template-columns: 38% minmax(0,1fr); gap: 20px; }
+#preparationScreen .selected-item-detail > img { width: 100%; height: 100%; min-height: 0; object-fit: contain; mix-blend-mode: lighten; }
+#preparationScreen .selected-item-detail > div { display: flex; flex-direction: column; gap: 16px; }
+#preparationScreen .selected-item-detail small { margin-top: auto; }
+#preparationScreen .storage-overflow { margin: 8px 0 0; max-height: 22%; overflow: auto; border: 0; padding: 0; }
+#preparationScreen .storage-overflow summary { cursor: pointer; min-height: 32px; }
+/* Equipment: the approved four raster gun illustrations. */
+#preparationScreen .loadout-slot-grid { min-height: 100%; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+#preparationScreen .loadout-slot { min-height: min-content; padding: 18px 14px; display: flex; flex-direction: column; gap: 14px; }
+#preparationScreen .loadout-grid { display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: repeat(2,minmax(min-content,1fr)); min-height: min-content; flex: 1; gap: 18px; }
+#preparationScreen .loadout-card { display: grid; grid-template-columns: 64% minmax(0,1fr); min-height: min-content; padding: 12px; border: 1px solid #48b7cb; border-radius: 7px; background: #061822f2; }
+#preparationScreen .loadout-card.active { border: 2px solid #d9f572; box-shadow: none; }
+#preparationScreen .loadout-card.locked { opacity: 1; }
+#preparationScreen .loadout-card .weapon-icon { display: block; height: 100%; width: 100%; min-height: 0; margin: 0; padding-right: 18px; object-fit: contain; filter: none; mix-blend-mode: lighten; }
+#preparationScreen .weapon-copy { border-left: 1px solid var(--menu-line); padding-left: 20px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+#preparationScreen .weapon-copy, #preparationScreen .weapon-copy h3, #preparationScreen .weapon-copy p { color: #def3ff; }
+#preparationScreen .weapon-copy h3 { font-size: clamp(23px,2vw,38px); }
+#preparationScreen .weapon-copy p { font-size: clamp(13px,1.15vw,22px); }
+#preparationScreen .weapon-card-actions { margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding-top: 12px; border-top: 1px solid var(--menu-line); }
+#preparationScreen .weapon-card-actions .credit-value { color: #e1f27e; }
+#preparationScreen .weapon-card-actions .credit-token-image { width: 22px; height: 22px; }
+#preparationScreen .weapon-card-actions button { min-height: 50px; width: 100%; }
+#preparationScreen .loadout-card.active .equip:disabled { opacity: 1; color: #e4fc72; background: #6a802a44; border-color: #d8f171; }
+/* Ammunition and oxygen supply. */
+#preparationScreen .ammo-depot-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; min-height: 100%; }
+#preparationScreen .ammo-depot-panel { min-width: 0; min-height: min-content; padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+#preparationScreen .ammo-depot-panel > * { flex-shrink: 0; }
+#preparationScreen .depot-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--menu-line); }
+#preparationScreen .depot-heading strong { font-size: clamp(14px,1.25vw,24px); }
+#preparationScreen .ammo-crate-art { width: 100%; height: clamp(100px,calc(100dvh - 820px),240px); object-fit: contain; mix-blend-mode: lighten; }
+#preparationScreen .ammo-presets { display: flex; align-items: center; gap: 10px; }
+#preparationScreen .ammo-presets button { flex: 1; padding: 8px; }
+#preparationScreen input[type="number"] { min-width: 0; width: 100%; min-height: 44px; padding: 10px 14px; border: 1px solid var(--menu-line); border-radius: 4px; color: #d5f3ff; background: #05141c; appearance: textfield; font-size: inherit; }
+#preparationScreen input[type="number"]::-webkit-inner-spin-button, #preparationScreen input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+#preparationScreen .ammo-presets input { width: 38%; }
+#preparationScreen .ammo-purchase-row { display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+#preparationScreen .ammo-purchase-row > span { font-size: clamp(13px,1.2vw,23px); }
+#preparationScreen .ammo-purchase-row .action-button { flex: 0 0 48%; padding: 12px 8px; }
+#preparationScreen .ammo-purchase-row .credit-token-image { display: none; }
+#preparationScreen .ammo-stock-grid { display: grid; grid-template-columns: 1fr; gap: 8px; min-height: 0; margin: 0; }
+#preparationScreen .ammo-stock-tile { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 5px 10px; min-height: 40px; border-radius: 4px; }
+#preparationScreen .ammo-stock-tile .weapon-icon { width: 54px; height: 32px; object-fit: contain; mix-blend-mode: lighten; }
+#preparationScreen .ammo-stock-tile > span { flex: 1; }
+#preparationScreen .ammo-stock-tile strong { font-size: inherit; }
+#preparationScreen .ammo-choice-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(90px,1fr)); gap: 8px; padding-top: 8px; }
+#preparationScreen .ammo-choice-card { flex: 1; min-width: 0; min-height: 86px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 6px 4px; font-size: clamp(12px,1.05vw,20px); line-height: 1.3; }
+#preparationScreen .ammo-choice-card[aria-pressed="true"] { border: 2px solid #d8f66c; background: #344c1d9c; }
+#preparationScreen .ammo-choice-card .weapon-icon, #preparationScreen .ammo-standard-art { width: 80px; height: 48px; object-fit: contain; mix-blend-mode: lighten; }
+#preparationScreen .ammo-choice-card strong { display: block; font-size: clamp(12px,.9vw,17px); font-weight: 400; line-height: 1.3; }
+#preparationScreen .ammo-choice-card > span { font-size: clamp(12px,1.1vw,21px); }
+#preparationScreen .ammo-choice-card span, #preparationScreen .ammo-stock-tile span, #preparationScreen .ammo-stock-tile strong { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+#preparationScreen .ammo-choice-card > span > span, #preparationScreen .ammo-stock-tile > span, #preparationScreen .ammo-depot-panel > label { font-size: inherit; color: #d5eff9; }
+#preparationScreen .ammo-choice-label { font-size: inherit; }
+#preparationScreen .ammo-transfer-arrow { margin: 0; text-align: center; font-size: 36px; line-height: 1; color: #73eaff; }
+#preparationScreen .ammo-transfer-input { display: flex; gap: 16px; align-items: center; }
+#preparationScreen .ammo-transfer-input label { flex: 1; font-size: clamp(13px,1vw,19px); }
+#preparationScreen .ammo-transfer-input input { width: 42%; }
+#preparationScreen .ammo-transfer-preview { padding: 14px; min-height: 80px; border: 1px solid var(--menu-line); border-radius: 5px; font-size: clamp(14px,1.2vw,23px); white-space: pre-line; text-align: center; }
+#preparationScreen .ammo-transfer-panel > .action-button { background: #5bddec; color: #04202c; }
+#preparationScreen .ammo-transfer-panel > small { text-align: center; }
+#preparationScreen .consumable-product { min-height: min-content; flex: 1; display: grid; grid-template-columns: 40% minmax(0,1fr); gap: 18px; align-items: center; }
+#preparationScreen .consumable-shop-art-frame { align-self: stretch; }
+#preparationScreen .consumable-shop-art-frame > img { height: 85%; top: 7.5%; }
+#preparationScreen .consumable-shop-card { margin: 0; align-items: stretch; text-align: left; }
+#preparationScreen .consumable-shop-art { width: 100%; height: 100%; max-height: none; object-fit: contain; image-rendering: auto; mix-blend-mode: lighten; }
+#preparationScreen .consumable-shop-copy { display: flex; flex-direction: column; gap: clamp(10px,calc(3vh - 8px),24px); min-width: 0; }
+#preparationScreen .consumable-shop-copy h3 { font-size: clamp(22px,1.9vw,36px); }
+#preparationScreen .consumable-shop-copy p { font-size: clamp(14px,1.25vw,24px); }
+#preparationScreen .consumable-shop-copy p, #preparationScreen .ammo-choice-label { color: #d5eff9; }
+#preparationScreen .consumable-price { border-top: 1px solid var(--menu-line); padding-top: 24px; }
+#preparationScreen .consumable-price strong { display: block; color: #deef75; }
+#preparationScreen .consumable-resale { color: #b3c5d1; font-size: clamp(13px,1.1vw,21px); }
+/* Four-seat lobby. Its action row stays outside the scrollable roster. */
+#preparationScreen .coop-panel { height: 100%; min-height: 0; padding: 0; border: 1px solid var(--menu-line); border-radius: 7px; background: #01141ef5; display: flex; flex-direction: column; }
+#preparationScreen .coop-link-header { display: flex; align-items: center; gap: 24px; margin: 0; padding: 12px 28px; border-bottom: 1px solid var(--menu-line); flex: none; }
+#preparationScreen .coop-link-header h2 { white-space: nowrap; }
+#preparationScreen .coop-code { font-size: 1.2em; border: 0; background: none; padding: 0; margin: 0; letter-spacing: .05em; }
+#preparationScreen .coop-status { margin: 0; max-width: 24%; font-size: clamp(12px,1vw,19px); }
+#preparationScreen #menuRoomSummary { margin-left: auto; font-size: clamp(14px,1.2vw,23px); }
+#preparationScreen .coop-room-entry { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 50px; align-items: center; padding: 36px; }
+#preparationScreen .coop-room-entry > div { display: flex; flex-direction: column; gap: 20px; }
+#preparationScreen .room-entry-art { width: 100%; max-height: 44vh; object-fit: contain; }
+#preparationScreen .coop-room-entry .coop-action { min-height: 60px; }
+#preparationScreen .coop-join-row { display: flex; gap: 12px; }
+#preparationScreen .coop-join-row input { min-width: 0; width: 100%; font-size: inherit; background: #07141d; border: 1px solid var(--menu-line); padding: 12px; color: #ddf7ff; }
+#preparationScreen #coopJoinButton { flex: 0 0 auto; padding: 8px 20px; white-space: nowrap; }
+#preparationScreen .coop-lobby { display: grid; grid-template-rows: minmax(120px,1fr) auto auto; min-height: 0; flex: 1; gap: 16px; padding: 14px 24px 24px; }
+#preparationScreen .coop-roster-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); grid-auto-rows: minmax(min-content,1fr); gap: 24px; min-height: 0; overflow: auto; }
+#preparationScreen .coop-member-list { display: contents; }
+#preparationScreen .coop-host-seat, #preparationScreen .coop-member { display: flex; flex-direction: column; min-width: 0; padding: 12px; border: 1px solid #3d8fab; border-radius: 6px; background: #05202c9c; }
+#preparationScreen .coop-member, #preparationScreen .coop-member h3, #preparationScreen .coop-friendly-fire h2 { color: #dff3fc; }
+#preparationScreen .coop-host-seat > p, #preparationScreen .coop-member > p { font-size: clamp(14px,1.2vw,23px); min-height: 2.4em; display: block; }
+#preparationScreen .crew-portrait { min-height: 0; flex: 1 1 0; height: 0; width: 100%; object-fit: cover; margin: 12px 0; }
+#preparationScreen .coop-host-seat h3 { color: #e2f57b; }
+#preparationScreen .coop-host-seat strong, #preparationScreen .coop-member > strong { padding: 8px; text-align: center; border: 1px solid #a08049; border-radius: 5px; color: #ffcb80; margin-top: 10px; }
+#preparationScreen .coop-host-seat strong[data-ready="true"], #preparationScreen .coop-member.ready > strong { color: #dafa69; border-color: #cde77b; background: #50662055; }
+#preparationScreen .coop-member.empty { opacity: .65; }
+#preparationScreen .coop-lobby-options { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 0; }
+#preparationScreen .coop-friendly-fire, #preparationScreen .coop-friendly-fire-status, #preparationScreen .coop-readiness { border: 1px solid var(--menu-line); padding: 12px 24px; border-radius: 5px; margin: 0; }
+#preparationScreen .coop-friendly-fire label { display: flex; align-items: center; gap: 10px; font-size: inherit; }
+#preparationScreen .coop-friendly-fire { position: relative; }
+#preparationScreen .coop-friendly-fire label { min-height: 44px; padding-right: 78px; }
+#preparationScreen .coop-friendly-fire label span { font-size: clamp(14px,1.2vw,23px); }
+#preparationScreen .coop-friendly-fire input { appearance: none; position: absolute; right: 20px; top: 50%; transform: translateY(-50%); width: 64px; height: 34px; border: 2px solid #68e9ec; border-radius: 22px; background: #143643; cursor: pointer; }
+#preparationScreen .coop-friendly-fire input::after { content: ''; position: absolute; width: 22px; height: 22px; top: 4px; left: 4px; border-radius: 50%; background: #78909b; }
+#preparationScreen .coop-friendly-fire input:checked::after { left: 32px; background: #a3f2ff; box-shadow: 0 0 8px #68e9ec66; }
+#preparationScreen .coop-friendly-fire small, #preparationScreen .coop-readiness span, #preparationScreen .coop-readiness small { display: block; }
+#preparationScreen .coop-friendly-fire > div, #preparationScreen .coop-readiness { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+#preparationScreen .coop-readiness > strong { font-size: clamp(18px,1.6vw,30px); color: #dff3fc; }
+#preparationScreen .coop-readiness span { font-size: clamp(12px,1vw,19px); }
+#preparationScreen .coop-lobby-actions { display: block; border: 0; background: none; padding: 0; margin: 0; width: 100%; }
+#preparationScreen .coop-action-buttons { display: flex; width: 100%; align-items: stretch; justify-content: center; gap: 30px; }
+#preparationScreen .coop-action-buttons .coop-action { min-height: 62px; flex: 0 1 28%; padding: 10px; font-size: clamp(16px,1.4vw,27px); }
+#preparationScreen #coopLeaveButton { border-color: #d3a64c; color: #fac15e; }
+#preparationScreen .coop-connection-feedback { flex: none; min-width: 0; max-height: 32vh; overflow: auto; padding: 10px 16px; border-top: 1px solid var(--menu-line); font-size: clamp(14px,1vw,18px); }
+#preparationScreen .coop-connection-feedback[hidden], #preparationScreen .coop-connection-actions button[hidden] { display: none; }
+#preparationScreen .coop-connection-feedback p { margin: 0 0 8px; overflow-wrap: anywhere; }
+#preparationScreen .coop-connection-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+#preparationScreen .coop-connection-actions button { min-height: 44px; flex: 1 1 120px; padding: 8px 12px; }
+#preparationScreen #coopDiagnosticsText { box-sizing: border-box; width: 100%; min-height: 110px; margin-top: 8px; background: #04151e; color: #dcf3f7; font: 12px monospace; }
+/* Training uses its own fixed map and temporary equipment. */
+#preparationScreen .tutorial-menu { height: 100%; display: grid; grid-template-columns: 36% minmax(0,1fr); gap: 16px; }
+#preparationScreen .tutorial-lessons { display: flex; flex-direction: column; gap: 9px; padding: 16px; min-height: 0; overflow-y: auto; }
+#preparationScreen .tutorial-lessons h2 { padding-bottom: 8px; }
+#preparationScreen .tutorial-lessons button { flex: 1; padding: 10px 18px; text-align: left; }
+#preparationScreen .tutorial-lessons button span { float: right; }
+#preparationScreen .tutorial-lessons button.active { background: linear-gradient(110deg,#526734bb,#263b15dd); color: #e0ff70; border-color: #dbf785; }
+#preparationScreen .tutorial-preview { min-height: 0; display: flex; flex-direction: column; padding: 18px; gap: 12px; }
+#preparationScreen .tutorial-art { position: relative; min-height: 100px; flex: 1; overflow: hidden; border: 1px solid var(--menu-line); border-radius: 5px; }
+#preparationScreen .tutorial-art > img { width: 100%; height: 100%; object-fit: cover; }
+#preparationScreen .tutorial-key-hint { position: absolute; right: 20px; bottom: 18px; max-width: 70%; display: grid; justify-items: center; gap: 12px; text-align: center; padding: 18px; background: #03111d77; border-radius: 6px; }
+#preparationScreen .tutorial-key-hint strong { font-size: clamp(20px,2vw,38px); color: #e1ff84; }
+#preparationScreen #lessonKeys { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: 310px; }
+#preparationScreen #lessonKeys.movement-keys { display: grid; grid-template-columns: repeat(3,60px); }
+#preparationScreen #lessonKeys.movement-keys kbd:first-child { grid-column: 2; }
+#preparationScreen #lessonKeys.movement-keys kbd:nth-child(2) { grid-column: 1; }
+#preparationScreen #lessonKeys.movement-keys kbd:last-child { grid-column: 1/-1; }
+#preparationScreen #lessonKeys kbd { min-width: 54px; min-height: 54px; display: grid; place-items: center; padding: 6px 14px; border: 1px solid #95b8c7; border-radius: 5px; background: linear-gradient(#193443ee,#07121bee); box-shadow: inset 0 2px 3px #a6d3e644; color: #e4f1f8; font: 600 24px/1.2 'Microsoft YaHei',sans-serif; }
+#preparationScreen .tutorial-rules { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+#preparationScreen .tutorial-rules p { padding: 14px; border: 1px solid var(--menu-line); border-radius: 5px; font-size: clamp(14px,1.2vw,23px); }
+#preparationScreen .tutorial-launch-card { display: grid; grid-template-columns: 1fr 42%; padding: 16px; gap: 16px; margin: 0; min-height: 0; }
+#preparationScreen .tutorial-launch-card > div { display: flex; flex-direction: column; gap: 8px; }
+#preparationScreen .tutorial-launch-card p { color: #e1f574; font-size: clamp(14px,1.15vw,22px); }
+#preparationScreen .tutorial-launch-card #startTutorialButton { width: 100%; min-height: 60px; }
+#preparationScreen #tutorialAvailabilityNote { color: #f6ba63; }
+@media (max-width: 1450px), (max-height: 850px) {
+  body[data-menu-screen]:not(.in-dive) .app-shell { padding: 8px; }
+  #preparationScreen { grid-template-rows: 56px minmax(0,1fr) 60px; gap: 16px; font-size: 16px; }
+  #preparationScreen .menu-pages { margin: 0 12px; }
+  #preparationScreen .menu-home { flex-basis: 13%; }
+  #preparationScreen .menu-utilities { flex-basis: 17%; }
+  #preparationScreen .safehouse-tabs button { padding: 0 12px; font-size: 14px; }
+  #preparationScreen .selected-facility { margin-right: 3vw; min-width: 130px; }
+  #preparationScreen .safehouse-footer { padding: 6px 10px 6px 16px; gap: 10px; grid-template-columns: 1fr auto 220px; }
+  #preparationScreen .brief-main, #preparationScreen .brief-side { gap: 8px; }
+  #preparationScreen .brief-main { grid-template-rows: minmax(150px,1.2fr) minmax(min-content,1fr) auto; }
+  #preparationScreen .brief-side { grid-template-rows: auto auto minmax(min-content,.8fr) minmax(min-content,1fr) auto; }
+  #preparationScreen .brief-settings > *, #preparationScreen .brief-quota, #preparationScreen .brief-prepared, #preparationScreen .brief-terminals { padding: 8px 12px; }
+  #preparationScreen .brief-prepared p { padding: 4px 8px; }
+  #preparationScreen .brief-terminals .terminal-icon-strip { gap: 16px; }
+  #preparationScreen .brief-terminals .terminal-pixel-icon { width: 56px; height: 56px; }
+  #preparationScreen .brief-risk { padding: 6px 10px; }
+  #preparationScreen .brief-tips p { padding: 6px 10px; }
+  #preparationScreen .mission-steps { gap: 10px; }
+  #preparationScreen .mission-steps article { padding: 6px; }
+  #preparationScreen .map-scale-card { gap: 8px; padding: 10px; grid-template-rows: auto auto minmax(80px,1.15fr) minmax(80px,1fr) 44px; }
+  #preparationScreen .storage-workspace { grid-template-columns: minmax(0,1.28fr) 190px minmax(0,1fr); gap: 8px; }
+  #preparationScreen .storage-grid-panel { padding: 10px; }
+  #preparationScreen .storage-stats { flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+  #preparationScreen .storage-controls { padding: 10px; }
+  #preparationScreen .storage-selection-summary { min-height: 65px; padding-bottom: 8px; }
+  #preparationScreen .storage-selection-summary h2 { font-size: 18px; }
+  #preparationScreen .storage-selection-summary p { margin-top: 4px; font-size: 12px; }
+  #preparationScreen .storage-actions { gap: 4px; padding-bottom: 0; }
+  #preparationScreen .storage-actions button { height: 44px; font-size: 14px; flex-shrink: 0; }
+  #preparationScreen .storage-actions .organize { margin: 3px 0; }
+  #preparationScreen .selected-item-detail { padding: 12px; gap: 10px; }
+  #preparationScreen .selected-item-detail > div { gap: 8px; }
+  #preparationScreen .loadout-slot { padding: 10px; gap: 10px; }
+  #preparationScreen .loadout-grid { gap: 12px; }
+  #preparationScreen .loadout-card { grid-template-columns: 54% minmax(0,1fr); padding: 8px; }
+  #preparationScreen .weapon-copy { padding-left: 12px; gap: 6px; }
+  #preparationScreen .weapon-card-actions { padding-top: 8px; gap: 6px; }
+  #preparationScreen .weapon-card-actions button { min-height: 44px; }
+  #preparationScreen .ammo-depot-grid { gap: 10px; }
+  #preparationScreen .ammo-depot-panel { padding: 10px; gap: 8px; }
+  #preparationScreen .ammo-crate-art { height: 15vh; }
+  #preparationScreen .ammo-choice-card { min-height: 52px; flex-direction: row; gap: 6px; padding: 6px 4px; }
+  #preparationScreen .ammo-choice-card .weapon-icon, #preparationScreen .ammo-standard-art { height: 30px; width: 30px; flex-shrink: 0; }
+  #preparationScreen .ammo-choice-card > span { min-width: 0; font-size: 12px; }
+  #preparationScreen .ammo-choice-card strong { font-size: 12px; line-height: 1.2; }
+  #preparationScreen .ammo-transfer-preview { padding: 8px; min-height: 60px; }
+  #preparationScreen .ammo-transfer-arrow { font-size: 28px; }
+  #preparationScreen .ammo-stock-grid { gap: 4px; }
+  #preparationScreen .ammo-stock-tile { min-height: 30px; padding: 2px 6px; font-size: 13px; }
+  #preparationScreen .consumable-product { grid-template-columns: 35% minmax(0,1fr); gap: 10px; }
+  #preparationScreen .consumable-shop-copy { gap: 16px; }
+  #preparationScreen .consumable-price { padding-top: 12px; }
+  #preparationScreen .coop-link-header { padding: 10px 16px; gap: 14px; }
+  #preparationScreen .coop-lobby { padding: 12px; gap: 12px; }
+  #preparationScreen .coop-roster-grid { gap: 12px; }
+  #preparationScreen .coop-lobby-options { gap: 12px; }
+  #preparationScreen .coop-friendly-fire, #preparationScreen .coop-friendly-fire-status, #preparationScreen .coop-readiness { padding: 8px 12px; }
+  #preparationScreen .coop-action-buttons .coop-action { min-height: 44px; }
+  #preparationScreen .tutorial-lessons { padding: 12px; gap: 7px; }
+  #preparationScreen .tutorial-lessons button { padding: 6px 10px; font-size: 16px; }
+  #preparationScreen .tutorial-preview { padding: 12px; gap: 8px; }
+  #preparationScreen #lessonKeys.movement-keys { grid-template-columns: repeat(3,40px); }
+  #preparationScreen #lessonKeys kbd { min-width: 40px; min-height: 38px; padding: 4px 8px; font-size: 18px; }
+  #preparationScreen .tutorial-key-hint { right: 10px; bottom: 10px; padding: 10px; gap: 8px; }
+  #preparationScreen .tutorial-rules p, #preparationScreen .tutorial-launch-card { padding: 10px; }
+  #preparationScreen .tutorial-launch-card #startTutorialButton { min-height: 44px; }
+  .title-menu button { min-height: 48px; }
+}
+@media (max-width: 1050px) {
+  #preparationScreen .safehouse-tabs { flex-wrap: wrap; }
+  #preparationScreen { grid-template-rows: 100px minmax(0,1fr) 72px; gap: 12px; }
+  #preparationScreen .menu-home { height: 44px; flex-basis: 50%; }
+  #preparationScreen .menu-utilities { flex-basis: 50%; height: 44px; order: 1; }
+  #preparationScreen .menu-tab-list { order: 2; flex-basis: 100%; height: 54px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+  #preparationScreen .menu-tab-list::-webkit-scrollbar { display: none; }
+  #preparationScreen .safehouse-tabs .tab-btn { flex: 1 0 auto; }
+  #preparationScreen .menu-page { overflow: auto; }
+  #preparationScreen .storage-workspace { grid-template-columns: minmax(0,1fr) 172px minmax(0,1fr); min-height: 510px; }
+  #preparationScreen .briefing-page { overflow: auto; }
+  #preparationScreen .brief-main, #preparationScreen .brief-side { min-height: 560px; }
+  #preparationScreen .map-scale-cards { min-height: 500px; }
+  #preparationScreen .loadout-slot-grid { min-height: 540px; }
+  #preparationScreen .loadout-card { grid-template-columns: 45% minmax(0,1fr); }
+  #preparationScreen .ammo-depot-grid { min-height: 580px; }
+  #preparationScreen .ammo-presets { flex-wrap: wrap; }
+  #preparationScreen .ammo-presets input { width: 100%; }
+  #preparationScreen .consumable-product { display: flex; flex-direction: column; align-items: stretch; }
+  #preparationScreen .consumable-shop-art-frame { height: 130px; flex-shrink: 0; }
+  #preparationScreen .consumable-shop-copy { gap: 10px; }
+  #preparationScreen .tutorial-menu { min-height: 580px; }
+  #preparationScreen .coop-link-header { flex-wrap: wrap; }
+  #preparationScreen .coop-status { max-width: none; }
+  #preparationScreen .coop-roster-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  #preparationScreen .coop-host-seat, #preparationScreen .coop-member { min-height: 260px; }
+  #preparationScreen .crew-portrait { min-height: 110px; max-height: 200px; }
+}
+@media (max-width: 700px) {
+  #preparationScreen { grid-template-rows: 98px minmax(0,1fr) 100px; gap: 8px; }
+  #preparationScreen .menu-pages { margin: 0; }
+  #preparationScreen .safehouse-footer { grid-template-columns: minmax(0,1fr) 160px; grid-template-rows: auto 48px; padding: 6px 10px; }
+  #preparationScreen .launch-ammo-loss { grid-column: 1/-1; font-size: 12px !important; }
+  #preparationScreen .selected-facility { margin: 0; min-width: 0; font-size: 14px; }
+  #preparationScreen .safehouse-footer #startButton { grid-column: 2; grid-row: 2; min-width: 0; font-size: 18px; }
+  #preparationScreen .briefing-page { display: block !important; }
+  #preparationScreen .briefing-page[style*="none"] { display: none !important; }
+  #preparationScreen .brief-main { min-height: 650px; }
+  #preparationScreen .mission-steps { grid-template-columns: minmax(0,1fr); flex: none; }
+  #preparationScreen .mission-steps article { grid-template-rows: auto 60px auto; }
+  #preparationScreen .brief-side { margin-top: 12px; min-height: 580px; }
+  #preparationScreen .map-scale-cards { display: flex; flex-direction: column; min-height: auto; }
+  #preparationScreen .map-scale-card { flex: none; min-height: 530px; }
+  #preparationScreen .storage-workspace { display: flex; flex-direction: column; height: auto; }
+  #preparationScreen .storage-grid-viewport { flex: none; max-height: 44vh; }
+  #preparationScreen .storage-controls { position: sticky; bottom: 0; z-index: 3; background: #03141ff5; order: 3; }
+  #preparationScreen .storage-selection-summary { min-height: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  #preparationScreen .storage-selection-summary h2 { display: none; }
+  #preparationScreen .storage-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+  #preparationScreen .storage-actions button { min-height: 44px; height: auto; margin: 0; }
+  #preparationScreen .prep-backpack-panel { display: block; }
+  #preparationScreen .prep-grid-row { grid-template-columns: 1fr; }
+  #preparationScreen .quick-use-slot { min-height: 70px; flex-direction: row; justify-content: flex-start; padding: 8px 14px; }
+  #preparationScreen .quick-use-slot img { width: 36px; height: 50px; }
+  #preparationScreen .selected-item-detail { min-height: 220px; margin-top: 10px; }
+  #preparationScreen .selected-item-detail > img { max-height: 190px; }
+  #preparationScreen .loadout-slot-grid { height: auto; grid-template-columns: 1fr; }
+  #preparationScreen .loadout-card { min-height: 245px; grid-template-columns: 48% minmax(0,1fr); }
+  #preparationScreen .ammo-depot-grid { height: auto; grid-template-columns: 1fr; }
+  #preparationScreen .ammo-depot-panel { min-height: 460px; }
+  #preparationScreen .ammo-crate-art { height: 160px; }
+  #preparationScreen .consumable-product { display: grid; grid-template-columns: 35% 1fr; }
+  #preparationScreen .consumable-shop-art-frame { height: auto; min-height: 180px; }
+  #preparationScreen .coop-panel { min-height: 0; }
+  #preparationScreen .coop-link-header { gap: 6px; padding: 8px; }
+  #preparationScreen .coop-link-header h2 { font-size: 18px; }
+  #preparationScreen #copyRoomButton { font-size: 12px; }
+  #preparationScreen .coop-status { display: none; }
+  #preparationScreen #menuRoomSummary { margin-left: 0; }
+  #preparationScreen .coop-lobby { padding: 8px; gap: 8px; grid-template-rows: minmax(80px,1fr) auto auto; }
+  #preparationScreen .coop-lobby-options { gap: 6px; }
+  #preparationScreen .coop-friendly-fire, #preparationScreen .coop-friendly-fire-status, #preparationScreen .coop-readiness { padding: 6px; font-size: 12px; }
+  #preparationScreen .coop-lobby-options h2 { font-size: 16px; }
+  #preparationScreen .coop-friendly-fire label { padding-right: 44px; }
+  #preparationScreen .coop-friendly-fire input { width: 42px; height: 26px; right: 6px; }
+  #preparationScreen .coop-friendly-fire input::after { width: 16px; height: 16px; top: 3px; left: 3px; }
+  #preparationScreen .coop-friendly-fire input:checked::after { left: 19px; }
+  #preparationScreen .coop-action-buttons { gap: 6px; }
+  #preparationScreen .coop-action-buttons .coop-action { flex: 1; font-size: 13px; padding: 6px; }
+  #preparationScreen .coop-room-entry { overflow: auto; grid-template-columns: 1fr; padding: 12px; gap: 16px; }
+  #preparationScreen .room-entry-art { max-height: 180px; }
+  #preparationScreen .tutorial-menu { height: auto; grid-template-columns: 1fr; }
+  #preparationScreen .tutorial-lessons { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+  #preparationScreen .tutorial-lessons h2 { grid-column: 1/-1; }
+  #preparationScreen .tutorial-lessons button { font-size: 13px; }
+  #preparationScreen .tutorial-preview { min-height: 590px; }
+  #preparationScreen .tutorial-launch-card { grid-template-columns: 1fr; }
+  .title-menu { width: min(90%,580px); top: 23%; }
+  .title-menu button { width: 78%; min-height: 52px; }
+  .title-menu p { margin-bottom: 16px; }
+}
+@media (max-height: 620px) {
+  #preparationScreen .menu-page { overflow: auto; }
+  #preparationScreen .storage-workspace, #preparationScreen .tutorial-menu, #preparationScreen .loadout-slot-grid { min-height: 500px; }
+  #preparationScreen .ammo-depot-grid { min-height: 540px; }
+  #preparationScreen .brief-main, #preparationScreen .brief-side { min-height: 520px; }
+  #preparationScreen .coop-panel { min-height: 0; }
+  #preparationScreen .coop-link-header { padding: 6px 10px; gap: 8px; }
+  #preparationScreen .coop-link-header h2 { font-size: 18px; }
+  #preparationScreen .coop-lobby { padding: 8px; gap: 8px; }
+  #preparationScreen .coop-lobby-options h2 { font-size: 16px; }
+  #preparationScreen .coop-friendly-fire, #preparationScreen .coop-friendly-fire-status, #preparationScreen .coop-readiness { padding: 5px 8px; font-size: 12px; }
+  #preparationScreen .coop-readiness > strong { font-size: 16px; }
+  #preparationScreen .coop-lobby-options small { font-size: 12px !important; }
+}
+@media (max-height: 620px) and (min-width: 701px) {
+  #preparationScreen .storage-workspace { height: auto; min-height: 0; grid-template-columns: 1fr 1fr; }
+  #preparationScreen .storage-grid-viewport { max-height: 360px; flex: none; }
+  #preparationScreen .storage-controls { grid-column: 1/-1; order: 3; position: sticky; bottom: 0; z-index: 4; background: #03141ff5; }
+  #preparationScreen .storage-selection-summary { display: flex; gap: 12px; min-height: 0; align-items: center; }
+  #preparationScreen .storage-actions { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); }
+  #preparationScreen .storage-actions button { margin: 0; }
+  #preparationScreen .prep-backpack-panel { grid-template-rows: auto 160px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #preparationScreen button, .title-menu button { transition: none; }
+  #preparationScreen button:hover:not(:disabled), #preparationScreen button:active:not(:disabled) { transform: none; }
+}
+@media (max-height: 949px), (max-width: 1050px) {
+  #preparationScreen .tutorial-art { overflow: visible; display: grid; grid-template-rows: minmax(80px,1fr) auto; flex: 1 0 auto; }
+  #preparationScreen .tutorial-art > img { min-height: 0; }
+  #preparationScreen .tutorial-key-hint { position: static; max-width: none; background: #03111ddd; }
+  #preparationScreen .tutorial-preview { min-height: min-content; }
+  #preparationScreen .tutorial-menu { min-height: 100%; height: auto; }
+}
+
+/* Secondary menu notes live in the shared detail dialog; cards never expand. */
+#preparationScreen [data-detail-card] .menu-detail-copy { display: none; }
+#preparationScreen [data-detail-card] { cursor: pointer; }
+#preparationScreen [data-detail-card]:hover { border-color: #74deea; }
+#preparationScreen [data-detail-card]:focus-visible { outline: 3px solid #e3ff80; outline-offset: -3px; }
+#preparationScreen .mission-steps article { grid-template-rows: auto minmax(60px,1fr) auto; min-height: 160px; }
+#preparationScreen .loadout-card .weapon-damage { color: #dff86e; font-weight: 700; }
+#preparationScreen .selected-item-detail:not(.has-selection) { display: none; }
+#preparationScreen .prep-backpack-panel:not(:has(.has-selection)) { grid-template-rows: minmax(0,1fr); }
+#preparationScreen .prep-grid-row { grid-template-columns: minmax(0,1fr); }
+#preparationScreen .storage-controls { overflow-y: auto; }
+#preparationScreen .storage-actions { flex: 0 0 auto; justify-content: flex-start; }
+#preparationScreen .prep-equipment-bar { position: sticky; bottom: 0; display: flex; flex-direction: column; gap: 5px; margin-top: auto; padding: 8px; border: 1px solid var(--menu-line); border-radius: 5px; background: #051c26f5; }
+#preparationScreen .prep-equipment-bar h3 { font-size: 16px; }
+#preparationScreen .prep-equipment-bar .equipment-slot { width: 100%; min-width: 0; min-height: 44px; display: flex; flex-direction: row; align-items: center; gap: 5px; padding: 4px 6px; border: 1px solid #356b7e; border-radius: 4px; background: #08212ccf; color: #d9f1f9; font: 600 13px/1.25 'Microsoft YaHei',sans-serif; text-align: left; }
+#preparationScreen .prep-equipment-bar .equipment-slot b { flex: none; color: #dffc6a; font-size: 16px; }
+#preparationScreen .prep-equipment-bar .equipment-slot img { flex: none; width: 42px; height: 34px; object-fit: contain; }
+#preparationScreen .prep-equipment-bar .equipment-slot span { min-width: 0; overflow-wrap: anywhere; }
+#preparationScreen .prep-equipment-bar .quick-use-slot { align-self: stretch; min-height: 44px; box-shadow: none; cursor: pointer; }
+#preparationScreen .prep-equipment-bar .quick-use-slot img { width: 28px; height: 38px; }
+#preparationScreen .prep-equipment-bar .quick-use-slot small { margin-left: auto; font-size: 11px !important; }
+@media (max-width: 700px) {
+  #preparationScreen .storage-controls { position: static; }
+  #preparationScreen .prep-equipment-bar { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); }
+  #preparationScreen .prep-equipment-bar h3 { grid-column: 1/-1; }
+  #preparationScreen .prep-equipment-bar .equipment-slot { flex-direction: column; justify-content: center; text-align: center; }
+}
+.menu-detail-dialog { width: min(640px,calc(100vw - 24px)); max-width: none; max-height: min(82dvh,720px); margin: auto; padding: 0; overflow: hidden; border: 1px solid #65dce8; border-radius: 8px; background: #061b26; color: #def4fb; opacity: 0; transform: translateY(14px) scale(.985); transition: opacity 200ms ease, transform 200ms ease; box-shadow: 0 24px 70px #000b; }
+.menu-detail-dialog.is-open { opacity: 1; transform: none; }
+.coop-room-error { width: min(520px,calc(100vw - 24px)); }
+.coop-room-error h2 { margin: 0 0 12px; color: #f8c374; }
+.coop-room-error p { margin: 0 0 18px; overflow-wrap: anywhere; }
+.coop-room-error-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.coop-room-error-actions button { flex: 1 1 130px; }
+.coop-offline-preview { grid-column: 1/-1; padding: 8px 12px; border: 1px solid #d7ae54; color: #ffe3a3; font-size: 14px; }
+.menu-detail-dialog::backdrop { background: transparent; transition: background-color 200ms ease; }
+.menu-detail-dialog.is-open::backdrop { background: #000b; }
+.menu-detail-shell { display: flex; flex-direction: column; gap: 14px; max-height: min(82dvh,720px); padding: 20px; }
+.menu-detail-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex: none; border-bottom: 1px solid #326176; padding-bottom: 12px; }
+.menu-detail-header h2 { margin: 0; font: 700 clamp(20px,2vw,30px)/1.25 'Microsoft YaHei',sans-serif; }
+.menu-detail-header button { flex: none; min-width: 82px; min-height: 44px; padding: 8px 12px; border: 1px solid #65dce8; border-radius: 4px; background: #0b3442; color: #def4fb; font: 600 15px 'Microsoft YaHei',sans-serif; cursor: pointer; }
+.menu-detail-header button:focus-visible { outline: 3px solid #e6ff82; outline-offset: 2px; }
+.menu-detail-image { align-self: center; max-width: 100%; max-height: min(28dvh,220px); object-fit: contain; flex: none; }
+.menu-detail-body { min-height: 0; overflow-y: auto; overflow-wrap: anywhere; font: 400 clamp(14px,1.2vw,18px)/1.65 'Microsoft YaHei',sans-serif; }
+.menu-detail-body > * { margin: 0 0 12px; }
+.menu-detail-body > :last-child { margin-bottom: 0; }
+.menu-detail-body ul { padding-left: 24px; }
+@media (max-width: 700px) {
+  .menu-detail-shell { padding: 14px; }
+  .menu-detail-image { max-height: 20dvh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .menu-detail-dialog, .menu-detail-dialog::backdrop { transition: none; }
+}
+@media (max-height: 949px) and (min-width: 701px) {
+  #preparationScreen .tutorial-art { flex: 0 0 auto; height: min(40vh,340px); grid-template-rows: minmax(80px,1fr) auto; }
+  #preparationScreen .tutorial-key-hint { padding: 8px; gap: 4px; }
+  #preparationScreen #lessonKeys kbd { min-width: 42px; min-height: 42px; font-size: 18px; }
+  #preparationScreen .tutorial-launch-card { position: sticky; bottom: 0; z-index: 3; background: #041823f2; }
+}
+/* Match the approved 1920 reference shell; smaller screens keep their reflow rules. */
+@media (min-width: 1600px) and (min-height: 950px) {
+  body[data-menu-screen]:not(.in-dive) .app-shell { padding: 12px 12px 17px; }
+  #preparationScreen { grid-template-rows: 62px minmax(0,1fr) 92px; gap: 0; }
+  #preparationScreen .menu-pages { margin: 34px 22px 18px; }
+  #preparationScreen .menu-home { flex-basis: 15.85%; }
+  #preparationScreen .menu-utilities { flex-basis: 24.8%; }
+  #preparationScreen .menu-tab-list .tab-btn { padding: 0; }
+  #preparationScreen .menu-tab-list .tab-btn:nth-child(1) { flex: 159; }
+  #preparationScreen .menu-tab-list .tab-btn:nth-child(2) { flex: 141; }
+  #preparationScreen .menu-tab-list .tab-btn:nth-child(3) { flex: 130; }
+  #preparationScreen .menu-tab-list .tab-btn:nth-child(4) { flex: 156; }
+  #preparationScreen .menu-tab-list .tab-btn:nth-child(5), #preparationScreen .menu-tab-list .tab-btn:nth-child(6) { flex: 135; }
+  #preparationScreen .menu-tab-list .tab-btn:nth-child(7) { flex: 124; }
+  #preparationScreen .safehouse-footer { grid-template-columns: 1fr auto 315px; }
+  #preparationScreen .storage-actions { justify-content: flex-start; gap: 14px; padding-bottom: 0; }
+  #preparationScreen .storage-actions button { height: 62px; flex-shrink: 0; }
+  #preparationScreen .storage-actions .organize { margin: 8px 0; }
+}
+
+/* The briefing and crew lobby share one launch surface. */
+#preparationScreen { grid-template-rows: clamp(56px,4vw,68px) minmax(0,1fr); gap: 12px; }
+#preparationScreen .menu-pages { margin: 0 12px 10px; }
+#preparationScreen .briefing-page { display: flex !important; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; }
+#preparationScreen .briefing-page[style*="none"] { display: none !important; }
+#preparationScreen .brief-overview { display: grid; grid-template-columns: minmax(0,1.4fr) minmax(0,1fr); gap: 12px; flex: none; min-width: 0; min-height: 0; max-height: min(650px,calc(100dvh - 340px)); overflow-y: auto; }
+#preparationScreen .briefing-page:has(.brief-crew-panel.joined) .brief-overview { max-height: 160px; overflow-y: auto; }
+#preparationScreen .brief-crew-panel { height: auto; flex: none; min-height: 0; }
+#preparationScreen .brief-crew-panel:not(.joined) .coop-link-header { display: none; }
+#preparationScreen .brief-crew-panel .coop-room-entry { flex: none; min-height: 100px; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 16px; padding: 12px 18px; }
+#preparationScreen .brief-crew-panel .room-entry-art { display: none; }
+#preparationScreen .brief-crew-panel .coop-room-entry > div { gap: 8px; }
+#preparationScreen .brief-crew-panel .coop-room-entry h2 { font-size: clamp(17px,1.5vw,25px); }
+#preparationScreen .brief-crew-panel .coop-room-entry .coop-action { min-height: 44px; }
+#preparationScreen .brief-crew-panel .coop-lobby { display: grid; grid-template-columns: minmax(200px,.42fr) minmax(0,1fr); grid-template-rows: minmax(160px,1fr) auto; gap: 10px; padding: 10px; }
+#preparationScreen .coop-map-summary { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 8px; border: 1px solid var(--menu-line); }
+#preparationScreen .coop-map-summary strong { display: block; color: var(--menu-lime); font-size: 18px; }
+#preparationScreen .coop-map-summary small { display: block; font-size: 12px !important; }
+#preparationScreen .coop-map-summary canvas { width: 100%; height: 95px; background: #041b29; }
+#preparationScreen .coop-roster-grid { grid-column: 2; grid-row: 1; gap: 8px; }
+#preparationScreen .coop-lobby-options { grid-column: 1/-1; grid-row: 2; gap: 10px; }
+#preparationScreen .coop-host-seat, #preparationScreen .coop-member { padding: 7px; }
+#preparationScreen .coop-host-seat > p, #preparationScreen .coop-member > p { min-height: 0; font-size: 13px; }
+#preparationScreen .crew-portrait { max-height: 70px; margin: 4px 0; }
+#preparationScreen .crew-loadout { display: grid; gap: 2px; font-size: 11px; color: #bde9f1; }
+#preparationScreen .crew-loadout > span { display: flex; align-items: center; gap: 4px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#preparationScreen .crew-loadout img { width: 32px; height: 22px; object-fit: contain; }
+#preparationScreen .brief-launch { position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-height: 68px; padding: 8px 12px; flex: none; border: 1px solid var(--menu-line); border-radius: 5px; background: #041923f5; }
+#preparationScreen .brief-launch .launch-ammo-loss { flex: 1 1 260px; color: #ffc165; font-size: 14px; }
+#preparationScreen .brief-launch #currentScaleText { color: #e2f57b; white-space: nowrap; }
+#preparationScreen .brief-launch button { min-height: 44px; padding: 8px 16px; }
+#preparationScreen .brief-launch #startButton { min-width: 220px; margin-left: auto; font-size: 20px; }
+@media (max-height: 800px) {
+  #preparationScreen .brief-overview { max-height: 350px; overflow-y: auto; }
+  #preparationScreen .briefing-page:has(.brief-crew-panel.joined) .brief-overview { max-height: 120px; }
+}
+
+/* Three focused ammo subpages retain their input state while hidden. */
+#preparationScreen .ammo-page { display: flex !important; flex-direction: column; gap: 12px; overflow-y: auto; }
+#preparationScreen .ammo-page[style*="none"] { display: none !important; }
+#preparationScreen .ammo-section-nav { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; flex: none; }
+#preparationScreen .ammo-section-nav button[aria-selected="true"] { border-color: #dff87e; background: #3b5922a8; color: #e6ff80; }
+#preparationScreen .ammo-depot-grid { display: block; min-height: 0; flex: 1; }
+#preparationScreen .ammo-section[hidden] { display: none !important; }
+#preparationScreen .ammo-section { min-height: 100%; }
+#preparationScreen .ammo-section > .ammo-depot-panel { min-height: min-content; max-width: 100%; }
+.title-settings-icon { position: fixed; right: max(20px,env(safe-area-inset-right)); bottom: max(20px,env(safe-area-inset-bottom)); z-index: 6; display: grid; place-items: center; width: 52px; height: 52px; border: 1px solid #75ddd0; border-radius: 6px; background: #061a27ce; color: #dff7ff; cursor: pointer; }
+.title-settings-icon svg { width: 27px; height: 27px; fill: currentColor; fill-rule: evenodd; }
+.title-settings-icon:focus-visible { outline: 3px solid #e7ff8b; outline-offset: 3px; }
+body[data-menu-screen="prep"] .title-settings-icon, body.in-dive .title-settings-icon { display: none; }
+@media (max-width: 900px) {
+  #preparationScreen .brief-overview { display: flex; flex-direction: column; }
+  #preparationScreen .brief-crew-panel .coop-lobby { display: flex; flex-direction: column; }
+  #preparationScreen .coop-map-summary { min-height: 150px; }
+  #preparationScreen .coop-roster-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  #preparationScreen .brief-launch #startButton { min-width: 170px; }
+}
+@media (max-width: 700px) {
+  #preparationScreen { grid-template-rows: 106px minmax(0,1fr); }
+  #preparationScreen .brief-overview { max-height: min(32vh,260px); overflow-y: auto; }
+  #preparationScreen .briefing-page:has(.brief-crew-panel.joined) .brief-overview { max-height: 100px; }
+  #preparationScreen .brief-main, #preparationScreen .brief-side { min-height: 0; }
+  #preparationScreen .brief-main, #preparationScreen .brief-side { display: flex; flex-direction: column; flex: none; }
+  #preparationScreen .brief-objective { flex: none; }
+  #preparationScreen .brief-location { height: 150px; flex: none; }
+  #preparationScreen .brief-crew-panel .coop-room-entry { display: flex; flex-direction: column; }
+  #preparationScreen .brief-launch .launch-ammo-loss { flex-basis: 100%; }
+  #preparationScreen .brief-launch #startButton { flex: 1 1 100%; margin-left: 0; }
+  #preparationScreen .ammo-section-nav { gap: 5px; }
+  #preparationScreen .ammo-section-nav button { padding: 7px 4px; font-size: 13px; }
+}
+
+/* One task-and-crew surface; secondary explanations remain in detail dialogs. */
+#preparationScreen .briefing-page { display: grid !important; grid-template-columns: minmax(300px,35%) minmax(0,1fr); grid-template-rows: minmax(0,1fr) auto; gap: 10px; overflow: hidden; }
+#preparationScreen .brief-overview, #preparationScreen .briefing-page:has(.brief-crew-panel.joined) .brief-overview { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; gap: 8px; flex: none; max-height: none; min-height: 0; overflow: hidden; }
+#preparationScreen .brief-main, #preparationScreen .brief-side { display: flex; flex-direction: column; gap: 7px; min-height: 0; }
+#preparationScreen .brief-main { flex: none; }
+#preparationScreen .brief-location { height: clamp(100px,22vh,240px); flex: none; padding: 8px; }
+#preparationScreen .brief-location > div { left: 18px; bottom: 12px; }
+#preparationScreen .brief-location h2 { font-size: clamp(24px,2vw,38px); }
+#preparationScreen .brief-location p { font-size: clamp(14px,1.2vw,20px); }
+#preparationScreen .brief-objective { flex: none; min-height: 0; padding: 8px; }
+#preparationScreen .brief-objective > p { font-size: 14px; }
+#preparationScreen .mission-steps { display: grid; grid-template-columns: 1fr; grid-auto-rows: clamp(44px,7vh,70px); flex: none; gap: 4px; padding-top: 5px; min-height: 0; }
+#preparationScreen .mission-steps article { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 3px 7px; }
+#preparationScreen .mission-steps h3 { flex: 1; font-size: 15px; }
+#preparationScreen .mission-steps b { margin-right: 5px; }
+#preparationScreen .mission-step-art { width: 56px; height: 42px; flex: none; }
+#preparationScreen .brief-tips, #preparationScreen .brief-terminals, #preparationScreen .brief-prepared { display: none; }
+@media (min-width: 1051px) and (min-height: 801px) {
+  #preparationScreen .brief-tips { display: grid; gap: 6px; }
+  #preparationScreen .brief-tips p { padding: 6px 10px; font-size: 14px; }
+  #preparationScreen .brief-tips small { font-size: 12px !important; }
+}
+#preparationScreen .brief-settings { gap: 6px; }
+#preparationScreen .brief-settings > * { padding: 7px 10px; }
+#preparationScreen .brief-settings > button { text-align: left; }
+#preparationScreen .brief-quota { min-height: 42px; padding: 4px 10px; display: flex; align-items: center; justify-content: space-between; }
+#preparationScreen .brief-risk { min-height: 44px; padding: 5px 10px; }
+#preparationScreen .brief-risk h2 { font-size: 17px; }
+#preparationScreen .brief-crew-panel { grid-column: 2; grid-row: 1; height: auto; min-height: 0; overflow: hidden; }
+#preparationScreen .brief-crew-panel .coop-room-entry { min-height: 0; padding: 8px 12px; }
+#preparationScreen .brief-crew-panel .coop-lobby { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+#preparationScreen .coop-roster-grid { overflow: hidden; }
+#preparationScreen .brief-crew-panel:not(.joined) .coop-lobby-options, #preparationScreen .brief-crew-panel.preview .coop-lobby-options { display: none; }
+#preparationScreen .brief-launch { grid-column: 1/-1; grid-row: 2; position: static; min-height: 66px; }
+@media (max-height: 800px) and (min-width: 1051px) {
+  #preparationScreen .brief-location { height: 92px; }
+  #preparationScreen .mission-steps { grid-auto-rows: 44px; }
+}
+@media (max-width: 1050px), (max-height: 620px) {
+  #preparationScreen .briefing-page { display: flex !important; flex-direction: column; overflow-y: auto; scrollbar-width: none; }
+  #preparationScreen .briefing-page::-webkit-scrollbar { display: none; }
+  #preparationScreen .brief-overview, #preparationScreen .briefing-page:has(.brief-crew-panel.joined) .brief-overview { flex: none; max-height: none; overflow: visible; }
+  #preparationScreen .brief-main, #preparationScreen .brief-side { flex: none; }
+  #preparationScreen .brief-objective { flex: none; }
+  #preparationScreen .brief-crew-panel { flex: none; overflow: visible; }
+  #preparationScreen .brief-crew-panel .coop-lobby, #preparationScreen .coop-roster-grid { overflow: visible; }
+  #preparationScreen .brief-launch { position: sticky; bottom: 0; flex: none; }
+}
+@media (max-width: 700px) {
+  #preparationScreen .brief-settings { grid-template-columns: 1fr; }
+  #preparationScreen .brief-crew-panel .coop-lobby { display: flex; flex-direction: column; }
+  #preparationScreen .coop-roster-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .menu-map-shell { height: min(88dvh,820px); }
+  .menu-map-actions { flex-wrap: wrap; }
+  #preparationScreen .menu-map-actions button { flex: 1 1 120px; font-size: 16px; }
+  #preparationScreen .menu-map-dialog .map-scale-cards { display: flex; flex-direction: column; min-height: 0; }
+  #preparationScreen .menu-map-dialog .map-scale-wrap { flex: none; grid-template-rows: auto 44px; }
+  #preparationScreen .menu-map-dialog .map-scale-card { min-height: 0; height: auto; grid-template-columns: 110px minmax(0,1fr); grid-template-rows: auto minmax(130px,auto) 44px; gap: 6px; padding: 8px; }
+  #preparationScreen .menu-map-dialog .map-scale-card > strong { grid-column: 1; grid-row: 1; font-size: 20px; }
+  #preparationScreen .menu-map-dialog .facility-facts { grid-column: 2; grid-row: 1; font-size: 11px; }
+  #preparationScreen .menu-map-dialog .facility-art { grid-column: 1; grid-row: 2; height: 130px; }
+  #preparationScreen .menu-map-dialog .facility-schematic { grid-column: 2; grid-row: 2; min-height: 130px; padding: 5px; font-size: 11px; }
+  #preparationScreen .menu-map-dialog .facility-select { grid-column: 1/-1; grid-row: 3; }
+}
+
+#preparationScreen .map-scale-card { grid-template-rows: auto auto minmax(90px,1fr) minmax(95px,1fr) auto 48px; }
+#preparationScreen .map-enemies, #preparationScreen .brief-enemies { display: flex; align-items: center; flex-wrap: wrap; gap: 7px 12px; color: #cfeefa; font-size: 12px; }
+#preparationScreen .map-enemies > strong, #preparationScreen .brief-enemies > strong { width: 100%; color: #e9f698; font-size: 12px; }
+#preparationScreen .map-enemy { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+#preparationScreen .map-enemy img { width: 45px; height: 45px; object-fit: contain; }
+#preparationScreen .brief-enemies { padding: 7px 10px; border: 1px solid var(--menu-line); border-radius: 5px; }
+#preparationScreen .coop-map-summary .brief-enemies { flex: none; padding: 8px 0 0; border: 0; border-top: 1px solid var(--menu-line); border-radius: 0; }
+#preparationScreen .loadout-slot-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+#preparationScreen .loadout-page { display: flex !important; flex-direction: column; gap: 10px; overflow: hidden; }
+#preparationScreen .loadout-page[style*="none"] { display: none !important; }
+#preparationScreen .loadout-section-nav { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; flex: none; }
+#preparationScreen .loadout-section-nav button[aria-selected="true"] { border-color: #dff87e; background: #3b5922a8; color: #e6ff80; }
+#preparationScreen .loadout-lock-note { flex: none; color: #bde0eb; font-size: 12px; }
+#preparationScreen .loadout-catalog-scroll { flex: 1 1 0; min-height: 90px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 3px; }
+#preparationScreen .loadout-catalog-scroll .loadout-slot-grid { min-height: 0; }
+#preparationScreen .loadout-catalog-scroll .loadout-grid { grid-template-rows: none; grid-auto-rows: minmax(min-content, 1fr); }
+#preparationScreen .weapon-ammo-catalog { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,280px),1fr)); gap: 12px; margin-bottom: 14px; }
+#preparationScreen .weapon-ammo-card { display: grid; gap: 9px; padding: 16px; border: 1px solid var(--menu-line); border-radius: 6px; background: #061822f2; }
+#preparationScreen .weapon-ammo-card img { width: 100%; height: 105px; object-fit: contain; }
+#preparationScreen .weapon-ammo-card p { font-size: 13px; color: #bde0eb; }
+#preparationScreen .equipment-help { margin-top: 10px; color: #bde0eb; font-size: 12px; line-height: 1.5; }
+#preparationScreen .crew-loadout > span { white-space: normal; overflow-wrap: anywhere; }
+#preparationScreen .ability-catalog { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,340px),1fr)); gap: 14px; align-items: start; }
+#preparationScreen .ability-card { display: grid; grid-template-columns: minmax(100px,35%) minmax(0,1fr); gap: 14px; min-width: 0; padding: 16px; border: 1px solid #48b7cb; border-radius: 7px; background: #061822f2; }
+#preparationScreen .ability-card.active { border-color: #d9f572; box-shadow: inset 0 0 0 1px #d9f572; }
+#preparationScreen .ability-art { width: 100%; height: 180px; object-fit: contain; align-self: center; }
+#preparationScreen .ability-copy { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+#preparationScreen .ability-copy h3 { font-size: clamp(18px,1.5vw,26px); }
+#preparationScreen .ability-copy p { font-size: 14px; overflow-wrap: anywhere; }
+#preparationScreen .ability-copy .ability-status { color: #dff87e; font-weight: 600; }
+#preparationScreen .ability-card.locked .ability-status { color: #b9cbd5; }
+#preparationScreen .ability-copy .ability-usage { color: #8cdeee; }
+#preparationScreen .ability-actions { display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--menu-line); }
+#preparationScreen .ability-actions .credit-value { color: #e1f27e; }
+#preparationScreen .ability-actions .credit-token-image { width: 22px; height: 22px; }
+#preparationScreen .ability-actions button { font-size: 15px; }
+#preparationScreen .loadout-equipment-summary { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(0,2fr) minmax(0,2fr); flex: 0 1 auto; max-height: 40%; overflow-y: auto; gap: 10px; border-top: 1px solid var(--menu-line); padding: 10px 3px 3px; }
+#preparationScreen .loadout-equipment-summary > * { min-width: 0; }
+#preparationScreen .equipped-weapon, #preparationScreen .equipped-ability p { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+#preparationScreen .loadout-equipment-summary span { color: #9ec3d2; font-size: 12px; }
+#preparationScreen .loadout-equipment-summary strong { font-size: 14px; overflow-wrap: anywhere; }
+#preparationScreen .equipped-ability { display: flex; align-items: center; gap: 8px; }
+#preparationScreen .equipped-ability img { width: 40px; height: 40px; object-fit: contain; }
+#preparationScreen .equipped-ability p { flex: 1; }
+#preparationScreen .equipped-ability button { min-width: 44px; padding: 4px; font-size: 13px; }
+.hud-ammo > .hud-supply { display: inline-flex; align-items: center; gap: 6px; color: #dff7ff; font-size: 12px; }
+.hud-supply img { width: 20px; height: 20px; object-fit: contain; }
+.hud-ammo .hud-supply strong { font-size: 14px; }
+.hud-ammo .hud-skill .cooling-down { color: #ffd483; }
+@media (max-height: 600px) {
+  #preparationScreen .loadout-page { overflow-y: auto; }
+  #preparationScreen .loadout-catalog-scroll { flex: 1 0 160px; max-height: 60dvh; }
+  #preparationScreen .loadout-equipment-summary { flex: none; max-height: none; }
+}
+@media (max-width: 700px) {
+  #preparationScreen .menu-map-dialog .map-scale-card { grid-template-rows: auto minmax(130px,auto) auto 44px; }
+  #preparationScreen .menu-map-dialog .map-enemies { grid-column: 1/-1; grid-row: 3; }
+  #preparationScreen .menu-map-dialog .facility-select { grid-row: 4; }
+  #preparationScreen .loadout-section-nav { gap: 5px; }
+  #preparationScreen .loadout-section-nav button { font-size: 13px; padding: 6px 4px; }
+  #preparationScreen .loadout-equipment-summary { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px 10px; }
+  #preparationScreen .ability-card { gap: 10px; padding: 12px; grid-template-columns: minmax(70px,28%) minmax(0,1fr); }
+  #preparationScreen .ability-art { height: 140px; }
+  #preparationScreen .equipped-ability img { width: 30px; height: 30px; }
+  #preparationScreen .loadout-catalog-scroll .loadout-slot-grid { grid-template-columns: 1fr; }
+}
+
+/* Keep training navigation readable without covering the aiming reticle. */
+#preparationScreen .training-ship-art { display: grid; grid-template-rows: minmax(150px,1fr) auto; }
+#preparationScreen .training-ship-art > img { position: absolute; inset: 0; opacity: .2; }
+#preparationScreen .training-ship-preview { position: relative; display: block; width: 100%; height: 100%; min-height: 150px; }
+#preparationScreen .training-ship-art .tutorial-key-hint { position: relative; right: auto; bottom: auto; max-width: none; padding: 10px; gap: 7px; background: #03111de8; }
+#preparationScreen .training-ship-art #lessonKeys { max-width: none; }
+#preparationScreen .training-ship-art #lessonKeys kbd { min-width: 36px; min-height: 36px; font-size: clamp(12px,1.1vw,20px); padding: 4px 8px; }
+#preparationScreen .training-ship-art #lessonKeys.movement-keys { grid-template-columns: repeat(3,40px); }
+.tutorial-card { max-height: calc(100% - 24px); overflow-y: auto; }
+.tutorial-card-actions,
+.tutorial-practice-actions { flex-wrap: wrap; }
+.tutorial-card button,
+.tutorial-practice button { min-height: 44px; }
+.tutorial-card button:focus-visible, .tutorial-practice button:focus-visible { outline: 3px solid #dcfa65; outline-offset: 2px; }
+.tutorial-practice > div:first-child { min-width: 0; }
+.tutorial-practice small { overflow-wrap: anywhere; }
+.tutorial-practice #trainingGoal { color: #dcfa65; font-size: 11px; }
+.training-complete-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.training-complete-dialog .settlement-actions button { min-height: 44px; }
+@media (max-width: 700px), (max-height: 600px) {
+  #preparationScreen .tutorial-lessons button { min-height: 44px; }
+  #preparationScreen .training-ship-art { height: auto; min-height: 240px; grid-template-rows: minmax(150px,1fr) auto; }
+  #preparationScreen .tutorial-launch-card { position: sticky; bottom: 0; z-index: 3; background: #041823f2; }
+  .tutorial-practice { max-height: calc(50% - 12px); overflow-y: auto; }
+  .tutorial-practice-actions { justify-content: stretch; }
+  .tutorial-practice-actions button { flex: 1 1 90px; font-size: 11px; }
+  .tutorial-card-actions { position: sticky; bottom: -18px; padding: 10px 0; background: #071923; }
+  .tutorial-card-actions button { flex: 1 1 120px; }
+}
+
+.title-rewards-icon { right: 92px; display: flex; align-items: center; justify-content: center; gap: 6px; width: 94px; }
+.title-rewards-icon span { font-size: 14px; }
+.title-rewards-icon svg { width: 24px; }
+.rewards-dialog { width: min(440px, 92vw); text-align: center; padding: 24px; }
+.rewards-dialog header { display: flex; align-items: center; justify-content: space-between; }
+.rewards-dialog header button { min-width: 44px; min-height: 44px; }
+.rewards-dialog > img { width: 100px; height: 100px; object-fit: contain; margin: 16px; }
+.rewards-dialog h3 { font-size: 30px; color: #d7f36b; margin: 6px 0; }
+.rewards-dialog p { font-size: 16px; }
+.rewards-dialog small { font-size: 13px; color: #a0bbc5; }
+.rewards-dialog > button { width: 100%; min-height: 48px; }
+.shop-category-nav { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; position: sticky; top: 0; z-index: 2; padding: 8px; background: #061923; }
+.shop-category-nav button { min-height: 48px; font-size: 16px; }
+.shop-category-nav button[aria-selected="true"] { background: #d7f36b; color: #122013; border-color: #d7f36b; }
+.shop-catalog { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; align-content: start; padding: 12px; }
+.shop-catalog[hidden], [data-shop-panel][hidden] { display: none !important; }
+.shop-product-card { display: flex; flex-direction: column; gap: 12px; padding: 18px; border: 1px solid #346370; background: #061b24; }
+.shop-product-card > img { width: 100%; height: 170px; object-fit: contain; image-rendering: auto; }
+.shop-product-card h3 { font-size: 22px; margin: 0; }
+.shop-product-card p { font-size: 15px; line-height: 1.55; flex: 1; margin: 0; }
+.shop-product-card > strong { color: #d7f36b; font-size: 18px; }
+.shop-product-card button { min-height: 44px; }
+.crew-latency { font-size: 13px; color: #94cbd4; }
+.crew-kick { min-height: 44px; width: 100%; color: #edb070; }
+.pause-crew-list { display: grid; gap: 8px; margin-top: 18px; border-top: 1px solid #345761; padding-top: 12px; }
+.pause-crew-row { display: flex; gap: 12px; align-items: center; justify-content: space-between; font-size: 15px; }
+.pause-crew-row button { min-height: 44px; }
+.reward-settlement { min-width: 0; margin-top: 18px; }
+.reward-table-scroll { overflow: auto; }
+.reward-settlement table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.reward-settlement th, .reward-settlement td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #254651; white-space: nowrap; }
+.reward-settlement small { font-size: 13px; color: #a0bbc5; }
+#rewardSettlementStatus { color: #d7f36b; font-size: 16px; }
+.settlement-shell { max-height: 90vh; overflow: auto; }
+#ammoSectionOxygen { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+#ammoSectionOxygen .consumable-shop-art { max-height: 250px; }
+@media (max-width: 700px) {
+  .shop-category-nav { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .shop-category-nav button { font-size: 14px; }
+  .shop-catalog { grid-template-columns: 1fr; padding: 6px; }
+  #ammoSectionOxygen { grid-template-columns: 1fr; }
+  .title-rewards-icon { right: 76px; }
+}

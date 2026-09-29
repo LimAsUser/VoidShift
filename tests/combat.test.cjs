@@ -17,6 +17,7 @@ vm.runInNewContext(`${fs.readFileSync(path.join(root, 'js/game.js'), 'utf8')}\ng
 vm.runInNewContext(`${fs.readFileSync(path.join(root, 'js/ui.js'), 'utf8')}\nglobalThis.UIManagerUnderTest = UIManager;`, sandbox);
 
 const Config = sandbox.ConfigUnderTest;
+const BackpackManager = sandbox.BackpackManagerUnderTest;
 const Player = sandbox.PlayerUnderTest;
 const Monster = sandbox.MonsterUnderTest;
 const Game = sandbox.GameUnderTest;
@@ -24,6 +25,7 @@ const UIManager = sandbox.UIManagerUnderTest;
 const clearMap = { spawnPoint: { x: 100, y: 100 }, blocked: () => false, rayWallDistance: () => 650 };
 const quietAudio = { context: null, lastStep: 0, playTone() {}, playSound() {} };
 const testArmory = {
+  ownedPassives: { roll: true }, equippedPassive: 'roll',
   ownedWeapons: { pistol: true, smg: true, shotgun: false, revolver: false },
   loadout: { primary: 'smg', sidearm: 'pistol' },
   weaponAmmo: {
@@ -88,6 +90,100 @@ test('stamina depletion locks sprint until full recovery but still allows walkin
   player.stamina = 100;
   player.update(0.1, { d: true, shift: true }, false, clearMap, quietAudio);
   assert.equal(player.moveSpeed, Config.player.sprintSpeed);
+});
+
+test('sprint spends the final fractional stamina instead of stopping above zero', () => {
+  const player = new Player();
+  player.reset(clearMap, testArmory);
+  player.stamina = 0.5;
+  player.update(0.05, { d: true, shift: true }, false, clearMap, quietAudio);
+  assert.equal(player.stamina, 0);
+  assert.equal(player.staminaLocked, true);
+  assert.equal(player.moveSpeed, 150);
+});
+
+test('sprint moves 150 units per second without changing walking or stamina cost', () => {
+  const player = new Player();
+  player.reset(clearMap, testArmory);
+  player.update(0.2, { d: true, shift: true }, false, clearMap, quietAudio);
+  assert.equal(player.x, 130);
+  assert.equal(player.stamina, 94);
+  player.update(0.2, { d: true }, false, clearMap, quietAudio);
+  assert.equal(player.x, 144);
+  assert.equal(player.stamina, 94);
+});
+
+test('normal Monster pursuit is 385 while crossing-wall movement stays 28', () => {
+  const target = { x: 1000, y: 100, noise: 100, invulnerable: false };
+  const makeMonster = () => {
+    const monster = new Monster();
+    Object.assign(monster, { active: true, alerted: true, x: 100, y: 100, stagger: 0, recoverTimer: 0 });
+    return monster;
+  };
+  const clear = makeMonster();
+  clear.update(0.1, target, 100, { blocked: () => false, getRoomAt: () => null }, quietAudio);
+  assert.ok(Math.abs(clear.x - 138.5) < 0.001);
+  const blocked = makeMonster();
+  blocked.update(0.1, target, 100, { blocked: () => true, getRoomAt: () => null }, quietAudio);
+  assert.equal(Math.round((blocked.x - 100) * 10), 28);
+});
+
+test('Monster stays incapacitated for twenty seconds after its fifth hit', () => {
+  const monster = new Monster();
+  for (let i = 0; i < 4; i++) assert.equal(monster.registerHit().triggeredRecovery, false);
+  assert.equal(monster.registerHit().triggeredRecovery, true);
+  assert.equal(monster.recoverTimer, 20);
+  assert.equal(monster.stagger, 20);
+  monster.active = true;
+  const map = { blocked: () => false, getRoomAt: () => null };
+  assert.equal(monster.update(19.9, { x: 1000, y: 1000, noise: 0 }, 0, map, quietAudio).recovering, true);
+  assert.ok(monster.recoverTimer > 0);
+  assert.equal(monster.update(0.2, { x: 1000, y: 1000, noise: 0 }, 0, map, quietAudio).recovered, true);
+});
+
+test('a successful pickup adds exactly five noise', () => {
+  const game = makeGame(testArmory, 0);
+  const item = { id: 'scrap', name: '物资', shape: '1x1', value: 80, x: 100, y: 100, found: false };
+  game.state.running = true;
+  game.state.loot = 0;
+  game.state.lootValue = 0;
+  game.player.x = 100;
+  game.player.y = 100;
+  game.player.noise = 10;
+  game.map = { scrap: [item] };
+  game.backpack = BackpackManager.fromType('field');
+  game._backpackFor = () => game.backpack;
+  game._tutorialAction = () => {};
+  game.updateInventoryUI = () => {};
+  game.ui.log = () => {};
+  assert.equal(game.collect(), true);
+  assert.equal(game.player.noise, 15);
+});
+
+test('transaction notices retain only three recent results and begin fading after ten seconds', () => {
+  const timers = [];
+  sandbox.setTimeout = (callback, delay) => { timers.push({ callback, delay }); return timers.length; };
+  sandbox.document = { createElement: () => ({ children: [], classList: { add(value) { this.value = value; } },
+    append(...children) { this.children.push(...children); }, addEventListener() {}, setAttribute() {}, remove() { this.removed = true; } }) };
+  sandbox.window.matchMedia = () => ({ matches: false });
+  const stack = { children: [], appendChild(node) { node.remove = () => { this.children.splice(this.children.indexOf(node), 1); }; this.children.push(node); }, get firstElementChild() { return this.children[0]; } };
+  const ui = { transactionNoticeStack: stack };
+  for (const message of ['A','B','C','D']) UIManager.prototype.showTransactionNotice.call(ui, message);
+  assert.equal(stack.children.length, 3);
+  assert.equal(stack.children[0].children[0].textContent, 'B');
+  assert.equal(timers[0].delay, 10000);
+  timers[1].callback();
+  assert.equal(stack.children[0].classList.value, 'leaving');
+  assert.equal(timers.at(-1).delay, 600);
+});
+
+test('successful ammo purchase reports a persistent transaction notice with the bought amount', () => {
+  const game = makeGame(testArmory, 5000);
+  const notices = [];
+  game.ui.showTransactionNotice = message => notices.push(message);
+  game.updateAmmoDepotUI = () => {};
+  assert.equal(game.purchaseAmmo(100), true);
+  assert.match(notices[0], /100/);
 });
 
 test('monster contact during a roll neither damages nor teleports the monster', () => {
@@ -156,6 +252,48 @@ test('stamina regeneration waits one full second after spending', () => {
   assert.ok(sprinter.stamina > 35);
 });
 
+test('a downed player can crawl at 20 units per second without sprinting', () => {
+  const player = new Player();
+  player.reset(clearMap, testArmory);
+  player.downed = true;
+  player.x = 100;
+  player.y = 100;
+
+  player.update(1, { d: true, shift: true }, false, clearMap, quietAudio, []);
+
+  assert.equal(player.x, 120);
+  assert.equal(player.moveSpeed, 20);
+  assert.equal(player.stamina, 100);
+});
+
+test('a downed player can only fire the sidearm and always fires without aiming', () => {
+  const game = makeGame();
+  const calls = [];
+  game.state.running = true;
+  game.state.stabilized = true;
+  game.state.coop = { role: null, running: false, hostPaused: false };
+  game.player.downed = true;
+  game.player.activeSlot = 'sidearm';
+  game.player.shoot = aiming => { calls.push(aiming); return { fired: false, reason: 'cooldown' }; };
+
+  game.shoot(game.player);
+  game.player.activeSlot = 'primary';
+  game.shoot(game.player);
+
+  assert.deepEqual(calls, [false]);
+  assert.equal(game._isPlayerAiming(game.player), false);
+});
+
+test('a downed player cannot roll or melee while waiting for rescue', () => {
+  const game = makeGame();
+  game.state.running = true;
+  game.state.coop = { role: null, running: false, hostPaused: false };
+  game.player.downed = true;
+
+  assert.equal(game.roll(), false);
+  assert.equal(game.melee(), false);
+});
+
 test('a roll consumes 20 stamina, travels 100 units over 0.35 seconds and grants only timed invulnerability', () => {
   const player = new Player();
   player.reset(clearMap, testArmory);
@@ -181,7 +319,7 @@ test('weapon catalog carries the agreed magazine, reserve, cadence, reload and n
       const weapon = Config.weapons[id];
       return [weapon.maxAmmo, weapon.initialReserve, weapon.shootCooldownDuration, weapon.shotNoise];
     }),
-    [[6, 120, 0.38, 2], [24, 240, 0.1, 2], [8, 80, 0.8, 4], [4, 24, 1.2, 2]]
+    [[6, 120, 0.4, 2], [24, 240, 0.1, 2], [8, 80, 0.8, 4], [4, 24, 1.2, 2]]
   );
 });
 
@@ -319,11 +457,19 @@ test('ammo transfer preview reports converted rounds and remainder for bank and 
   assert.deepEqual([smgPreview.valid, smgPreview.rounds, smgPreview.remainder, smgPreview.sourceAvailable], [true, 1, 3, 7]);
 });
 
-test('ammo selection card captions show the exact conversion ratio for each weapon', () => {
+test('ammo selection card captions show only rounds for each weapon', () => {
   assert.equal(UIManager.prototype.formatAmmoStock({ id: 'standard', stock: 102 }), '102 单位');
-  assert.equal(UIManager.prototype.formatAmmoStock({ id: 'pistol', stock: 20 }), '20 发 · 1 单位/发');
-  assert.equal(UIManager.prototype.formatAmmoStock({ id: 'revolver', stock: 24 }), '24 发 · 2 单位/发');
-  assert.equal(UIManager.prototype.formatAmmoStock({ id: 'shotgun', stock: 85 }), '85 发 · 4 单位/发');
+  assert.equal(UIManager.prototype.formatAmmoStock({ id: 'pistol', stock: 20 }), '20 发');
+  assert.equal(UIManager.prototype.formatAmmoStock({ id: 'revolver', stock: 24 }), '24 发');
+  assert.equal(UIManager.prototype.formatAmmoStock({ id: 'shotgun', stock: 85 }), '85 发');
+});
+
+test('crew loadout captions use equipped slot IDs without exposing ammo stocks', () => {
+  const rows = UIManager.prototype.crewLoadoutRows({ primary: 'shotgun', sidearm: 'revolver' });
+  assert.deepEqual(JSON.parse(JSON.stringify(rows)), [
+    { key: '1', id: 'shotgun', label: '散弹枪' },
+    { key: '2', id: 'revolver', label: '左轮' }
+  ]);
 });
 
 test('ammo transfer selection swaps the opposing side when the same stock is clicked', () => {
@@ -458,7 +604,7 @@ test('a shotgun trigger emits four pellet angles across the configured hip or ai
   assert.ok(Math.abs((aimedShot.shotAngles[3] - aimedShot.shotAngles[0]) * 180 / Math.PI - 8) < 0.001);
 });
 
-test('V melee hits every active target in the 50-unit radius, even through walls, and stays silent', () => {
+test('V melee hits every active target in the 55-unit radius, even through walls, and stays silent', () => {
   const game = makeGame(testArmory, 0);
   game.state.running = true;
   game.state.tutorial = null;
@@ -476,17 +622,17 @@ test('V melee hits every active target in the 50-unit radius, even through walls
   ];
 
   assert.equal(game.melee(), true);
-  assert.deepEqual(hits, [1, 1, 0]);
+  assert.deepEqual(hits, [1, 1, 1]);
   assert.equal(game.player.stamina, 10);
   assert.equal(game.player.meleeCooldown, 1);
   assert.equal(game.player.noise, 17);
 });
 
-test('ammo shop sells at least 100 base units for 1000 credits', () => {
+test('ammo shop sells at least 100 base units for 200 credits', () => {
   const game = makeGame(Player.createDefaultArmory(), 1000);
 
   assert.equal(game.purchaseAmmo(100), true);
-  assert.equal(game.state.money, 0);
+  assert.equal(game.state.money, 800);
   assert.equal(game.player.armory.standardAmmoUnits, 100);
   assert.equal(game.purchaseAmmo(99), false);
 });
@@ -551,6 +697,8 @@ test('tutorial filters weapon-switch practice until both equipped slots are owne
   assert.equal(game._tutorialStepsForPlayer().some(step => step.requiresWeaponPair), false);
 
   game.player.armory.loadout.primary = 'smg';
+  assert.equal(game._tutorialStepsForPlayer().some(step => step.actions.includes('roll')), false);
+  game.player.armory.equippedPassive = 'roll';
   assert.equal(game._tutorialStepsForPlayer().some(step => step.requiresWeaponPair), true);
   assert.equal(game._tutorialStepsForPlayer().some(step => step.actions.includes('roll')), true);
   assert.equal(game._tutorialStepsForPlayer().some(step => step.actions.includes('melee')), true);
