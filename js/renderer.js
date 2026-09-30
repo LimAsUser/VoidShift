@@ -12,6 +12,9 @@ class Renderer {
     this.sprites = {};
     this.hitMasks = {};
     this.roomCaches = new WeakMap();
+    this.corpseTextures = new Map();
+    this.corpseTextureBytes = 0;
+    this.corpseTextureBudget = 64 * 1024 * 1024;
     this.motionQuery = typeof window !== 'undefined' ? window.matchMedia?.('(prefers-reduced-motion: reduce)') : null;
   }
 
@@ -47,8 +50,135 @@ class Renderer {
   }
 
   visibleWorldPoint(point, player, mapManager, state) {
-    if (!this.inViewport({ x: point.x - 12, y: point.y - 12, w: 24, h: 24 }, state)) return false;
-    return isPointVisibleToPlayer(point.x, point.y, player, mapManager, this.roomLightLevel(state) > 0);
+    const frame = this._visibilityFrame;
+    const cache = frame?.player === player && frame.map === mapManager && frame.state === state ? frame.cache : null;
+    const extent = Math.max(12, point.radius || point.r || 0);
+    if (cache && frame.cameraX === this.cameraOffsetX && frame.cameraY === this.cameraOffsetY && frame.zoom === state.cameraZoom) {
+      const view = frame.viewport;
+      if (point.x + extent < view.left - 32 || point.x - extent > view.right + 32 || point.y + extent < view.top - 32 || point.y - extent > view.bottom + 32) return false;
+    } else if (!this.inViewport({ x: point.x - extent, y: point.y - extent, w: extent * 2, h: extent * 2 }, state)) return false;
+    const points = cache ? frame.pointCache : null;
+    const memo = points?.get(point);
+    if (memo && memo.x === point.x && memo.y === point.y) return memo.visible;
+    const key = cache ? `${point.x},${point.y}` : null;
+    const visible = cache?.has(key) ? cache.get(key)
+      : isPointVisibleToPlayer(point.x, point.y, player, mapManager, frame?.state === state ? frame.lights : this.roomLightLevel(state) > 0);
+    if (cache) { if (cache.size >= 16384) cache.clear();cache.set(key, visible); }
+    if (points) points.set(point, { x: point.x, y: point.y, visible });
+    return visible;
+  }
+
+  _beginRenderFrame(player, map, state) {
+    this._renderFrame = (this._renderFrame || 0) + 1;
+    this._textureDeadline = null;
+    const previous = this._visibilityFrame;
+    const lights = this.roomLightLevel(state) > 0;
+    const sight = [player.x, player.y, player.angle, !!player.flashlight, !!player.downed, !!player.dead,
+      lights, Config.player.flashlightRange, Config.player.flashlightSpread, Config.VIEW_W, Config.VIEW_H, Config.camera.baseZoom];
+    const doors = (map.doors || []).map(door => door.open ? '1' : '0').join('');
+    const unchanged = previous?.player === player && previous.map === map && previous.state === state &&
+      previous.ray === map.rayWallDistance && previous.geometry === map._collisionIndex &&
+      previous.walls === map.walls && previous.wallCount === map.walls?.length && previous.doors === map.doors &&
+      previous.doorStates === doors && sight.every((value, i) => value === previous.sight[i]);
+    // Exact inputs only: no angle/position quantization and no stale visibility across door changes.
+    this._visibilityFrame = { player, map, state, lights, sight, doorStates: doors, doors: map.doors,
+      walls: map.walls, wallCount: map.walls?.length, geometry: map._collisionIndex, ray: map.rayWallDistance,
+      cache: unchanged ? previous.cache : new Map(), pointCache: unchanged ? previous.pointCache || new WeakMap() : null,
+      cameraX: this.cameraOffsetX, cameraY: this.cameraOffsetY,
+      zoom: state.cameraZoom, viewport: this._viewportBounds(state) };
+    const scale = this.renderDpr * Math.max(this.ui.canvas.clientWidth / Config.VIEW_W, this.ui.canvas.clientHeight / Config.VIEW_H) * (state.cameraZoom || 1);
+    this._corpseTextureScale = Math.max(1, Math.ceil(scale * 4) / 4);
+  }
+
+  _dropCorpseTexture(id) {
+    const entry = this.corpseTextures.get(id);
+    if (!entry) return;
+    for (const part of entry.parts) if (part) { part.image.width = 0;if (part.white) part.white.width = 0; }
+    this.corpseTextureBytes -= entry.bytes;
+    this.corpseTextures.delete(id);
+  }
+
+  clearCorpseTextures() {
+    for (const id of this.corpseTextures.keys()) this._dropCorpseTexture(id);
+    this._visibilityFrame = null;
+    this.corpseTextureBytes = 0;
+  }
+
+  _reserveCorpseTexture(bytes, id) {
+    if (bytes > this.corpseTextureBudget) return false;
+    while (this.corpseTextureBytes + bytes > this.corpseTextureBudget) {
+      let oldest;
+      for (const [key, entry] of this.corpseTextures) {
+        if (key !== id && entry.lastFrame < this._renderFrame - 1 && (!oldest || entry.lastFrame < oldest[1].lastFrame)) oldest = [key, entry];
+      }
+      // Never thrash textures still being used by the visible scene.
+      if (!oldest) return false;
+      this._dropCorpseTexture(oldest[0]);
+    }
+    return true;
+  }
+
+  _corpseTextureEntry(corpse) {
+    if (!this._renderFrame) return null;
+    const image = this.sprite(corpse.kind);
+    if (!image.complete || !image.naturalWidth) return null;
+    const scale = this._corpseTextureScale, width = corpse.width, height = width * corpse.aspect;
+    const key = `${corpse.kind}:${corpse.seed}:${width}:${corpse.aspect}:${scale}:${image.src}`;
+    let entry = this.corpseTextures.get(corpse.id);
+    if (entry && entry.key !== key) { this._dropCorpseTexture(corpse.id);entry = null; }
+    if (!entry) { entry = { key, image, scale, parts: [], bytes: 0, lastFrame: this._renderFrame };this.corpseTextures.set(corpse.id, entry); }
+    entry.lastFrame = this._renderFrame;
+    return entry;
+  }
+
+  _corpseTexture(corpse, shape, partIndex, hitFlash, entry) {
+    if (!entry) return null;
+    const { image, scale } = entry, width = corpse.width, height = width * corpse.aspect;
+    let part = entry.parts[partIndex];
+    if (part && (!hitFlash || part.white)) return part;
+    const now = () => typeof performance !== 'undefined' ? performance.now() : Date.now();
+    this._textureDeadline ??= now() + 2;
+    if (now() >= this._textureDeadline) return null;
+    if (!part) {
+      const x = Math.min(...shape.polygon.map(p => (p.x - shape.cx) * width)) - 2 / scale;
+      const y = Math.min(...shape.polygon.map(p => (p.y - shape.cy) * height)) - 2 / scale;
+      const w = Math.ceil((Math.max(...shape.polygon.map(p => (p.x - shape.cx) * width)) - x) * scale) + 2;
+      const h = Math.ceil((Math.max(...shape.polygon.map(p => (p.y - shape.cy) * height)) - y) * scale) + 2;
+      const bytes = w * h * 4;
+      if (!this._reserveCorpseTexture(bytes, corpse.id)) return null;
+      const bitmap = document.createElement('canvas');bitmap.width = w;bitmap.height = h;
+      const ctx = bitmap.getContext('2d');if (!ctx) return null;
+      ctx.setTransform(scale, 0, 0, scale, -(x + shape.cx * width) * scale, -(y + shape.cy * height) * scale);
+      ctx.beginPath();shape.polygon.forEach((p, i) => i ? ctx.lineTo(p.x * width, p.y * height) : ctx.moveTo(p.x * width, p.y * height));ctx.closePath();ctx.clip();
+      const imageHeight = width * image.naturalHeight / image.naturalWidth;
+      ctx.drawImage(image, -width / 2, -imageHeight / 2, width, imageHeight);
+      part = { image: bitmap, x, y, w: w / scale, h: h / scale, bytes, white: null };entry.parts[partIndex] = part;
+      entry.bytes += bytes;this.corpseTextureBytes += bytes;
+    }
+    if (hitFlash && !part.white) {
+      if (now() >= this._textureDeadline || !this._reserveCorpseTexture(part.bytes, corpse.id)) return null;
+      const mask = document.createElement('canvas');mask.width = part.image.width;mask.height = part.image.height;
+      const ctx = mask.getContext('2d');if (!ctx) return null;
+      ctx.drawImage(part.image, 0, 0);ctx.globalCompositeOperation = 'source-in';ctx.fillStyle = '#fff';ctx.fillRect(0, 0, mask.width, mask.height);
+      part.white = mask;entry.bytes += part.bytes;this.corpseTextureBytes += part.bytes;
+    }
+    return part;
+  }
+
+  _corpseInViewport(corpse, state) {
+    const extent = Math.max(64, corpse.width);
+    let minX = corpse.x - extent, maxX = corpse.x + extent, minY = corpse.y - extent, maxY = corpse.y + extent;
+    for (const part of corpse.fragments) {
+      const radius = part.radius || corpse.width;
+      minX = Math.min(minX, part.x - radius);maxX = Math.max(maxX, part.x + radius);
+      minY = Math.min(minY, part.y - radius);maxY = Math.max(maxY, part.y + radius);
+    }
+    return this.inViewport({ x: minX, y: minY, w: maxX - minX, h: maxY - minY }, state);
+  }
+
+  _enemyInViewport(actor, width, state) {
+    const extent = width + 80; // Rotation, rings and status text all fit inside this conservative box.
+    return this.inViewport({ x: actor.x - extent, y: actor.y - extent, w: extent * 2, h: extent * 2 }, state);
   }
 
   drawDiscovery(ctx, actor, width, player, mapManager, state) {
@@ -146,6 +276,7 @@ class Renderer {
   }
 
   drawCorpseFragments(ctx, corpse, player, mapManager, state) {
+    if (!this._corpseInViewport(corpse, state)) return;
     this.corpseLayouts ||= new Map();
     let layout=this.corpseLayouts.get(corpse.id);
     if(!layout){
@@ -166,11 +297,20 @@ class Renderer {
     for(const stain of layout.stains)if(this.visibleWorldPoint(stain,player,mapManager,state)){ctx.moveTo(stain.x+stain.r,stain.y);ctx.arc(stain.x,stain.y,stain.r,0,Math.PI*2);}
     ctx.fill();ctx.restore();
     const width=corpse.width,height=width*corpse.aspect;
+    let textureEntry;
     corpse.fragments.forEach((part,i)=>{
       if(!this.visibleWorldPoint(part,player,mapManager,state))return;
+      if(textureEntry===undefined)textureEntry=this._corpseTextureEntry(corpse);
       const shape=layout.parts[i];ctx.save();ctx.globalAlpha=fade;ctx.translate(part.x,part.y);
       ctx.rotate(this.motionQuery?.matches?corpse.angle:part.angle);
       ctx.scale(part.scale || 1,part.scale || 1);
+      const flash = corpse.hitFlashUntil > state.elapsed;
+      const texture = this._corpseTexture(corpse, shape, i, flash, textureEntry);
+      if (texture) {
+        ctx.drawImage(texture.image, texture.x, texture.y, texture.w, texture.h);
+        if (flash) ctx.drawImage(texture.white, texture.x, texture.y, texture.w, texture.h);
+        ctx.restore();return;
+      }
       ctx.translate(-shape.cx*width,-shape.cy*height);ctx.beginPath();
       shape.polygon.forEach((p,j)=>{if(j)ctx.lineTo(p.x*width,p.y*height);else ctx.moveTo(p.x*width,p.y*height);});ctx.closePath();ctx.clip();
       this.drawEnemyBody(ctx,corpse.kind,width,corpse.hitFlashUntil>state.elapsed);ctx.restore();
@@ -304,14 +444,20 @@ class Renderer {
     return cached;
   }
 
-  inViewport(bounds, state, margin = 32) {
+  _viewportBounds(state) {
     const zoom = Math.max(0.1, state?.cameraZoom || 1);
     const centerX = Config.VIEW_W / 2 - this.cameraOffsetX;
     const centerY = Config.VIEW_H / 2 - this.cameraOffsetY;
-    return bounds.x + bounds.w >= centerX - Config.VIEW_W / zoom / 2 - margin &&
-      bounds.x <= centerX + Config.VIEW_W / zoom / 2 + margin &&
-      bounds.y + bounds.h >= centerY - Config.VIEW_H / zoom / 2 - margin &&
-      bounds.y <= centerY + Config.VIEW_H / zoom / 2 + margin;
+    return { left: centerX - Config.VIEW_W / zoom / 2, right: centerX + Config.VIEW_W / zoom / 2,
+      top: centerY - Config.VIEW_H / zoom / 2, bottom: centerY + Config.VIEW_H / zoom / 2 };
+  }
+
+  inViewport(bounds, state, margin = 32) {
+    const frame = this._visibilityFrame;
+    const view = frame?.state === state && frame.cameraX === this.cameraOffsetX && frame.cameraY === this.cameraOffsetY && frame.zoom === state?.cameraZoom
+      ? frame.viewport : this._viewportBounds(state);
+    return bounds.x + bounds.w >= view.left - margin && bounds.x <= view.right + margin &&
+      bounds.y + bounds.h >= view.top - margin && bounds.y <= view.bottom + margin;
   }
 
   stripLightStrength(strip, x, y) {
@@ -518,6 +664,7 @@ class Renderer {
     const w = this.ui.canvas.clientWidth;
     const h = this.ui.canvas.clientHeight;
     if (!(w > 0 && h > 0)) return;
+    this._beginRenderFrame(player, mapManager, gameState);
     const scaleX = w / Config.VIEW_W;
     const scaleY = h / Config.VIEW_H;
 
@@ -828,6 +975,7 @@ class Renderer {
     if (this.corpseLayouts) {
       const retained=new Set((gameState.corpses||[]).map(corpse=>corpse.id));
       for(const id of this.corpseLayouts.keys())if(!retained.has(id))this.corpseLayouts.delete(id);
+      for(const id of this.corpseTextures.keys())if(!retained.has(id))this._dropCorpseTexture(id);
     }
     for (const corpse of gameState.corpses || []) {
       if(corpse.fragments?.length){this.drawCorpseFragments(ctx,corpse,player,mapManager,gameState);continue;}
@@ -866,6 +1014,7 @@ class Renderer {
         ctx.stroke();
         ctx.restore();
       }
+      if (!this._enemyInViewport(heavy, heavyWidth, gameState)) continue;
       ctx.save();
       if (heavy.dead) ctx.globalAlpha = Math.min(1, heavy.corpseTime);
       ctx.translate(heavy.x, heavy.y);
@@ -890,6 +1039,7 @@ class Renderer {
     for (const monster of nightmares) {
       if (!monster?.active) continue;
       const monsterWidth = Config.monster?.spriteWidth || 72;
+      if (!this._enemyInViewport(monster, monsterWidth, gameState)) continue;
       ctx.save();
       ctx.translate(monster.x, monster.y);
       ctx.rotate(monster.angle);
@@ -931,6 +1081,7 @@ class Renderer {
         if (!hunter) return;
         if (hunter.dead ? hasCorpseRegistry || !(hunter.corpseTime > 0) : !hunter.active) return;
         const hunterWidth = Config.hunter?.spriteWidth || 63;
+        if (!this._enemyInViewport(hunter, hunterWidth, gameState)) return;
         ctx.save();
         if (hunter.dead) ctx.globalAlpha = Math.min(1, hunter.corpseTime);
         ctx.translate(hunter.x, hunter.y);

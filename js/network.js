@@ -9,7 +9,8 @@ const COOP_CONNECTION_STAGES = {
   'create-offer': '生成连接邀请', 'upload-offer': '发送连接邀请',
   answer: '生成连接回应', 'upload-answer': '上传连接回应',
   ice: '收集网络地址', 'answer-wait': '等待队友回应', channels: '建立数据通道',
-  connected: '已连接', lobby: '房间已创建，等待队友', status: '同步连接状态', members: '读取队员名单'
+  connected: '已连接', lobby: '房间已创建，等待队友', status: '同步连接状态', members: '读取队员名单',
+  'ice-config': '读取中继配置', transport: '检查传输连接'
 };
 
 class ReliableChunks {
@@ -84,6 +85,10 @@ class CoopSession extends EventTarget {
     this.connectionLog = [];
     this.connectionStatus = null;
     this._everConnected = false;
+    this.iceServers = null;
+    this.turnConfigured = false;
+    this.relayOnly = typeof URLSearchParams !== 'undefined' &&
+      new URLSearchParams(globalThis.location?.search || '').get('relay') === '1';
     this.diagnostics = { stateSent: 0, stateDropped: 0, maxStateBufferedAmount: 0 };
   }
 
@@ -95,7 +100,7 @@ class CoopSession extends EventTarget {
     const reasons = {
       network: '网络请求失败，未收到 HTTP 响应；请查看浏览器网络错误',
       request_timeout: '网络请求超时', connect_timeout: '连接超过 60 秒，请重试',
-      invalid_response: '服务器回应无效', peer_failed: '玩家数据连接失败',
+      invalid_response: '服务器回应无效', peer_failed: '玩家数据连接失败', turn_unavailable: 'TURN 尚未配置，无法进行仅中继测试',
       http: `服务器返回 HTTP ${httpStatus}`
     };
     return Object.assign(new Error(`${COOP_CONNECTION_STAGES[stage] || '联机'}：${reasons[code] || '连接失败'}`), {
@@ -104,12 +109,16 @@ class CoopSession extends EventTarget {
   }
 
   _recordDiagnostic(stage, detail = {}, record = null) {
+    // Healthy roster/offer polling must not evict the handshake and failure evidence.
+    if (['members', 'offer'].includes(stage) && detail.httpStatus === 200 && !detail.retry && !detail.failure) return;
     const entry = { at: Date.now(), stage: COOP_CONNECTION_STAGES[stage] ? stage : 'status' };
     // Keep only bounded, non-secret fields. Never copy request bodies, errors or SDP.
     for (const key of ['httpStatus', 'retry', 'durationMs', 'complete', 'errorCode']) {
       if (typeof detail[key] === 'number' || typeof detail[key] === 'boolean') entry[key] = detail[key];
     }
-    if (['network', 'request_timeout', 'connect_timeout', 'invalid_response', 'peer_failed', 'http'].includes(detail.failure)) entry.failure = detail.failure;
+    if (['network', 'request_timeout', 'connect_timeout', 'invalid_response', 'peer_failed', 'turn_unavailable', 'http'].includes(detail.failure)) entry.failure = detail.failure;
+    if (['dns', 'timeout', 'authentication', 'unreachable', 'unspecified'].includes(detail.errorReason)) entry.errorReason = detail.errorReason;
+    if (typeof detail.server === 'string' && /^(stun|turn|turns):[a-z0-9.-]+:\d+(\?transport=(udp|tcp))?$/i.test(detail.server)) entry.server = detail.server;
     if (record) {
       entry.slot = Number(record.slot) || (record.role === 'guest' ? this.localSlot : null);
       entry.generation = Number(record.generation) || 0;
@@ -118,16 +127,75 @@ class CoopSession extends EventTarget {
       }
       entry.stateChannel = record.stateChannel?.readyState || 'absent';
       entry.eventChannel = record.eventChannel?.readyState || 'absent';
+      entry.dtlsState = String(record.peer.sctp?.transport?.state || 'unavailable').replace(/[^a-z-]/g, '').slice(0, 32);
+      entry.sctpState = String(record.peer.sctp?.state || 'unavailable').replace(/[^a-z-]/g, '').slice(0, 32);
+      if (record.selectedPath) entry.selectedPath = { ...record.selectedPath };
       entry.candidates = { host: record.candidates?.host || 0, srflx: record.candidates?.srflx || 0,
         prflx: record.candidates?.prflx || 0, relay: record.candidates?.relay || 0 };
     }
     this.connectionLog.push(entry);
-    if (this.connectionLog.length > 50) this.connectionLog.splice(0, this.connectionLog.length - 50);
+    if (this.connectionLog.length > 50) {
+      const priority = item => item.failure ? 2 : ['transport', 'members'].includes(item.stage) || item.stage === 'ice' && !item.complete ? 0 : 1;
+      const lowest = Math.min(...this.connectionLog.map(priority));
+      this.connectionLog.splice(this.connectionLog.findIndex(item => priority(item) === lowest), 1);
+    }
   }
 
   getConnectionDiagnostics() {
     return JSON.stringify({ protocol: COOP_PROTOCOL_VERSION, role: this.role,
+      connectionRevision: 1, iceTransportPolicy: this.relayOnly ? 'relay' : 'all', turnConfigured: this.turnConfigured,
       phase: this.connectionStatus?.phase || 'idle', records: this.connectionLog }, null, 2);
+  }
+
+  async _loadIceConfiguration(attempt) {
+    this._stage(attempt, 'ice-config');
+    const headers = this.role === 'host' ? { 'x-room-host-token': this.hostToken }
+      : { 'x-room-member-id': this.memberId, 'x-room-member-token': this.memberToken };
+    const result = await this._request(`/api/rooms/${this.roomCode}/ice`, { cache: 'no-store', headers }, attempt, 'ice-config');
+    if (!this._isCurrentSession(attempt.sessionId) || attempt.cancelled) return;
+    const validServer = server => server && typeof server.urls === 'string' &&
+      /^(stun|turn|turns):[a-z0-9.-]+:\d+(\?transport=(udp|tcp))?$/i.test(server.urls) &&
+      (!server.urls.startsWith('turn') || typeof server.username === 'string' && server.username.length > 0 && server.username.length <= 512 &&
+        typeof server.credential === 'string' && server.credential.length > 0 && server.credential.length <= 512);
+    if (!Array.isArray(result?.iceServers) || !result.iceServers.length || result.iceServers.length > 8 || !result.iceServers.every(validServer)) {
+      throw this._connectionError('invalid_response', 'ice-config');
+    }
+    this.iceServers = result.iceServers.map(({ urls, username, credential }) => urls.startsWith('turn') ? { urls, username, credential } : { urls });
+    this.turnConfigured = this.iceServers.some(server => server.urls.startsWith('turn'));
+    if (this.relayOnly && !this.turnConfigured) throw this._connectionError('turn_unavailable', 'ice-config');
+  }
+
+  _watchTransports(record) {
+    for (const transport of [record.peer.sctp, record.peer.sctp?.transport]) {
+      if (!transport || record.observedTransports?.has(transport)) continue;
+      (record.observedTransports ||= new WeakSet()).add(transport);
+      transport.addEventListener?.('statechange', () => {
+        if (!this._isCurrentPeer(record)) return;
+        this._recordDiagnostic('transport', {}, record);
+        this._captureTransportStats(record);
+      });
+    }
+  }
+
+  async _captureTransportStats(record) {
+    if (record.statsPending || typeof record.peer.getStats !== 'function') return;
+    record.statsPending = true;
+    try {
+      const stats = await record.peer.getStats();
+      if (!this._isCurrentSession(record.sessionId) || this.peers.get(record.id) !== record) return;
+      const values = [...stats.values()];
+      const selected = values.find(stat => stat.type === 'transport' && stat.selectedCandidatePairId);
+      const pair = selected ? stats.get(selected.selectedCandidatePairId) : values.find(stat => stat.type === 'candidate-pair' && stat.state === 'succeeded' && stat.nominated);
+      if (pair) {
+        const local = stats.get(pair.localCandidateId), remote = stats.get(pair.remoteCandidateId);
+        const type = value => ['host', 'srflx', 'prflx', 'relay'].includes(value) ? value : 'unknown';
+        const protocol = value => ['udp', 'tcp', 'tls'].includes(value) ? value : 'unknown';
+        record.selectedPath = { localType: type(local?.candidateType), remoteType: type(remote?.candidateType),
+          protocol: protocol(local?.protocol), relayProtocol: protocol(local?.relayProtocol) };
+      }
+      this._recordDiagnostic('transport', {}, record);
+    } catch (_) { /* Diagnostics never block or change connectivity. */ }
+    finally { record.statsPending = false; }
   }
 
   _withTimeout(work, ms, attempt = null, timeoutError = () => this._connectionError('request_timeout', attempt?.stage)) {
@@ -290,7 +358,8 @@ class CoopSession extends EventTarget {
 
   _createPeerRecord(id, generation, role) {
     const peer = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.cloudflare.com:3478' }, { urls: 'stun:stun.l.google.com:19302' }]
+      iceServers: this.iceServers || [{ urls: 'stun:stun.cloudflare.com:3478' }, { urls: 'stun:stun.l.google.com:19302' }],
+      iceTransportPolicy: this.relayOnly ? 'relay' : 'all'
     });
     const record = {
       id, generation, role, peer, sessionId: this._sessionId, stateChannel: null, eventChannel: null,
@@ -299,13 +368,24 @@ class CoopSession extends EventTarget {
     };
     this.peers.set(id, record);
     peer.addEventListener('connectionstatechange', () => this._handlePeerState(record));
+    for (const event of ['iceconnectionstatechange', 'signalingstatechange']) peer.addEventListener(event, () => {
+      if (!this._isCurrentPeer(record)) return;
+      this._watchTransports(record);
+      this._recordDiagnostic('transport', {}, record);
+      if (event === 'iceconnectionstatechange') this._captureTransportStats(record);
+    });
     peer.addEventListener('icecandidate', event => {
       if (!this._isCurrentPeer(record) || !event.candidate) return;
       const type = event.candidate.type || event.candidate.candidate?.match(/ typ (host|srflx|prflx|relay)(?: |$)/)?.[1];
       if (Object.hasOwn(record.candidates, type)) record.candidates[type]++;
     });
     peer.addEventListener('icecandidateerror', event => {
-      if (this._isCurrentPeer(record)) this._recordDiagnostic('ice', { errorCode: Number(event.errorCode) }, record);
+      if (!this._isCurrentPeer(record)) return;
+      const server = this.iceServers?.find(item => item.urls === event.url)?.urls;
+      const message = String(event.errorText || '');
+      const errorReason = /resolve|dns/i.test(message) ? 'dns' : /timeout|timed out/i.test(message) ? 'timeout'
+        : /unauthorized|authentication/i.test(message) ? 'authentication' : /unreach/i.test(message) ? 'unreachable' : 'unspecified';
+      this._recordDiagnostic('ice', { errorCode: Number(event.errorCode), server, errorReason }, record);
     });
     return record;
   }
@@ -340,6 +420,7 @@ class CoopSession extends EventTarget {
         record.stateChannel?.readyState !== 'open' || record.eventChannel?.readyState !== 'open') return;
     if (record.connected) return;
     record.connected = true;
+    this._captureTransportStats(record);
     record.disconnectedNotified = false;
     clearTimeout(record.reconnectTimer);
     if (this.role === 'guest') {
@@ -368,6 +449,9 @@ class CoopSession extends EventTarget {
 
   _handlePeerState(record) {
     if (!this._isCurrentPeer(record)) return;
+    this._watchTransports(record);
+    this._recordDiagnostic('transport', {}, record);
+    this._captureTransportStats(record);
     const state = record.peer.connectionState;
     if (state === 'connected') {
       this._checkPeerConnected(record);
@@ -426,7 +510,8 @@ class CoopSession extends EventTarget {
       timeout = setTimeout(() => finish(false), 8000);
       peer.addEventListener('icegatheringstatechange', handler);
       signal.addEventListener('abort', cleanup, { once: true });
-    }), Math.min(8001, (attempt?.deadline ?? Infinity) - Date.now()), attempt,
+    // The inner eight-second cutoff yields partial candidates; only the attempt deadline is fatal.
+    }), Math.max(0, (attempt?.deadline ?? Date.now() + COOP_JOIN_TIMEOUT_MS) - Date.now()), attempt,
     () => this._connectionError('connect_timeout', 'ice'));
     this._recordDiagnostic('ice', { complete }, attempt?.record);
     return complete;
@@ -453,8 +538,10 @@ class CoopSession extends EventTarget {
         this._createIntent = null;
         this._roomExpiresAt = room.expiresAt || (Date.now() + 10 * 60 * 1000);
         this._roomStatus = 'lobby';
-        this._stage(attempt, 'lobby', 'waiting');
         this._emit('room', { code: this.roomCode, role: this.role, maxPlayers: COOP_MAX_GUESTS + 1 });
+        await this._loadIceConfiguration(attempt);
+        if (!this._isCurrentSession(attempt.sessionId) || attempt.cancelled) return;
+        this._stage(attempt, 'lobby', 'waiting');
         this._pollForMembers();
         return this.roomCode;
       });
@@ -560,6 +647,7 @@ class CoopSession extends EventTarget {
       await this._withTimeout(() => record.peer.setRemoteDescription(JSON.parse(sdp)),
         record.attempt.deadline - Date.now(), record.attempt,
         () => this._connectionError('connect_timeout', 'channels'));
+      if (this._isCurrentPeer(record)) this._watchTransports(record);
     } catch (_) {
       if (this._isCurrentPeer(record)) {
         const error = this._connectionError('peer_failed', 'channels');
@@ -652,6 +740,8 @@ class CoopSession extends EventTarget {
     const ownsAttempt = !attempt;
     attempt ||= this._makeAttempt();
     if (!this._isCurrentSession(attempt.sessionId)) return;
+    await this._loadIceConfiguration(attempt);
+    if (!this._isCurrentSession(attempt.sessionId) || attempt.cancelled) return;
     const previous = this.peers.get('host');
     if (previous) this._closePeer(previous);
     const record = this._createPeerRecord('host', this._generation, 'guest');
@@ -675,6 +765,7 @@ class CoopSession extends EventTarget {
             if (!this._isCurrentPeer(record) || attempt.cancelled) return;
             await record.peer.setLocalDescription(description);
             if (!this._isCurrentPeer(record) || attempt.cancelled) return;
+            this._watchTransports(record);
             this._stage(attempt, 'ice');
             await this._waitForIce(record.peer, attempt);
             if (!this._isCurrentPeer(record) || attempt.cancelled) return;
@@ -890,6 +981,8 @@ class CoopSession extends EventTarget {
     this.hostToken = null;
     this.memberId = null;
     this.memberToken = null;
+    this.iceServers = null;
+    this.turnConfigured = false;
   }
 }
 

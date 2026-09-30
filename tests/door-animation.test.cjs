@@ -127,6 +127,7 @@ test('co-op snapshots carry door animation state for the guest renderer', () => 
   };
   host.player = {};
   host.remotePlayer = {};
+  host.remotePlayers = new Map();
   host.monster = {};
   host.hunters = [];
   host.map = { ...hostMap, scrap: [], terminals: [] };

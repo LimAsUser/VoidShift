@@ -30,7 +30,9 @@ function harness() {
     document: { createElement: node }, sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
     fetch: async (url, options = {}) => {
       requests.push({ url, options });
-      return { ok: true, json: async () => ({ generation: 0, status: 'offered', offer_sdp: JSON.stringify({ type: 'offer', sdp: 'v=0' }) }) };
+      return { ok: true, json: async () => url.endsWith('/ice')
+        ? { iceServers: [{ urls: 'stun:stun.cloudflare.com:3478' }], turnConfigured: false }
+        : { generation: 0, status: 'offered', offer_sdp: JSON.stringify({ type: 'offer', sdp: 'v=0' }) } };
     } });
   for (const file of ['config', 'entities', 'network', 'game', 'ui', 'menu']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../js', file + '.js'), 'utf8'), context);
@@ -139,6 +141,7 @@ test('a normal guest stays guest and connects only when both game channels open'
   const { CoopSession, context } = harness(), session = new CoopSession();
   context.fetch = async (url, options = {}) => ({ ok: true, json: async () =>
     url === '/api/rooms/ABC234' ? { protocol_version: 18, expires_at: Date.now()+100000 }
+      : url.endsWith('/ice') ? { iceServers: [{ urls: 'stun:stun.cloudflare.com:3478' }], turnConfigured: false }
       : options.method === 'POST' ? { memberId: 'guest-2', memberToken: 'test', slot: 2, generation: 0 }
         : { status: 'offered', generation: 0, offer_sdp: JSON.stringify({ type: 'offer', sdp: 'v=0' }) } });
   let role, connected = 0;session.addEventListener('room', event => role = event.detail.role);session.addEventListener('connected', () => connected++);
@@ -160,6 +163,7 @@ test('a rejected old answer cannot tear down the reconnecting peer in the same s
     if(options.method === 'PUT'){reached.resolve();return answer.promise;}
     return { ok: true, json: async () => url === '/api/rooms/ABC234'
       ? { protocol_version: 18, expires_at: Date.now()+100000 }
+      : url.endsWith('/ice') ? { iceServers: [{ urls: 'stun:stun.cloudflare.com:3478' }], turnConfigured: false }
       : options.method === 'POST' ? { memberId: 'guest-2', memberToken: 'test', slot: 2, generation: 0 }
         : { status: 'offered', generation: 0, offer_sdp: JSON.stringify({ type: 'offer', sdp: 'v=0' }) } };
   };

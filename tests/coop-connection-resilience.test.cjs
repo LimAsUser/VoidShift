@@ -9,7 +9,7 @@ function harness() {
   const timers = new Map(), peers = [], requests = [];
   const clock = {
     now: () => now,
-    async flush() { for(let i=0;i<30;i++)await Promise.resolve(); },
+    async flush() { for(let i=0;i<100;i++)await Promise.resolve(); },
     async advance(ms) {
       const target=now+ms;await this.flush();
       while(true){const due=[...timers].filter(([,t])=>t.at<=target).sort((a,b)=>a[1].at-b[1].at)[0];if(!due)break;
@@ -87,7 +87,8 @@ function serveGuest(h) {
   let generation=0;
   h.context.fetch=async(url,options={})=>{
     h.requests.push({url,options,at:h.clock.now()});
-    if(url==='/api/rooms/ABC234')return h.response(200,{protocol_version:16,expires_at:h.clock.now()+600000});
+    if(url==='/api/rooms/ABC234')return h.response(200,{protocol_version:18,expires_at:h.clock.now()+600000});
+    if(url.endsWith('/ice'))return h.response(200,{iceServers:[{urls:'stun:stun.cloudflare.com:3478'}],turnConfigured:false});
     if(options.method==='POST'){
       if(JSON.parse(options.body).memberId)generation++;
       return h.response(200,{memberId:'guest-2',memberToken:'private-token',slot:2,generation});
@@ -103,6 +104,70 @@ function openChannels(h,count=2) {
   }
   return record;
 }
+
+test('TURN configuration is loaded with member authorization before guest connection creation',async()=>{
+  const h=harness();h.session.relayOnly=true;serveGuest(h);const prior=h.context.fetch;h.context.fetch=async(url,options)=>{
+    if(url.endsWith('/ice')){assert.equal(options.headers['x-room-member-token'],'private-token');assert.equal(options.headers['x-room-member-id'],'guest-2');return h.response(200,{turnConfigured:true,iceServers:[{urls:'turns:global.relay.metered.ca:443?transport=tcp',username:'test-user',credential:'test-relay-password'}]});}
+    return prior(url,options);
+  };
+  const joining=h.session.join('ABC234');await h.clock.flush();assert.equal(h.peers[0].config.iceServers[0].username,'test-user');assert.equal(h.peers[0].config.iceTransportPolicy,'relay');openChannels(h);await joining;
+  assert.doesNotMatch(h.session.getConnectionDiagnostics(),/test-relay-password|private-token|test-user/);await h.session.close(false);
+});
+
+test('TURN relay-only mode refuses to silently fall back to direct-only servers',async()=>{
+  const h=harness();assert.equal(typeof h.session._loadIceConfiguration,'function');serveGuest(h);h.session.relayOnly=true;
+  const result=assert.rejects(h.session.join('ABC234'),e=>e.code==='turn_unavailable');await h.clock.flush();await result;assert.equal(h.peers.length,0);await h.session.close(false);
+});
+
+test('successful diagnostic polls cannot erase the actual failure or handshake history',()=>{
+  const h=harness();const record=h.session._createPeerRecord('p',0,'host');h.session._recordDiagnostic('channels',{failure:'peer_failed'},record);
+  for(let i=0;i<200;i++)h.session._recordDiagnostic('members',{httpStatus:200,retry:0,durationMs:80});
+  const data=JSON.parse(h.session.getConnectionDiagnostics());assert.ok(data.records.some(r=>r.failure==='peer_failed'));assert.ok(data.records.length<=50);
+});
+
+test('transport event storms retain failure and handshake evidence within the same bounded log',()=>{
+  const h=harness(),record=h.session._createPeerRecord('p',0,'host');h.session._recordDiagnostic('upload-answer',{},record);h.session._recordDiagnostic('channels',{failure:'peer_failed'},record);
+  for(let i=0;i<100;i++)record.peer.dispatchEvent(new Event('iceconnectionstatechange'));
+  assert.ok(h.session.connectionLog.some(r=>r.failure==='peer_failed'));assert.ok(h.session.connectionLog.some(r=>r.stage==='upload-answer'));assert.ok(h.session.connectionLog.length<=50);
+});
+
+test('a removed peers delayed stats result cannot append stale transport diagnostics',async()=>{
+  const h=harness(),record=h.session._createPeerRecord('p',0,'host');let resolve;
+  record.peer.getStats=()=>new Promise(done=>{resolve=done;});const pending=h.session._captureTransportStats(record);
+  h.session._closePeer(record);const count=h.session.connectionLog.length;resolve(new Map());await pending;assert.equal(h.session.connectionLog.length,count);
+});
+
+test('selected relay and transport states are observable without candidate addresses or credentials',async()=>{
+  const h=harness(),record=h.session._createPeerRecord('p',0,'host');record.peer.sctp={state:'connecting',transport:{state:'failed'}};
+  record.peer.getStats=async()=>new Map([['t',{type:'transport',selectedCandidatePairId:'pair'}],['pair',{type:'candidate-pair',state:'succeeded',localCandidateId:'l',remoteCandidateId:'r'}],['l',{type:'local-candidate',candidateType:'relay',protocol:'udp',relayProtocol:'tls',address:'SECRET-IP',url:'turn:SECRET',username:'SECRET-USER'}],['r',{type:'remote-candidate',candidateType:'srflx',protocol:'udp',address:'SECRET-IP'}]]);
+  assert.equal(typeof h.session._captureTransportStats,'function');await h.session._captureTransportStats(record);
+  const data=h.session.getConnectionDiagnostics();assert.match(data,/"localType": "relay"/);assert.match(data,/"dtlsState": "failed"/);assert.doesNotMatch(data,/SECRET/);
+});
+
+test('host TURN configuration uses host authorization and retains automatic routing by default',async()=>{
+  const h=harness();h.context.fetch=async(url,options={})=>{
+    if(url==='/api/rooms')return h.response(201,{code:'ABC234',hostToken:'host-private',expiresAt:h.clock.now()+600000});
+    if(url.endsWith('/ice')){assert.equal(options.headers['x-room-host-token'],'host-private');return h.response(200,{turnConfigured:true,iceServers:[{urls:'turn:global.relay.metered.ca:80',username:'test-user',credential:'test-relay-password'}]});}
+    return h.response(200,{members:[]});
+  };
+  await h.session.host();h.session._createPeerRecord('g',0,'host');assert.equal(h.peers[0].config.iceServers[0].username,'test-user');assert.equal(h.peers[0].config.iceTransportPolicy,'all');
+  await h.session.close(false);assert.equal(h.session.iceServers,null);
+});
+
+test('leaving during TURN configuration loading cannot leak old credentials into another session',async()=>{
+  const h=harness();serveGuest(h);const previous=h.context.fetch;let resolveConfig;
+  h.context.fetch=(url,options)=>url.endsWith('/ice')?new Promise(resolve=>{resolveConfig=resolve;}):previous(url,options);
+  const joining=h.session.join('ABC234');await h.clock.flush();assert.equal(h.peers.length,0);await h.session.close(false);
+  resolveConfig(h.response(200,{iceServers:[{urls:'turn:global.relay.metered.ca:80',username:'old-user',credential:'old-password'}]}));await joining;
+  assert.equal(h.peers.length,0);assert.equal(h.session.iceServers,null);
+});
+
+test('TURN error diagnostics retain known endpoint and reason without raw private error text',()=>{
+  const h=harness();h.session.iceServers=[{urls:'turns:global.relay.metered.ca:443?transport=tcp',username:'secret-user',credential:'secret-password'}];
+  const record=h.session._createPeerRecord('g',0,'host');const event=new Event('icecandidateerror');
+  Object.assign(event,{errorCode:701,url:h.session.iceServers[0].urls,errorText:'DNS lookup failed for PRIVATE-IP secret-password'});record.peer.dispatchEvent(event);
+  const report=h.session.getConnectionDiagnostics();assert.match(report,/global\.relay\.metered\.ca/);assert.match(report,/"errorReason": "dns"/);assert.doesNotMatch(report,/PRIVATE-IP|secret-password|secret-user/);
+});
 
 test('initial join cannot finish until both data channels open',async()=>{
   const h=harness();serveGuest(h);let finished=false;
@@ -134,6 +199,12 @@ test('an ICE cutoff records incompleteness but does not reject usable candidates
   await h.clock.advance(8000);openChannels(h);await joining;
   assert.ok(h.session.connectionLog.some(r=>r.stage==='ice'&&r.complete===false));assert.equal(h.session.connected,true);
   assert.doesNotMatch(h.session.getConnectionDiagnostics(),/secret-address|private-token/);await h.session.close(false);
+});
+
+test('ICE cutoff tolerates timer registration jitter and returns incomplete candidates instead of failing',async()=>{
+  const h=harness(),record=h.session._createPeerRecord('p',0,'host'),schedule=h.context.setTimeout;
+  record.peer.iceGatheringState='gathering';h.context.setTimeout=(fn,ms)=>schedule(fn,ms===8000?8005:ms);
+  const waiting=h.session._waitForIce(record.peer);await h.clock.advance(8010);assert.equal(await waiting,false);
 });
 
 test('host prepares peers independently instead of awaiting a slow guest first',async()=>{

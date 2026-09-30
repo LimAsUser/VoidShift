@@ -460,6 +460,7 @@ class MapManager {
         isTerminalPillar: true, terminalId: terminal.id });
       return terminal;
     });
+    map.rebuildCollisionIndex();
     return map;
   }
 
@@ -484,6 +485,7 @@ class MapManager {
    * Generates a deterministic starship deck and its encounter roster.
    */
   reset(scaleKey = null, seed = null, generationAttempt = 0, difficulty = this.difficulty || 'medium') {
+    this._collisionIndex = null; // Generation mutates geometry; retain exact full scans until finished.
     this._layoutSignatureCache = null;
     this.difficulty = ['easy', 'medium', 'hard'].includes(difficulty) ? difficulty : 'medium';
     if (!scaleKey) {
@@ -1147,6 +1149,70 @@ class MapManager {
       this.monsterSpawns.push(safePoint);
     }
     this._seedLights();
+    this.rebuildCollisionIndex();
+  }
+
+  rebuildCollisionIndex() {
+    const index = { walls: this.walls, doors: this.doors, wallCount: this.walls.length, doorCount: this.doors.length,
+      buckets: new Map(), entries: [], seen: new Uint32Array(this.walls.length + this.doors.length), stamp: 0,
+      result: { walls: [], doors: [] } };
+    const add = (shape, door) => {
+      const id = index.entries.length;
+      index.entries.push({ shape, door });
+      const x1 = shape.p1?.x ?? shape.x1 ?? shape.x, y1 = shape.p1?.y ?? shape.y1 ?? shape.y;
+      const x2 = shape.p2?.x ?? shape.x2 ?? shape.x + shape.w, y2 = shape.p2?.y ?? shape.y2 ?? shape.y + shape.h;
+      if (![x1, y1, x2, y2].every(Number.isFinite)) return;
+      // Conservative padding also includes segment thickness and grid-boundary contact.
+      const minX = Math.floor((Math.min(x1, x2) - 8) / 128), maxX = Math.floor((Math.max(x1, x2) + 8) / 128);
+      const minY = Math.floor((Math.min(y1, y2) - 8) / 128), maxY = Math.floor((Math.max(y1, y2) + 8) / 128);
+      for (let y = minY; y <= maxY; y++) for (let x = minX; x <= maxX; x++) {
+        const key = `${x},${y}`;
+        if (!index.buckets.has(key)) index.buckets.set(key, []);
+        index.buckets.get(key).push(id);
+      }
+    };
+    this.walls.forEach(wall => add(wall, false));this.doors.forEach(door => add(door, true));
+    this._collisionIndex = index;
+  }
+
+  _collisionCandidates(x, y, radius, dx = 0, dy = 0, distance = null) {
+    let index = this._collisionIndex;
+    if (!index || ![x, y, radius, dx, dy].every(Number.isFinite) || radius < 0 ||
+        distance != null && (!Number.isFinite(distance) || distance < 0)) return null;
+    if (index.walls !== this.walls || index.doors !== this.doors || index.wallCount !== this.walls.length || index.doorCount !== this.doors.length) {
+      this.rebuildCollisionIndex();index = this._collisionIndex;
+    }
+    const result = index.result;result.walls.length = result.doors.length = 0;
+    index.stamp = (index.stamp + 1) >>> 0;
+    if (!index.stamp) { index.seen.fill(0);index.stamp = 1; }
+    const visit = (cx, cy) => {
+      for (const id of index.buckets.get(`${cx},${cy}`) || []) {
+        if (index.seen[id] === index.stamp) continue;
+        index.seen[id] = index.stamp;
+        const entry = index.entries[id];result[entry.door ? 'doors' : 'walls'].push(entry.shape);
+      }
+    };
+    if (distance == null) {
+      const x0 = Math.floor((x - radius) / 128), x1 = Math.floor((x + radius) / 128);
+      const y0 = Math.floor((y - radius) / 128), y1 = Math.floor((y + radius) / 128);
+      if ((x1 - x0 + 1) * (y1 - y0 + 1) > 4096) return null;
+      for (let cy = y0; cy <= y1; cy++) for (let cx = x0; cx <= x1; cx++) visit(cx, cy);
+    } else {
+      const count = Math.ceil((Math.abs(dx) + Math.abs(dy)) * distance / 128) + 3;
+      if (count > 4096) return null;
+      let cx = Math.floor(x / 128), cy = Math.floor(y / 128);
+      const sx = Math.sign(dx), sy = Math.sign(dy), stepX = dx ? 128 / Math.abs(dx) : Infinity, stepY = dy ? 128 / Math.abs(dy) : Infinity;
+      let nextX = dx ? ((cx + (dx > 0 ? 1 : 0)) * 128 - x) / dx : Infinity;
+      let nextY = dy ? ((cy + (dy > 0 ? 1 : 0)) * 128 - y) / dy : Infinity;
+      for (let i = 0; i < count; i++) {
+        visit(cx, cy);
+        const next = Math.min(nextX, nextY);
+        if (next > distance || !Number.isFinite(next)) break;
+        if (nextX === next) { cx += sx;nextX += stepX; }
+        if (nextY === next) { cy += sy;nextY += stepY; }
+      }
+    }
+    return result;
   }
 
   _seedLights() {
@@ -1679,15 +1745,17 @@ class MapManager {
       return true;
     }
 
+    const candidates = this._collisionCandidates(x, y, padding);
+    const doors = candidates?.doors || this.doors, walls = candidates?.walls || this.walls;
     // 2. Closed doors physically block movement
-    for (let i = 0; i < this.doors.length; i++) {
-      const d = this.doors[i];
+    for (let i = 0; i < doors.length; i++) {
+      const d = doors[i];
       if (!ignoreDoors && !d.open && this._doorBlocksPoint(d, x, y, padding)) return true;
     }
 
     // 3. Walls (line segments and AABB obstacles)
-    for (let i = 0; i < this.walls.length; i++) {
-      const w = this.walls[i];
+    for (let i = 0; i < walls.length; i++) {
+      const w = walls[i];
       if (w.x1 !== undefined) {
         if (distToSegment(x, y, w.x1, w.y1, w.x2, w.y2) < padding + 8) {
           return true;
@@ -1705,10 +1773,12 @@ class MapManager {
 
   rayWallDistance(originX, originY, directionX, directionY, maxDistance) {
     let nearest = maxDistance;
+    const candidates = this._collisionCandidates(originX, originY, 0, directionX, directionY, maxDistance);
+    const walls = candidates?.walls || this.walls, doors = candidates?.doors || this.doors;
 
     // Walls
-    for (let i = 0; i < this.walls.length; i++) {
-      const w = this.walls[i];
+    for (let i = 0; i < walls.length; i++) {
+      const w = walls[i];
       if (w.x1 !== undefined) {
         const d = raySegmentIntersect(originX, originY, directionX, directionY, w.x1, w.y1, w.x2, w.y2);
         if (d < nearest) nearest = d;
@@ -1728,8 +1798,8 @@ class MapManager {
     }
 
     // Closed doors
-    for (let i = 0; i < this.doors.length; i++) {
-      const d = this.doors[i];
+    for (let i = 0; i < doors.length; i++) {
+      const d = doors[i];
       if (d.open) continue;
       if (d.p1 && d.p2) {
         const dist = raySegmentIntersect(originX, originY, directionX, directionY, d.p1.x, d.p1.y, d.p2.x, d.p2.y);

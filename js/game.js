@@ -2453,13 +2453,17 @@ class Game {
     if (message.abandoned) this.leaveCoopRoom();
   }
 
-  _getThreatTarget(entity) {
-    const candidates = this._onlineCoopPlayers().filter(player => !player.downed);
-    const canAcquire = player => entity.alerted || player.noise >= 30 || Math.hypot(entity.x - player.x, entity.y - player.y) <= 150;
-    const sensed = candidates.filter(canAcquire);
-    return (sensed.length ? sensed : candidates)
-      .sort((a, b) => Math.hypot(entity.x - a.x, entity.y - a.y) - Math.hypot(entity.x - b.x, entity.y - b.y))[0]
-      || this.player;
+  _getThreatTarget(entity, players = this._onlineCoopPlayers()) {
+    let nearest = null, sensed = null, nearestDistance = Infinity, sensedDistance = Infinity;
+    for (const player of players) {
+      if (player.downed) continue; // Read live state: an earlier attacker may have downed this player.
+      const distance = Math.hypot(entity.x - player.x, entity.y - player.y);
+      if (distance < nearestDistance) { nearest = player;nearestDistance = distance; }
+      if ((entity.alerted || player.noise >= 30 || distance <= 150) && distance < sensedDistance) {
+        sensed = player;sensedDistance = distance;
+      }
+    }
+    return sensed || nearest || this.player;
   }
 
   _resetNightmares(scale = Config.currentScale) {
@@ -2594,12 +2598,14 @@ class Game {
     this.state.shakeX = 0;
     this.state.shakeY = 0;
     this.corpseGrid = null;
+    this.actorGrid = null;
     this.corpseActive = new Set();
     this.corpsePosePending = new Map();
     this.corpsePlayerPositions = new WeakMap();
     this.corpsePoseTimer = 0;
     this.contactSequence = this.lastContactSequence = 0;
     this.renderer?.corpseLayouts?.clear();
+    this.renderer?.clearCorpseTextures?.();
   }
 
   _rebuildCorpseGrid() {
@@ -2616,12 +2622,12 @@ class Game {
     for(const pending of this.corpsePosePending?.values()||[])for(const id of pending.keys())if(!ids.has(id))pending.delete(id);
   }
 
-  _updateCorpsePhysics(dt) {
+  _updateCorpsePhysics(dt, players = this._onlineCoopPlayers()) {
     if (this.state.coop?.role === 'guest' || typeof CorpseEffects === 'undefined') return;
     if (!this.corpseGrid) this._rebuildCorpseGrid();
     this.corpsePlayerPositions ||= new WeakMap();
     const touched=new Map();
-    for(const player of this._onlineCoopPlayers()){
+    for(const player of players){
       const before=this.corpsePlayerPositions.get(player)||player;
       const mover={x:player.x,y:player.y,radius:player.radius,dx:player.x-before.x,dy:player.y-before.y};
       this.corpsePlayerPositions.set(player,{x:player.x,y:player.y});
@@ -2639,18 +2645,22 @@ class Game {
         if(this.state.coop.running&&this.state.coop.role==='host')for(const entry of this.remotePlayers.values()){
           if(entry.online===false)continue;
           if(!this.corpsePosePending.has(entry.id))this.corpsePosePending.set(entry.id,new Map());
-          this.corpsePosePending.get(entry.id).set(record.id,CorpseEffects.pose(record));
+          this.corpsePosePending.get(entry.id).set(record.id,record);
         }
       }
       if(record.fragments.every(piece=>piece.sleeping))this.corpseActive.delete(record);else this.corpseActive.add(record);
     }
     this.corpsePoseTimer=(this.corpsePoseTimer||0)-dt;
-    if(this.corpsePoseTimer>0)return;this.corpsePoseTimer=.05;
+    if(this.corpsePoseTimer>1e-9)return;this.corpsePoseTimer=.05+this.corpsePoseTimer%.05;
+    const packed=new Map();
     for(const [peerId,pending]of this.corpsePosePending){
       if(!this.remotePlayers?.get(peerId)?.online){this.corpsePosePending.delete(peerId);continue;}
       if(this.remotePlayers.get(peerId).equipmentSyncing)continue;
       if((this.coopSession?.peers?.get(peerId)?.eventChannel?.bufferedAmount||0)>64000)continue;
-      const poses=[...pending.values()].slice(0,16);
+      const poses=[...pending.values()].slice(0,16).map(record=>{
+        if(!packed.has(record.id))packed.set(record.id,CorpseEffects.pose(record));
+        return packed.get(record.id);
+      });
       if(poses.length&&this.coopSession.sendEvent('corpse-motion',{missionId:this.state.missionFxId,poses},peerId))for(const pose of poses)pending.delete(pose.id);
     }
   }
@@ -6598,11 +6608,12 @@ class Game {
     }
 
     // 6. Drive monster pathfinding & AI updates
-    const allEntities = new EntitySpatialGrid(64);
+    const allEntities = this.actorGrid ||= new EntitySpatialGrid(64);
+    const onlinePlayers = this._onlineCoopPlayers();
     const activeRemotePlayers = [...this.remotePlayers.values()].filter(entry => entry.online !== false).map(entry => entry.player);
     allEntities.rebuild([...(this.nightmares || []).filter(monster => monster.active), ...this.hunters, ...(this.heavies || []).filter(heavy => heavy.active && !heavy.dead), ...activeRemotePlayers]);
     for (const monster of this.nightmares || []) {
-    const monsterTarget = this._getThreatTarget(monster);
+    const monsterTarget = this._getThreatTarget(monster, onlinePlayers);
     const monsterResult = monster.update(dt, monsterTarget, monsterTarget.noise, this.map, this.audio, allEntities);
     this.equipment?.attackObstacle(monster, monsterTarget, dt, 'monster');
     allEntities.reindex(monster);
@@ -6655,7 +6666,7 @@ class Game {
     }
 
     // 6b. Drive Hunter AI (all active hunters)
-    const lightSources = this._onlineCoopPlayers().filter(player => !player.downed);
+    const lightSources = onlinePlayers.filter(player => !player.downed);
     this.hunters.forEach(h => {
       if (h.trainingDummy) return;
       if (h.dead) {
@@ -6667,7 +6678,7 @@ class Game {
         allEntities.reindex(h);
       }
       if (!h.active || h.dead) return;
-      const hunterTarget = this._getThreatTarget(h);
+      const hunterTarget = this._getThreatTarget(h, onlinePlayers);
       const hunterResult = h.update(
         dt,
         hunterTarget,
@@ -6703,7 +6714,7 @@ class Game {
 
     for (const heavy of this.heavies || []) {
       if (!heavy.active || heavy.dead) continue;
-      const heavyResult = heavy.update(dt, this._getThreatTarget(heavy), this.map, this._onlineCoopPlayers());
+      const heavyResult = heavy.update(dt, this._getThreatTarget(heavy, onlinePlayers), this.map, onlinePlayers);
       allEntities.reindex(heavy);
       if (heavyResult.wallImpact) {
         if (heavyResult.wallImpact.barrierId) this.equipment?.damage(heavyResult.wallImpact.barrierId, 5);
@@ -6717,10 +6728,10 @@ class Game {
         this._knockbackPlayer(player, heavy.chargeAngle, Config.heavy.knockback);
         if (player === this.player) this.ui.triggerDamageFlash(0.6, 130);
       }
-      this.equipment?.attackObstacle(heavy, this._getThreatTarget(heavy), dt, 'heavy');
+      this.equipment?.attackObstacle(heavy, this._getThreatTarget(heavy, onlinePlayers), dt, 'heavy');
     }
     this._syncEnemyCorpses();
-    this._updateCorpsePhysics(dt);
+    this._updateCorpsePhysics(dt, onlinePlayers);
 
     this.trainingSession?.tick();
     if (this.state.tutorial?.paused) return;

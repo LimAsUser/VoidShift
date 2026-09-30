@@ -13,7 +13,7 @@ function setup() {
   const sqlite = new DatabaseSync(':memory:');
   sqlite.exec(`CREATE TABLE rooms(code TEXT PRIMARY KEY, host_token TEXT, protocol_version INTEGER, status TEXT, expires_at INTEGER);
     CREATE TABLE room_members(id TEXT PRIMARY KEY, room_code TEXT, slot INTEGER, generation INTEGER, status TEXT, token_hash TEXT, offer_sdp TEXT, answer_sdp TEXT, offline_at INTEGER);`);
-  sqlite.prepare('INSERT INTO rooms VALUES(?,?,?,?,?)').run('ABC234','host-token',16,'lobby',Date.now()+60000);
+  sqlite.prepare('INSERT INTO rooms VALUES(?,?,?,?,?)').run('ABC234','host-token',18,'lobby',Date.now()+60000);
   sqlite.prepare('INSERT INTO room_members VALUES(?,?,?,?,?,?,?,?,?)').run('member-2','ABC234',2,0,'waiting',createHash('sha256').update('member-token').digest('hex'),null,null,null);
   let beforeWrite;
   const db = { prepare(sql) { return { bind(...values) { return {

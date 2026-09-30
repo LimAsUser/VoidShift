@@ -27,7 +27,7 @@ test('host sees only its own knowledge of a peer failure, not an invented remote
 
 test('guest host card never says connected while the transport is still pending',()=>{
   const h=setup(),menu=Object.create(h.SafehouseMenu.prototype);
-  menu.game={state:{coop:{role:'guest',members:[],connected:false}},ui:{startButton:node()},player:{armory:{loadout:{}}}};menu.tab='loadout';
+  menu.game={state:{coop:{role:'guest',members:[],connected:false}},ui:{startButton:node()},player:{armory:{loadout:{}}},getMenuPreviewMap:()=>null};menu.tab='loadout';
   menu.updateLobby();assert.doesNotMatch(h.get('.coop-host-seat > p').textContent,/已连接/);
 });
 

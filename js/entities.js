@@ -1957,6 +1957,8 @@ class EntitySpatialGrid {
   }
 
   reindex(entity) {
+    const existing = this.entries.get(entity);
+    if (existing && existing.key === this._key(entity.x, entity.y)) return;
     const order = this._remove(entity);
     if (order != null) this._insert(entity, order);
   }
