@@ -35,9 +35,9 @@ test('90 seeded formal maps have real shaped rooms, shared crates, reachable hea
 test('encounter generation follows difficulty, is stable on redraw and changes with seed',()=>{
   const easy=new Set(),medium=new Set();
   for(let seed=1;seed<=12;seed++){
-    const e=new MapManager('small',seed,'easy');assert.equal(e.enemyTypes.length,1);assert.ok(!e.enemyTypes.includes('heavy'));easy.add(e.enemyTypes[0]);
+    const e=new MapManager('small',seed,'easy');assert.equal(e.enemyTypes.length,2);assert.ok(e.enemyTypes.includes('heavy'));assert.ok(e.enemyTypes.includes('hunter'));assert.ok(!e.enemyTypes.includes('monster'));easy.add([...e.enemyTypes].sort().join(','));
     const m=new MapManager('small',seed,'medium');assert.ok(m.enemyTypes.length===2||m.enemyTypes.length===3);medium.add(m.enemyTypes.length);
     const h=new MapManager('small',seed,'hard');assert.equal(h.enemyTypes.length,3);
   }
-  assert.equal(easy.size,2);assert.equal(medium.size,2);
+  assert.equal(easy.size,1);assert.equal(medium.size,2);
 });

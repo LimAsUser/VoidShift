@@ -1,4 +1,4 @@
-const COOP_PROTOCOL_VERSION = 18;
+const COOP_PROTOCOL_VERSION = 20;
 const MAX_STATE_BUFFERED_BYTES = 64_000;
 const COOP_MAX_GUESTS = 3;
 const COOP_RECONNECT_WINDOW_MS = 5 * 60 * 1000;
@@ -10,7 +10,8 @@ const COOP_CONNECTION_STAGES = {
   answer: '生成连接回应', 'upload-answer': '上传连接回应',
   ice: '收集网络地址', 'answer-wait': '等待队友回应', channels: '建立数据通道',
   connected: '已连接', lobby: '房间已创建，等待队友', status: '同步连接状态', members: '读取队员名单',
-  'ice-config': '读取中继配置', transport: '检查传输连接'
+  'ice-config': '读取中继配置', transport: '检查传输连接',
+  'lan-info': '检查 LAN 服务', 'lan-sockets': '建立 LAN 数据连接'
 };
 
 class ReliableChunks {
@@ -880,6 +881,18 @@ class CoopSession extends EventTarget {
   latencies() {
     return Object.fromEntries([...this.peers.values()].map(record => [record.id,
       record.connected && Number.isFinite(record.rttMs) && Date.now() - record.rttAt < 6000 ? record.rttMs : null]));
+  }
+
+  peerConnectionState(memberId) { return this.peers.get(memberId)?.peer?.connectionState || 'closed'; }
+
+  isPeerReady(memberId) {
+    const record = this.peers.get(memberId);
+    return !!record?.connected && record.eventChannel?.readyState === 'open';
+  }
+
+  peerBufferedAmount(memberId, channel = 'state') {
+    const record = this.peers.get(memberId);
+    return Number((channel === 'state' ? record?.stateChannel : record?.eventChannel)?.bufferedAmount) || 0;
   }
 
   _sampleLatency() {

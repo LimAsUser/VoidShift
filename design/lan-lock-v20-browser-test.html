@@ -1,0 +1,29 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>V20 IndexedDB browser regression</title>
+<body style="background:#081a24;color:#d8f1f8;font:18px system-ui;padding:24px"><h1>V20 LAN 存档串行测试</h1><pre id="result">运行中…</pre>
+<script src="../js/rewards.js"></script><script>
+// Disposable origin/key fixture: no Game, inventory, room or real reward access.
+SaveRewards.key='v20-browser-fixture-save';SaveRewards.journalKey='v20-browser-fixture-journal';
+Object.defineProperty(navigator,'locks',{value:undefined,configurable:true});
+globalThis.LANRuntime={verified:true,mode:'lan',protocolVersion:20,transport:'LAN_WS_V20',maxPlayers:4,ready:Promise.resolve()};
+const result=document.getElementById('result'),child=new URLSearchParams(location.search).has('child');
+if(child){
+  addEventListener('message',async event=>{if(event.origin!==location.origin||event.source!==parent)return;
+    try{const output=event.data==='daily'?await SaveRewards.claimDaily(new Date(2026,9,9)):await SaveRewards.applyReceipt({id:'v20-fixture-receipt',missionId:'v20-fixture-mission',amount:10,baseReward:10,difficultyMultiplier:1,resultMultiplier:1,expiresAt:Date.now()+60000,outcome:'success',counts:{hunter:1,monster:0,heavy:0}});
+      parent.postMessage({phase:event.data,changed:event.data==='daily'?output.claimed:output.applied},location.origin);
+    }catch(error){parent.postMessage({error:String(error)},location.origin);}});
+  parent.postMessage({ready:true},location.origin);
+}else{
+  localStorage.removeItem(SaveRewards.key);localStorage.removeItem(SaveRewards.journalKey);
+  const frames=[0,1].map(()=>{const frame=document.createElement('iframe');frame.hidden=true;frame.src=location.pathname+'?child=1';document.body.append(frame);return frame;});
+  let ready=0,daily=[],receipt=[];
+  addEventListener('message',event=>{if(event.origin!==location.origin||!frames.some(frame=>frame.contentWindow===event.source))return;
+    if(event.data.error){result.textContent='FAIL '+event.data.error;return;}
+    if(event.data.ready){if(++ready===2)frames.forEach(frame=>frame.contentWindow.postMessage('daily',location.origin));return;}
+    if(event.data.phase==='daily'){daily.push(event.data.changed);if(daily.length===2){
+      if(daily.filter(Boolean).length!==1||SaveRewards.read().money!==1000){result.textContent='FAIL duplicate daily credit';return;}
+      frames.forEach(frame=>frame.contentWindow.postMessage('receipt',location.origin));}}
+    if(event.data.phase==='receipt'){receipt.push(event.data.changed);if(receipt.length===2){
+      const money=SaveRewards.read().money;result.textContent=receipt.filter(Boolean).length===1&&money===1010?'PASS: 两个独立页面同时领取，每日奖励1次；重复回执1次；金额1010。':'FAIL duplicate receipt';
+      frames.forEach(frame=>frame.remove());localStorage.removeItem(SaveRewards.key);localStorage.removeItem(SaveRewards.journalKey);}}});
+}
+</script></body></html>

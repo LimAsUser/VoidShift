@@ -37,10 +37,61 @@ class SaveRewards {
   }
 
   static async locked(action) {
-    // Web Locks is shared across same-origin tabs. Never use a racy localStorage
-    // read/write "lock" when the browser cannot provide this guarantee.
-    if (!globalThis.navigator?.locks) throw new Error('当前浏览器无法安全领取，请使用新版 Edge 或 Chrome');
-    return navigator.locks.request('voidshift-reward-save', action);
+    if (typeof action !== 'function' || action.constructor?.name === 'AsyncFunction') throw new Error('存档事务必须同步完成');
+    const run = () => {
+      const result = action();
+      if (result && typeof result.then === 'function') throw new Error('存档事务不能等待异步操作');
+      return result;
+    };
+    if (globalThis.navigator?.locks?.request) return navigator.locks.request('voidshift-reward-save', run);
+    await globalThis.LANRuntime?.ready;
+    const runtime = globalThis.LANRuntime;
+    if (runtime?.verified !== true || runtime.mode !== 'lan' || runtime.protocolVersion !== 20 ||
+        runtime.transport !== 'LAN_WS_V20' || runtime.maxPlayers !== 4 || !globalThis.indexedDB) {
+      throw new Error('当前浏览器无法安全写入存档，请使用新版 Edge 或 Chrome，或已启用的局域网服务');
+    }
+    const db = await this.lockDatabase();
+    return new Promise((resolve, reject) => {
+      let transaction, result, failure;
+      try {
+        transaction = db.transaction('mutex', 'readwrite');
+        transaction.oncomplete = () => resolve(result);
+        transaction.onabort = transaction.onerror = () => reject(failure || transaction.error || new Error('存档事务失败'));
+        const request = transaction.objectStore('mutex').get('reward-save');
+        request.onerror = () => { failure = request.error || new Error('存档锁读取失败'); };
+        // Same-store readwrite transactions are exclusive across connections.
+        // Run only in the active request event; never await inside this lock.
+        request.onsuccess = () => {
+          try { result = run(); }
+          catch (error) { failure = error; transaction.abort(); }
+        };
+      } catch (error) { reject(error); }
+    });
+  }
+
+  static lockDatabase() {
+    if (this._lockDatabase) return this._lockDatabase;
+    const pending = new Promise((resolve, reject) => {
+      let request, failed = false;
+      const fail = error => { failed = true; reject(error || new Error('浏览器存储不可用，存档未能写入')); };
+      try {
+        request = indexedDB.open('voidshift-save-lock-v1', 1);
+        request.onupgradeneeded = () => {
+          if (!request.result.objectStoreNames.contains('mutex')) request.result.createObjectStore('mutex');
+        };
+        request.onerror = () => fail(request.error);
+        request.onblocked = () => fail(new Error('存档锁被其他标签页阻挡，请关闭旧的游戏标签页后重试'));
+        request.onsuccess = () => {
+          const db = request.result;
+          if (failed) { db.close(); return; }
+          db.onversionchange = () => { db.close(); this._lockDatabase = null; };
+          resolve(db);
+        };
+      } catch (error) { fail(error); }
+    });
+    this._lockDatabase = pending;
+    pending.catch(() => { if (this._lockDatabase === pending) this._lockDatabase = null; });
+    return pending;
   }
 
   static async claimDaily(date = new Date()) {

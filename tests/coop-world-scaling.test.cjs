@@ -128,6 +128,7 @@ test('the host validates and consumes a guest oxygen bottle exactly once', () =>
   game.player = {health:100,oxygen:100};
   game.remotePlayers = new Map([['guest-1', entry]]);
   game._backpackFor = actor => actor === player ? backpack : null;
+  game.coopSession = { sendEvent() { return true; } };
   game.ui = { showToast() {} };
   game._handleRemoteAction({ action: 'use-supply', itemId: 11,requestId:1,missionId:'supply-test' }, 'guest-1');
   assert.equal(player.oxygen,35);game.state.elapsed=2;game._updateSupplyUses();

@@ -913,6 +913,17 @@ body[data-menu-screen="prep"] .title-settings-icon, body.in-dive .title-settings
 .pause-crew-list { display: grid; gap: 8px; margin-top: 18px; border-top: 1px solid #345761; padding-top: 12px; }
 .pause-crew-row { display: flex; gap: 12px; align-items: center; justify-content: space-between; font-size: 15px; }
 .pause-crew-row button { min-height: 44px; }
+.coop-mode-controls { padding: 14px 18px; border-bottom: 1px solid #376374; }
+.settings-modal-tabs { flex-wrap: wrap; }
+.settings-section-btn { flex-shrink: 0; white-space: nowrap; }
+.coop-mode-controls > div, .profile-transfer-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.coop-mode-controls button, .profile-transfer-actions button { min-height: 42px; padding: 8px 14px; border: 1px solid #578795; background: #102d3c; color: #def6fc; cursor: pointer; }
+.coop-mode-controls button[aria-pressed="true"] { border-color: #ace265; color: #d5f5a1; background: #234c44; }
+.coop-mode-controls p, .profile-transfer-content p { line-height: 1.6; color: #aac8d6; }
+.coop-mode-controls button:disabled, .profile-transfer-actions button:disabled { opacity: .5; cursor: default; }
+.coop-join-row[hidden] { display: none; }
+#coopLanAddress { min-width: 0; flex: 1; }
+@media (max-width: 620px) { .coop-mode-controls { padding: 12px; } #coopLanJoinRow { flex-wrap: wrap; } #coopLanJoinRow input, #coopLanJoinRow button { width: 100%; } }
 .reward-settlement { min-width: 0; margin-top: 18px; }
 .reward-table-scroll { overflow: auto; }
 .reward-settlement table { width: 100%; border-collapse: collapse; font-size: 14px; }

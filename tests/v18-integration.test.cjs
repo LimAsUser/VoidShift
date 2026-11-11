@@ -12,7 +12,7 @@ test('only true Hunter/Heavy deaths produce fragments, reviving corpses remain i
  g.hunters=Array.from({length:220},(_,i)=>({dead:true,x:i+100,y:300,angle:0,spawnIndex:i+5}));g._syncEnemyCorpses();
  assert.equal(g.corpseRegistry.length,200);assert.ok(g.state.corpses.length<=60);assert.ok(g.state.corpses.every(c=>!c.fragments||c.fragments.length<=8));
 });
-test('host nudge physics sleeps and moving-only payloads remain small without touching player collision',()=>{
+test('host nudge physics sleeps without sending corpse motion or touching player collision',()=>{
  const g=fixture();g.state.coop={role:'host',running:true,playerId:'host'};const peer=new Player();g.remotePlayers.set('p',{id:'p',slot:2,player:peer,online:true,inventory:[]});const packets=[];
  g.coopSession.sendEvent=(type,payload)=>{packets.push({type,...payload});return true;};
  g.hunters=[{dead:true,x:110,y:100,angle:0,spawnIndex:0}];g._syncEnemyCorpses();
@@ -20,7 +20,7 @@ test('host nudge physics sleeps and moving-only payloads remain small without to
  for(let i=0;i<10;i++)g._updateCorpsePhysics(.05);assert.equal(packets.length,count);
  const part=g.corpseRegistry[0].fragments[0];g.player.x=part.x;g.player.y=part.y;const position=[g.player.x,g.player.y];g._updateCorpsePhysics(.05);
  assert.deepEqual([g.player.x,g.player.y],position);assert.ok(g.corpseActive.size>0);
- assert.ok(packets.filter(p=>p.type==='corpse-motion').every(p=>Buffer.byteLength(JSON.stringify(p))<32000));
+ assert.equal(packets.some(p=>p.type==='corpse-motion'),false);
 });
 test('monster hit audio events play once, identify local versus remote victims and reject another mission',()=>{
  const g=fixture();const event={missionId:'m',seq:1,victimId:'host',x:100,y:100};
@@ -36,8 +36,8 @@ test('hidden interaction hints keep active revive progress and training guidance
 });
 test('migration changes only balance fields once and a guest uses host access without granting local ownership',()=>{
  const g=fixture(),saved={difficultyProfiles:g._sanitizeDifficultyProfiles(),playerFeedbackMigrationVersion:1,balanceVersion:17,money:1234};saved.difficultyProfiles.medium.maps.medium.hunters=1;
- const next=g._migrateV18Profiles(saved);assert.equal(next.medium.maps.medium.hunters,18);assert.equal(saved.money,1234);next.medium.maps.medium.hunters=7;
- assert.equal(g._migrateV18Profiles({difficultyProfiles:next,balanceVersion:18,playerFeedbackMigrationVersion:1}).medium.maps.medium.hunters,7);
+ const next=g._migrateV19Profiles(saved);assert.equal(next.medium.maps.medium.hunters,16);assert.equal(saved.money,1234);next.medium.maps.medium.hunters=7;
+ assert.equal(g._migrateV19Profiles({difficultyProfiles:next,balanceVersion:19,playerFeedbackMigrationVersion:1}).medium.maps.medium.hunters,7);
  g.state.advancedUnlocked=false;assert.equal(g.canSelectMission('large','hard'),false);g.state.coop={role:'guest',hostAdvancedUnlocked:true};assert.equal(g.canSelectMission('large','hard',true),true);assert.equal(g.state.advancedUnlocked,false);
  g.state.coop.role=null;assert.equal(g.canSelectMission('large','hard',true),false);
 });
@@ -48,17 +48,16 @@ test('offline lobby transitions restore a locked guests own legal choice after h
  g.updateCoopUI();assert.equal(g.state.selectedDifficulty,'medium');assert.equal(Config.currentScale,'small');assert.equal(g.canSelectMission(),true);
 });
 
-test('slow or reconnecting peers receive the latest settled pose without replaying a death burst',()=>{
+test('reconnecting peers receive current corpse records without historical burst or motion events',()=>{
  const g=fixture(),packets=[],peer=new Player();g.state.coop={role:'host',running:true,playerId:'host'};
  g.remotePlayers.set('p',{id:'p',online:true,equipmentSyncing:true,player:peer});
  const channel={bufferedAmount:0};g.coopSession.peers.set('p',{eventChannel:channel});
  g.coopSession.sendEvent=(type,payload)=>{packets.push({type,...structuredClone(payload)});return true;};
  g.hunters=[{dead:true,x:110,y:100,angle:0,spawnIndex:0}];g._syncEnemyCorpses();packets.length=0;
  for(let i=0;i<90;i++)g._updateCorpsePhysics(.025);
- assert.equal(packets.length,0);assert.equal(g.corpsePosePending.get('p').size,1);
+ assert.equal(packets.length,0);
  g.remotePlayers.get('p').equipmentSyncing=false;channel.bufferedAmount=65000;g._updateCorpsePhysics(.05);assert.equal(packets.length,0);
- channel.bufferedAmount=0;g._updateCorpsePhysics(.05);assert.equal(packets.length,1);
- const pose=packets[0].poses[0];assert.equal(pose.version,g.corpseRegistry[0].motionVersion);assert.ok(pose.parts.every(p=>p[3]===1));
+ channel.bufferedAmount=0;g._updateCorpsePhysics(.05);assert.equal(packets.length,0);
  const guest=fixture();guest.state.coop={role:'guest',running:true};
  assert.equal(guest._applyCorpseDelta({missionId:'m',revision:g.corpseRevision,add:structuredClone(g.corpseRegistry),remove:[]},true),true);
  assert.equal(guest.corpseRegistry[0].suppressBurst,true);

@@ -42,7 +42,8 @@ function setup() {
   const buffers = [];
   const sandbox = {
     Config: { VIEW_W: 800, VIEW_H: 600, WORLD_W: 800, WORLD_H: 600,
-      camera: { baseZoom: 1.3, aimMultiplier: 1.1 }, player: { flashlightRange: 420, flashlightSpread: 0.6 } },
+      camera: { baseZoom: 1.3, aimMultiplier: 1.1 }, player: { flashlightRange: 420, flashlightSpread: 0.6,
+        poweredRoomVisionRange: Math.hypot(900, 602) / 1.56 } },
     Image: class { constructor() { this.complete = true; this.naturalWidth = 200; this.naturalHeight = 100; } },
     document: { createElement(tag) { assert.equal(tag, 'canvas'); const buffer = canvas(); buffers.push(buffer); return buffer; } }
   };
@@ -123,6 +124,7 @@ test('hard difficulty hides both Heavy lane phases while other difficulties reta
 
 test('living Hunter and stunned Heavy have red circles, while sleeping Monster retains only its status', () => {
   const { renderer, world, map, player, state, monster } = setup();
+  state.selectedDifficulty = 'easy';
   Object.assign(monster, { active: true, recoverTimer: 4 });
   state.heavy = { x: 300, y: 200, angle: 0, active: true, phase: 'stunned', stunTimer: 1 };
   renderer.draw(player, monster, map, state, [{ x: 250, y: 250, angle: 0, active: true }]);
@@ -134,6 +136,7 @@ test('living Hunter and stunned Heavy have red circles, while sleeping Monster r
 
 test('all living enemy bodies have red circles underneath, corpses hide them and waking restores them', () => {
   const { renderer, world, map, player, state, monster } = setup();
+  state.selectedDifficulty = 'easy';
   monster.active = true;
   const hunter = { x: 250, y: 250, angle: 0.8, active: true, dead: false };
   state.heavy = { x: 300, y: 200, angle: 0, active: true, dead: false, phase: 'pursuit' };

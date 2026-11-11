@@ -503,8 +503,8 @@ class MapManager {
       enemyState = (Math.imul(enemyState, 1664525) + 1013904223) >>> 0;
       return enemyState / 0x100000000;
     };
-    const enemyCount = this.difficulty === 'easy' ? 1 : this.difficulty === 'hard' ? 3 : 2 + Math.floor(enemyRandom() * 2);
-    const enemyPool = this.difficulty === 'easy' ? ['monster', 'hunter'] : ['monster', 'hunter', 'heavy'];
+    const enemyCount = this.difficulty === 'easy' ? 2 : this.difficulty === 'hard' ? 3 : 2 + Math.floor(enemyRandom() * 2);
+    const enemyPool = this.difficulty === 'easy' ? ['hunter', 'heavy'] : ['monster', 'hunter', 'heavy'];
     for (let i = enemyPool.length - 1; i > 0; i--) {
       const j = Math.floor(enemyRandom() * (i + 1));
       [enemyPool[i], enemyPool[j]] = [enemyPool[j], enemyPool[i]];

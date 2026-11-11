@@ -7,10 +7,11 @@ function game(difficulty='medium',scale='medium'){
  g.state.hunterSettings=g._buildDifficultySettings(difficulty);g.map={enemyTypes:['monster'],monsterSpawns:[{x:100,y:100}]};return g;
 }
 test('difficulty profiles drive the requested opening HP/counts and ordinary reinforcement sizes',()=>{
- const rows={easy:[[10,16,24],2,[2,3,4],30,1,40],medium:[[14,18,30],3,[4,6,8],30,3,30],hard:[[24,34,50],5,[6,8,10],20,5,20]};
+ const rows={easy:[[10,16,24],2,[2,3,4],30,0,40],medium:[[10,16,24],2,[4,6,8],30,1,40],hard:[[20,32,46],3,[6,8,10],20,1,30]};
  for(const [difficulty,[counts,hp,waves,interval,nightmareHp,sleep]]of Object.entries(rows))for(const [i,scale]of ['small','medium','large'].entries()){
   const g=game(difficulty,scale),settings=g._getHunterSettings();assert.equal(settings.hunters,counts[i]);assert.equal(settings.hunterMaxHp,hp);assert.equal(settings.hunterRespawnCount,waves[i]);assert.equal(settings.hunterSpawnInterval,interval);
-  g._resetNightmares();assert.equal(g.nightmares[0].hp,nightmareHp);assert.equal(g.nightmares[0].recoveryDuration,sleep);
+  g._resetNightmares();if(!nightmareHp){assert.equal(g.nightmares.length,0);continue;}
+  assert.equal(g.nightmares[0].hp,nightmareHp);assert.equal(g.nightmares[0].recoveryDuration,sleep);
  }
 });
 test('Nightmare takes damage amounts, sleeps once at zero and ignores dormant hits',()=>{

@@ -70,25 +70,25 @@ const Config = {
     medium: {
       id: 'medium', label: '中等', finalTerminalSpawnCount: 10, finalTerminalSpawnInterval: 30,
       maps: {
-        small: { hunters: 14, hunterMaxHp: 3, hunterRespawnCount: 4, hunterSpawnInterval: 30 },
-        medium: { hunters: 18, hunterMaxHp: 3, hunterRespawnCount: 6, hunterSpawnInterval: 30 },
-        large: { hunters: 30, hunterMaxHp: 3, hunterRespawnCount: 8, hunterSpawnInterval: 30 }
+        small: { hunters: 10, hunterMaxHp: 2, hunterRespawnCount: 4, hunterSpawnInterval: 30 },
+        medium: { hunters: 16, hunterMaxHp: 2, hunterRespawnCount: 6, hunterSpawnInterval: 30 },
+        large: { hunters: 24, hunterMaxHp: 2, hunterRespawnCount: 8, hunterSpawnInterval: 30 }
       }
     },
     hard: {
       id: 'hard', label: '困难', finalTerminalSpawnCount: 16, finalTerminalSpawnInterval: 30,
       maps: {
-        small: { hunters: 24, hunterMaxHp: 5, hunterRespawnCount: 6, hunterSpawnInterval: 20 },
-        medium: { hunters: 34, hunterMaxHp: 5, hunterRespawnCount: 8, hunterSpawnInterval: 20 },
-        large: { hunters: 50, hunterMaxHp: 5, hunterRespawnCount: 10, hunterSpawnInterval: 20 }
+        small: { hunters: 20, hunterMaxHp: 3, hunterRespawnCount: 6, hunterSpawnInterval: 20 },
+        medium: { hunters: 32, hunterMaxHp: 3, hunterRespawnCount: 8, hunterSpawnInterval: 20 },
+        large: { hunters: 46, hunterMaxHp: 3, hunterRespawnCount: 10, hunterSpawnInterval: 20 }
       }
     }
   },
 
   encounterRules: {
-    easy: { nightmareHp: 1, nightmareCounts: [1, 1, 1], nightmareSleep: 40, heavyCounts: [0, 0, 0], heavyHp: 0, rescueWait: 20 },
-    medium: { nightmareHp: 3, nightmareCounts: [1, 2, 3], nightmareSleep: 30, heavyCounts: [2, 3, 4], heavyHp: 10, rescueWait: 40 },
-    hard: { nightmareHp: 5, nightmareCounts: [2, 3, 4], nightmareSleep: 20, heavyCounts: [3, 4, 5], heavyHp: 20, rescueWait: 60 }
+    easy: { nightmareHp: 1, nightmareCounts: [0, 0, 0], nightmareSleep: 40, nightmareWallSpeed: 22.4, nightmareDamage: 0, nightmareOxygenDamage: 0, heavyCounts: [1, 2, 3], heavyHp: 5, rescueWait: 20 },
+    medium: { nightmareHp: 1, nightmareCounts: [1, 2, 3], nightmareSleep: 40, nightmareWallSpeed: 10, nightmareDamage: 0.02, nightmareOxygenDamage: 0, heavyCounts: [2, 3, 4], heavyHp: 5, rescueWait: 40 },
+    hard: { nightmareHp: 1, nightmareCounts: [2, 3, 4], nightmareSleep: 30, nightmareWallSpeed: 20, nightmareDamage: 0.03, nightmareOxygenDamage: 0, heavyCounts: [3, 4, 5], heavyHp: 10, rescueWait: 60 }
   },
 
   // Calculated dynamic world dimensions
@@ -111,7 +111,7 @@ const Config = {
     this._worldH = val;
   },
 
-  camera: { baseZoom: 1.56, aimMultiplier: 1.1, maxLookFraction: 0.25, smoothingSeconds: 0.12 },
+  camera: { baseZoom: 1.25, aimMultiplier: 1.1, maxLookFraction: 0.15, smoothingSeconds: 0.10 },
 
   player: {
     spawnX: 180,
@@ -135,6 +135,7 @@ const Config = {
     stabilizedNoiseCap: 8,
     sprintNoiseGain: 4,
     sprintNoiseCap: 75,
+    poweredRoomVisionRange: Math.hypot(900, 602) / 1.56,
     flashlightRange: 420,
     flashlightSpread: 0.5
   },
@@ -225,11 +226,11 @@ const Config = {
       maxAmmo: 100,
       initialReserve: 0,
       purchasePrice: 15000,
-      shootCooldownDuration: 0.3,
+      shootCooldownDuration: 0.1,
       reloadDuration: 10,
       reloadMode: 'magazine',
       hipSpread: 0.52,
-      aimSpread: 0.26,
+      aimSpread: 0.104,
       shotNoise: 2,
       recoilAim: 2,
       recoilHip: 4,

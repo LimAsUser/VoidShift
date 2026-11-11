@@ -32,10 +32,10 @@ test('room API accepts the browser protocol and stores its matching room marker'
   const makeRequest = version => new Request('http://localhost/api/rooms', {
     method: 'POST', body: JSON.stringify({ protocolVersion: version })
   });
-  const response = await vm.runInContext('POST', context)(makeRequest(18));
+  const response = await vm.runInContext('POST', context)(makeRequest(20));
   assert.equal(response.status, 201);
-  assert.equal((await response.json()).protocolVersion, 18);
-  assert.equal(insert[2], 'MULTI_PEER_V18');
-  assert.equal(insert[3], 18);
-  assert.equal((await vm.runInContext('POST', context)(makeRequest(17))).status, 400);
+  assert.equal((await response.json()).protocolVersion, 20);
+  assert.equal(insert[2], 'MULTI_PEER_V20');
+  assert.equal(insert[3], 20);
+  assert.equal((await vm.runInContext('POST', context)(makeRequest(19))).status, 400);
 });

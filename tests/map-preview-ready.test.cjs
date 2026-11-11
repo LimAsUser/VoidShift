@@ -1,7 +1,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),test=require('node:test'),vm=require('node:vm');
 function fixture(failLarge=false){
   const frames=[],renders=[],constructs=[];
-  const element=()=>({textContent:'',children:[],classList:{toggle(){}},setAttribute(){},append(...x){this.children.push(...x);},replaceChildren(...x){this.children=x;}});
+  const element=()=>({textContent:'',children:[],dataset:{},classList:{toggle(){}},setAttribute(){},append(...x){this.children.push(...x);},replaceChildren(...x){this.children=x;}});
   const scales=['small','medium','large'];const cards=scales.map(scale=>({...element(),dataset:{draftScale:scale},querySelector:()=>element()}));
   const canvases=scales.map(scale=>({...element(),dataset:{mapPreview:scale},clientWidth:0,clientHeight:0}));
   const enemies=Object.fromEntries(scales.map(s=>[s,element()]));const statuses=Object.fromEntries(scales.map(s=>[s,element()]));
@@ -25,7 +25,9 @@ test('first opening fills all enemy rows before deferred canvas painting and kee
 });
 
 test('an already-open Guest map follows new host seeds and difficulty without closing the dialog',()=>{
-  const f=fixture();f.menu.game.state.coop.role='guest';f.menu.openMapDialog();const draft=f.menu.mapDraft;
+  const f=fixture();f.menu.game.state.coop.role='guest';
+  f.menu.game.getMenuPreviewMap=scale=>({seed:f.menu.game._ensureMenuMapSeeds()[scale],difficulty:f.menu.game._previewDifficulty(),enemyTypes:['heavy']});
+  f.menu.openMapDialog();const draft=f.menu.mapDraft;
   f.menu.game._ensureMenuMapSeeds=()=>({small:11,medium:22,large:33});f.menu.game._previewDifficulty=()=> 'hard';
   f.menu._refreshMapDialog();assert.equal(f.menu.mapDraft,draft);assert.equal(f.menu.mapDialog.open,true);
   assert.equal(f.menu.mapDraftMaps.large.seed,33);assert.equal(f.menu.mapDraftMaps.large.difficulty,'hard');

@@ -140,6 +140,7 @@ class UIManager {
     this.abandonConfirmButton = document.querySelector('#abandonConfirmButton');
     this.settingsSectionButtons = Array.from(document.querySelectorAll('[data-settings-section]'));
     this.fpsCapSelect = document.querySelector('#fpsCapSelect');
+    this.textureQualitySelect = document.querySelector('#textureQualitySelect');
     this.corpseLimitSelect = document.querySelector('#corpseLimitSelect');
     this.hunterSettingInputs = Array.from(document.querySelectorAll('[data-hunter-setting]'));
     this.finalTerminalSettingInputs = {
@@ -189,6 +190,7 @@ class UIManager {
     this.coopStatus = document.querySelector('#coopStatus');
     this.coopRoomCode = document.querySelector('#coopRoomCode');
     this.coopJoinCode = document.querySelector('#coopJoinCode');
+    this.coopLanAddress = document.querySelector('#coopLanAddress');
     this.coopLobby = document.querySelector('#coopLobby');
     this.coopHostReady = document.querySelector('#coopHostReady');
     this.coopGuestReady = document.querySelector('#coopGuestReady');
@@ -381,6 +383,10 @@ class UIManager {
 
   updateFpsCap(fpsCap) {
     if (this.fpsCapSelect) this.fpsCapSelect.value = fpsCap;
+  }
+
+  updateTextureQuality(value) {
+    if (this.textureQualitySelect) this.textureQualitySelect.value = value;
   }
 
   updateCorpseLimit(value) {
@@ -946,6 +952,7 @@ class UIManager {
     this.coopJoinCode.disabled = !!coop.role || !!coop.roomPending;
     this.coopHostButton.textContent = coop.roomPending === 'host' ? '正在创建…' : '创建四人房间';
     this.coopJoinButton.textContent = coop.roomPending === 'guest' ? '正在连接…' : '加入房间';
+    UIManager.prototype.updateCoopMode.call(this, coop);
     if (this.coopFriendlyFireControl) this.coopFriendlyFireControl.hidden = coop.role !== 'host';
     if (this.coopFriendlyFireToggle) {
       this.coopFriendlyFireToggle.checked = coop.friendlyFire !== false;
@@ -955,6 +962,38 @@ class UIManager {
       this.coopFriendlyFireStatus.hidden = coop.role !== 'guest';
       this.coopFriendlyFireStatus.textContent = `友伤：${coop.friendlyFire === false ? '关闭' : '开启'}`;
     }
+  }
+
+  updateCoopMode(coop) {
+    const lan = coop.mode === 'lan', runtime = coop.lanRuntime;
+    const local = runtime?.mode === 'lan';
+    const locked = !!coop.role || !!coop.roomPending || !!coop.running;
+    document.querySelectorAll?.('[data-coop-mode]').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.coopMode === (lan ? 'lan' : 'online')));
+      button.disabled = locked;
+    });
+    const onlineJoin = document.getElementById('coopOnlineJoinRow'), lanJoin = document.getElementById('coopLanJoinRow');
+    if (onlineJoin) onlineJoin.hidden = lan;
+    if (lanJoin) lanJoin.hidden = !lan;
+    if (this.coopLanAddress) {
+      this.coopLanAddress.disabled = locked || local;
+      if (local) this.coopLanAddress.value = globalThis.location?.host || '';
+    }
+    const lanButton = document.getElementById('coopLanJoinButton');
+    if (lanButton) { lanButton.disabled = locked || local && !runtime?.verified; lanButton.textContent = local ? '加入 LAN 房间' : '打开 LAN 游戏'; }
+    const note = document.getElementById('coopModeNote');
+    if (note) note.textContent = !lan ? '在线房间使用 6 位房间码；最多四人。'
+      : local ? runtime?.error?.message || (runtime?.hostRefreshInterrupted ? '房主页面已刷新，上一任务无法恢复。点击重建会中止旧房间并开始新的任务；已有结算回执继续查询。'
+        : runtime?.verified ? `LAN 服务已就绪 · ${runtime.canHost ? '房主电脑' : '队友页面'} · ${runtime.info?.room ? '房间已创建' : '等待房主创建房间'}` : '正在检查 LAN 服务…')
+        : '房主运行 Start-VoidShift-LAN.cmd；队友输入房主的 LAN / VPN IP:端口（默认 8787）。新网址的存档独立，可在设置中迁移个人档案。';
+    const retry = document.getElementById('coopLanServiceRetry');
+    if (retry) { retry.hidden = !lan || !local; retry.disabled = locked; }
+    if (lan) {
+      this.coopHostButton.disabled = locked || !local || !runtime?.canHost;
+      this.coopHostButton.textContent = coop.roomPending === 'host' ? '正在创建…' : runtime?.hostRefreshInterrupted ? '重建 LAN 房间' : '创建 LAN 房间';
+    }
+    const copy = document.getElementById('copyRoomButton');
+    if (copy) copy.textContent = lan ? '复制 LAN 地址' : '复制房间码';
   }
 
   static formatLatency(coop, id) {
@@ -1444,7 +1483,8 @@ class UIManager {
     setMeter(this.oxygenBar, this.oxygenMeter, gameState.oxygen);
     this.oxygenText.textContent = `${Math.max(0, Math.ceil(gameState.oxygen))}%`;
     setMeter(this.healthBar, this.healthMeter, gameState.health);
-    this.healthText.textContent = `${Math.max(0, Math.ceil(gameState.health))}%`;
+    const health = Math.max(0, Number(gameState.health) || 0);
+    this.healthText.textContent = `${health < 100 && health % 1 ? health.toFixed(2) : Math.ceil(health)}%`;
     setMeter(this.staminaBar, this.staminaMeter, gameState.stamina);
     this.staminaText.textContent = `${Math.max(0, Math.ceil(gameState.stamina))}%`;
 

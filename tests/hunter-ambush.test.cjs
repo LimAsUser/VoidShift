@@ -6,7 +6,7 @@ const vm = require('node:vm');
 
 const context = { window: { addEventListener() {} } };
 vm.createContext(context);
-for (const file of ['config', 'map', 'entities']) {
+for (const file of ['config', 'inventory', 'map', 'entities']) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../js', `${file}.js`), 'utf8'), context);
 }
 const { Hunter, MapManager, Config } = vm.runInContext('({ Hunter, MapManager, Config })', context);

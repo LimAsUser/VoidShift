@@ -72,6 +72,7 @@ class Game {
       finalTerminalSettings: this._finalTerminalSettings(difficultyProfiles.medium),
       armory: Player.createDefaultArmory(),
       fpsCap: '60',
+      textureQuality: 'high',
       corpseLimit: 100,
       enemyCountMigrationVersion: 1,
       corpses: [],
@@ -153,7 +154,8 @@ class Game {
 
     this.hunters = this._createHunters();
     this.nextHunterSpawnIndex = this.hunters.length;
-    this.coopSession = new CoopSession();
+    this.coopMode = globalThis.LANRuntime?.mode === 'lan' ? 'lan' : 'online';
+    this.coopSession = this.coopMode === 'lan' ? new LanCoopSession() : new CoopSession();
     this.remotePlayers = new Map();
     this.coopReviveAssignments = new Map();
     this.remoteQtes = new Map();
@@ -292,25 +294,36 @@ class Game {
     this._loadSave();
     this.difficultyEditor = this.state.selectedDifficulty;
     this.ui.updateFpsCap(this.state.fpsCap);
+    this.ui.updateTextureQuality?.(this.state.textureQuality);
     this.ui.updateCorpseLimit?.(this.state.corpseLimit);
     this.reset();
     this.attachEventListeners();
   }
 
   _attachCoopSession() {
-    this.coopSession.addEventListener('latency', event => {
+    this._detachCoopSession?.();
+    const session = this.coopSession, listeners = [];
+    const on = (type, listener) => {
+      session.addEventListener(type, listener);
+      listeners.push([type, listener]);
+    };
+    this._detachCoopSession = () => {
+      for (const [type, listener] of listeners) session.removeEventListener(type, listener);
+      listeners.length = 0;
+    };
+    on('latency', event => {
       this.state.coop.latencies = event.detail.values;
       this.updateCoopUI();
       this.ui.updateCrewManagement?.(this.state.coop);
     });
-    this.coopSession.addEventListener('connection-stage', event => this._handleCoopConnectionStage(event.detail));
-    this.coopSession.addEventListener('member-error', event => {
+    on('connection-stage', event => this._handleCoopConnectionStage(event.detail));
+    on('member-error', event => {
       const detail = event.detail;
       this._handleCoopConnectionStage({ peerId: detail.memberId, slot: detail.slot,
         generation: detail.generation, stage: 'channels', phase: 'failed',
         message: detail.error?.message || '队友连接失败' });
     });
-    this.coopSession.addEventListener('room', (event) => {
+    on('room', (event) => {
       if (event.detail.role === 'host') this._coopRosterSignature = '';
       this.state.coop.role = event.detail.role;
       this.state.coop.code = event.detail.code;
@@ -333,7 +346,7 @@ class Game {
         : `ROOM ${event.detail.code} // 正在连接`;
       this.updateCoopUI();
     });
-    this.coopSession.addEventListener('connected', () => {
+    on('connected', () => {
       this.state.coop.connected = true;
       this.state.coop.disconnectAt = 0;
       this.state.coop.hostPaused = false;
@@ -350,25 +363,32 @@ class Game {
       this.ui.setCoopPaused?.(false);
       this.updateCoopUI();
     });
-    this.coopSession.addEventListener('members', (event) => this._applyCoopMemberList(event.detail.members || []));
-    this.coopSession.addEventListener('member-connected', (event) =>
+    on('members', (event) => this._applyCoopMemberList(event.detail.members || []));
+    on('member-connected', (event) =>
       this._setCoopMemberStatus(event.detail.memberId, 'connected', !!event.detail.reconnected, event.detail.slot));
-    this.coopSession.addEventListener('member-disconnect', (event) => this._setCoopMemberStatus(event.detail.memberId, 'offline', false, event.detail.slot));
-    this.coopSession.addEventListener('member-removed', (event) => this._removeCoopMember(event.detail.memberId));
-    this.coopSession.addEventListener('status', (event) => {
+    on('member-disconnect', (event) => this._setCoopMemberStatus(event.detail.memberId, 'offline', false, event.detail.slot));
+    on('member-removed', (event) => this._removeCoopMember(event.detail.memberId, event.detail.reason));
+    on('status', (event) => {
       if (event.detail.state === 'expired') {
+        if (this.coopSession.transport === 'lan' && this.state.coop.role === 'host' &&
+            (this.state.running || this.state.transitioning || this.state.coop.running)) {
+          this.state.rewardDepartureOutcome = 'timeout';
+          this.finish(false);
+        }
         this._clearReadyPending();
         Object.assign(this.state.coop, {
-          status: 'ROOM EXPIRED // 房间已过期', role: null, code: null,
+          status: event.detail.message || 'ROOM EXPIRED // 房间已过期', role: null, code: null,
           connected: false, localReady: false, remoteReady: false, members: [], hostReady: false,
-          playerId: 'host', localSlot: 1
+          playerId: 'host', localSlot: 1, hostPaused: false, focusPaused: false, menuPaused: false,
+          running: false, roomPending: null
         });
+        this.ui.setCoopPaused?.(false);
         this.remotePlayers.clear();
         this._syncLegacyRemoteAliases();
         this.updateCoopUI();
       }
     });
-    this.coopSession.addEventListener('disconnect', () => {
+    on('disconnect', () => {
       this._clearReadyPending();
       if (!this.state.coop.disconnectAt) this.state.coop.disconnectAt = Date.now();
       this.state.coop.connected = false;
@@ -378,7 +398,7 @@ class Game {
       this.ui.setCoopPaused?.(true, 'reconnect');
       this.updateCoopUI();
     });
-    this.coopSession.addEventListener('message', (event) => {
+    on('message', (event) => {
       this._handleCoopMessage(event.detail.channel, event.detail.message, event.detail.peerId);
     });
   }
@@ -414,7 +434,7 @@ class Game {
     this.state.coop.members = (members || []).filter(member => member.status !== 'removed').map(member => {
       const previous = current.get(member.id);
       const peer = this.coopSession?.peers?.get(member.id);
-      const peerState = peer?.peer?.connectionState;
+      const peerState = this.coopSession?.peerConnectionState?.(member.id);
       const peerOffline = !!peer && !peer.connected && (
         peer.disconnectedNotified || peer.closed || ['disconnected', 'failed', 'closed'].includes(peerState)
       );
@@ -476,6 +496,9 @@ class Game {
     const member = this._upsertCoopMember({ id: memberId, ...(assignedSlot != null ? { slot: assignedSlot } : {}) });
     if (!member) return;
     const wasOffline = member.status === 'offline';
+    if (status === 'offline' || (status === 'connected' && (wasOffline || forceRejoin))) {
+      this.renderer?.playerArt?.reset(memberId);
+    }
     member.status = status;
     member.connected = status === 'connected';
     member.offlineAt = status === 'offline' ? (member.offlineAt || Date.now()) : 0;
@@ -515,9 +538,16 @@ class Game {
     this.updateCoopUI();
   }
 
-  _removeCoopMember(memberId) {
+  _removeCoopMember(memberId, reason = null) {
     if (this.state.coop.role === 'guest' && memberId === this.state.coop.playerId) {
       const missionActive = this.state.running || this.state.transitioning || this.state.coop.running;
+      if (reason && missionActive) {
+        this._finishGuestCoop({ success: false, abandoned: true, kicked: reason === 'kicked',
+          reason: reason === 'kicked' ? '房主已将你移出本局；战绩奖励正在等待房主结算' : '房主已关闭 LAN 房间',
+          missionId: this.state.missionFxId, resultId: `${this.state.missionFxId}:${memberId}`,
+          rewards: this.state.authoritativeRewardRows || [] });
+        return;
+      }
       this._clearReadyPending();
       this.state.coop.status = 'RECONNECT EXPIRED // 已离开本局';
       this.state.coop.running = false;
@@ -526,7 +556,7 @@ class Game {
       if (missionActive) this.finish(false);
       else {
         Object.assign(this.state.coop, { role: null, code: null, members: [], localReady: false,
-          connectionPhase: 'failed', connectionMessage: '联机连接已过期，请重新加入房间' });
+          connectionPhase: 'failed', connectionMessage: reason === 'kicked' ? '房主已将你移出房间' : reason === 'closed' ? '房主已关闭 LAN 房间' : '联机连接已过期，请重新加入房间' });
         this.ui.setCoopPaused?.(false);
         this.updateCoopUI();
       }
@@ -536,9 +566,10 @@ class Game {
     if (member) member.status = 'removed';
     const remote = this.remotePlayers.get(memberId);
     if (remote) {
-      this._freezePlayerReward(memberId, 'timeout');
+      this._freezePlayerReward(memberId, this._kickPending?.has(memberId) ? 'kicked' : 'timeout');
       this._dropRemoteInventory(remote);
       this.remotePlayers.delete(memberId);
+      this.renderer?.playerArt?.reset(memberId);
     }
     this._syncLegacyRemoteAliases();
     this.state.coop.members = (this.state.coop.members || []).filter(item => item.id !== memberId);
@@ -603,7 +634,8 @@ class Game {
     const peers = this.coopSession?.peers;
     if (typeof peers?.get === 'function' && members.some(member => {
       const peer = peers.get(member.id);
-      return !peer?.connected || peer.eventChannel?.readyState !== 'open';
+      return this.coopSession.isPeerReady ? !this.coopSession.isPeerReady(member.id)
+        : !peer?.connected || peer.eventChannel?.readyState !== 'open';
     })) return '队友连接已失效，等待重新连接。';
     if (members.some(member => !member.ready)) return '等待所有已连接队友准备。';
     return '';
@@ -646,7 +678,8 @@ class Game {
     }
     this.state.coop.startBlocker = this.state.coop.role === 'host' ? this.getCoopStartBlocker() : '';
     if (this.state.coop.role !== 'guest') this.state.coop.hostLoadout = { ...(this.player?.armory?.loadout || this.state.armory?.loadout || { primary: null, sidearm: 'pistol' }) };
-    this.ui.updateCoopLobby({ ...this.state.coop, preview: !!this.menu?.offlineCrewPreview,
+    this.ui.updateCoopLobby({ ...this.state.coop, mode: this.coopMode || 'online',
+      lanRuntime: globalThis.LANRuntime, preview: !!this.menu?.offlineCrewPreview,
       canRetryConnection: !!this.coopSession?.canRetryJoin,
       diagnosticsAvailable: !!this.coopSession?.connectionLog?.length });
     this.ui.updateCrewManagement?.(this.state.coop);
@@ -763,11 +796,43 @@ class Game {
   }
 
   async hostCoopRoom() {
+    if (this.coopMode === 'lan' && !globalThis.LANRuntime?.canHost) {
+      this.ui.showToast('请在房主电脑运行 Start-VoidShift-LAN.cmd，并从启动页面创建 LAN 房间');
+      return;
+    }
     return this._openCoopRoom('host');
   }
 
   async joinCoopRoom() {
+    if (this.coopMode === 'lan' && globalThis.LANRuntime?.mode !== 'lan') {
+      if (this.state.running || this.state.transitioning || this.state.coop.role || this.state.coop.roomPending) return;
+      try {
+        const destination = LANRuntime.parseAddress(this.ui.coopLanAddress.value);
+        window.open(destination.url, '_blank', 'noopener,noreferrer');
+        this.ui.showToast('已打开 LAN 游戏页面；新网址的存档独立，可在设置中导入个人档案');
+      } catch (error) { this.ui.showToast(error.message); }
+      return;
+    }
     return this._openCoopRoom('guest');
+  }
+
+  setCoopMode(mode) {
+    if (!['online', 'lan'].includes(mode) || this.state.running || this.state.transitioning ||
+        this.state.coop.role || this.state.coop.roomPending || this.state.coop.running || this._coopRoomOperation) return false;
+    if (mode === this.coopMode) return true;
+    this._detachCoopSession?.(); this.coopSession.close();
+    this.coopMode = mode;
+    this.coopSession = mode === 'lan' && globalThis.LANRuntime?.mode === 'lan' ? new LanCoopSession() : new CoopSession();
+    this._attachCoopSession();
+    Object.assign(this.state.coop, { connectionPhase: null, connectionMessage: '', status: mode === 'lan' ? 'LAN / VPN // 连接房主电脑' : 'OFFLINE // 选择创建或加入房间' });
+    this.updateCoopUI(); return true;
+  }
+
+  async refreshLanService() {
+    if (this.state.running || this.state.transitioning || this.state.coop.role || this.state.coop.roomPending) return;
+    await globalThis.LANRuntime?.refresh();
+    this.updateCoopUI();
+    this.ui.showToast(globalThis.LANRuntime?.verified ? 'LAN 服务已就绪' : globalThis.LANRuntime?.error?.message || '请先打开 LAN 地址');
   }
 
   retryCoopConnection() {
@@ -1361,12 +1426,6 @@ class Game {
     if (channel === 'events' && message.type === 'monster-contact' && this.state.coop.role === 'guest') {
       this._acceptMonsterContact(message); return;
     }
-    if (channel === 'events' && message.type === 'corpse-motion' && this.state.coop.role === 'guest' &&
-        this.state.coop.running && message.missionId === this.state.missionFxId && Array.isArray(message.poses) && message.poses.length <= 16) {
-      const records = new Map((this.corpseRegistry || []).map(record=>[record.id,record]));
-      for (const pose of message.poses) if (records.has(pose?.id)) CorpseEffects.applyPose(records.get(pose.id),pose);
-      return;
-    }
     if (channel === 'events' && message.type === 'equipment-state-page' && this.state.coop.role === 'guest') {
       this.equipment?.receivePage(message); return;
     }
@@ -1475,6 +1534,8 @@ class Game {
         if (message.accepted) this._tutorialAction('skill');
         else this.ui.showToast('技能尚未就绪或当前无法使用');
       }
+    } else if (message.type === 'supply-result' && this.state.coop.role === 'guest') {
+      this._applySupplyResult(message);
     } else if (message.type === 'flash-exploded' && this.state.coop.role === 'guest' && this.state.running) {
       if (typeof message.id === 'string' && Number.isFinite(message.x) && Number.isFinite(message.y)) this._showFlashBurst(message);
     } else if (message.type === 'ready') {
@@ -1643,6 +1704,8 @@ class Game {
     if (!player) return null;
     return {
       x: player.x, y: player.y, angle: player.angle,
+      moveSpeed: Number.isFinite(player.moveSpeed) ? player.moveSpeed : Config.player.speed,
+      stunned: player.stunned || 0,
       health: player.health, oxygen: player.oxygen, stamina: player.stamina, staminaLocked: player.staminaLocked,
       staminaRegenDelay: player.staminaRegenDelay,
       noise: player.noise, ammo: player.ammo, reserveAmmo: player.infiniteReserve ? 0 : player.reserveAmmo,
@@ -1672,7 +1735,12 @@ class Game {
     if (snapshot.weaponTimers) player.weaponTimers = structuredClone(snapshot.weaponTimers);
     const errorX = snapshot.x - player.x;
     const errorY = snapshot.y - player.y;
-    if (Math.hypot(errorX, errorY) > 48 || blend >= 1) {
+    const correctionDistance = Math.hypot(errorX, errorY);
+    if (correctionDistance > 48) {
+      const identity = player === this.player ? 'local' : this._remoteEntryForActor(player)?.id;
+      if (identity !== undefined) this.renderer?.playerArt?.reset(identity);
+    }
+    if (correctionDistance > 48 || blend >= 1) {
       player.x = snapshot.x;
       player.y = snapshot.y;
     } else {
@@ -1686,7 +1754,6 @@ class Game {
     player.shieldReadyAt = Number(snapshot.shieldReadyAt) || 0;
     if (player === this.player && Number.isSafeInteger(snapshot.lastSupplyRequestId)) {
       this._supplyRequestSequence = Math.max(this._supplyRequestSequence || 0, snapshot.lastSupplyRequestId);
-      if (this._pendingSupplyRequest?.requestId <= snapshot.lastSupplyRequestId) this._pendingSupplyRequest = null;
     }
     if (Number.isFinite(snapshot.skillReadyAt)) player.skillReadyAt = snapshot.skillReadyAt;
     if (player === this.player && Number.isSafeInteger(snapshot.lastSkillRequestId) && snapshot.lastSkillRequestId >= 0) {
@@ -1696,7 +1763,7 @@ class Game {
         this._pendingSkillRequest = null;
       }
     }
-    for (const key of ['health', 'oxygen', 'stamina', 'staminaLocked', 'staminaRegenDelay', 'noise', 'flashlight', 'bleedout', 'reviveProgress', 'dodgeTimer', 'dodgeDirectionX', 'dodgeDirectionY', 'meleeCooldown', 'meleeVisualTimer', 'flashStunTimer']) {
+    for (const key of ['health', 'oxygen', 'stamina', 'staminaLocked', 'staminaRegenDelay', 'noise', 'flashlight', 'bleedout', 'reviveProgress', 'dodgeTimer', 'dodgeDirectionX', 'dodgeDirectionY', 'meleeCooldown', 'meleeVisualTimer', 'flashStunTimer', 'moveSpeed', 'stunned']) {
       if (snapshot[key] != null) player[key] = snapshot[key];
     }
     player.invulnerableThisFrame = player.dodgeTimer > 0;
@@ -1881,6 +1948,7 @@ class Game {
       }
       return false;
     }
+    if (resetDisplay) this.renderer?.playerArt?.reset();
     if (Array.isArray(snapshot.discoveredRooms)) {
       const discovered = new Set(snapshot.discoveredRooms);
       this.map.worldRooms.forEach((room, index) => { room.discovered = discovered.has(index); });
@@ -1908,13 +1976,17 @@ class Game {
           remote.backpack.items = remote.inventory;
           this.remotePlayers.set(state.id, remote);
         }
+        if ((remote.online !== false) !== (state.online !== false)) this.renderer?.playerArt?.reset(state.id);
         remote.online = state.online !== false;
         remote.status = remote.online ? 'connected' : 'offline';
         this._recordRemotePose(remote, state.state, resetDisplay);
         this._applyPlayerSnapshot(remote.player, state.state, 1);
       }
       for (const id of this.remotePlayers.keys()) {
-        if (!remoteIds.has(id)) this.remotePlayers.delete(id);
+        if (!remoteIds.has(id)) {
+          this.remotePlayers.delete(id);
+          this.renderer?.playerArt?.reset(id);
+        }
       }
       this._syncLegacyRemoteAliases();
       inventoryInputs = Object.fromEntries(snapshot.players.map(entry => [entry.id, entry.inventory || []]));
@@ -2182,8 +2254,28 @@ class Game {
 
   _handleRemoteAction(message, peerId) {
     const entry = this.remotePlayers.get(peerId);
-    if (!entry || !entry.online || entry.equipmentSyncing || this.state.coop.role !== 'host' || this.state.coop.hostPaused) return;
+    if (!entry || !entry.online || this.state.coop.role !== 'host') return;
     const player = entry.player;
+    if (message.action === 'use-supply') {
+      if (message.missionId !== this.state.missionFxId || !Number.isSafeInteger(message.requestId) || message.requestId < 1) return;
+      if (message.requestId === entry.lastSupplyRequestId && entry.lastSupplyResult) {
+        this.coopSession.sendEvent('supply-result', entry.lastSupplyResult, peerId);
+        return;
+      }
+      if (message.requestId < (entry.lastSupplyRequestId || 0)) {
+        this.coopSession.sendEvent('supply-result', { missionId: message.missionId, requestId: message.requestId,
+          accepted: false, reason: 'stale-request', lastRequestId: entry.lastSupplyRequestId }, peerId);
+        return;
+      }
+      entry.lastSupplyRequestId = message.requestId;
+      const available = !entry.equipmentSyncing && !entry.qte && !this.state.coop.hostPaused && !(player.flashStunTimer > 0);
+      const accepted = available && this._useCarriedSupply(player, message.itemId);
+      entry.lastSupplyResult = { missionId: message.missionId, requestId: message.requestId, accepted,
+        reason: accepted ? null : available ? 'unavailable' : 'busy', lastRequestId: message.requestId };
+      this.coopSession.sendEvent('supply-result', entry.lastSupplyResult, peerId);
+      return;
+    }
+    if (entry.equipmentSyncing || this.state.coop.hostPaused) return;
     if (message.action === 'use-skill') {
       if (!Number.isSafeInteger(message.requestId) || message.requestId < 1) return;
       if (message.requestId === entry.lastSkillRequestId) {
@@ -2213,11 +2305,6 @@ class Game {
       this.shoot(player, message.shotId);
     }
     if (message.action === 'reload') player.reload(this.audio);
-    if (message.action === 'use-supply' && !entry.qte && message.missionId === this.state.missionFxId &&
-        Number.isSafeInteger(message.requestId) && message.requestId > (entry.lastSupplyRequestId || 0)) {
-      entry.lastSupplyRequestId = message.requestId;
-      this._useCarriedSupply(player, message.itemId);
-    }
     if (message.action === 'cancel-supply') player.supplyUse = null;
     if (message.action === 'switch-slot' && (!player.downed || message.slot === 'sidearm')) player.switchWeaponSlot(message.slot);
     if (message.action === 'roll') { player.supplyUse = null; player.barrierRemoval = null; this.roll(player, message.dx, message.dy); }
@@ -2432,7 +2519,10 @@ class Game {
     this._appliedFinishIds.add(resultId);
     while (this._appliedFinishIds.size > 128) this._appliedFinishIds.delete(this._appliedFinishIds.values().next().value);
     this.state.authoritativeRewardRows = message.rewards || [];
-    if (message.kicked) this.ui.showToast(message.reason || '房主已将你移出本局');
+    if (message.kicked) {
+      this.state.rewardDepartureOutcome = 'kicked';
+      this.ui.showToast(message.reason || '房主已将你移出本局');
+    }
     if (this._abandonTimer) clearTimeout(this._abandonTimer);
     this._abandonTimer = null;
     this.state.abandonPending = false;
@@ -2475,6 +2565,7 @@ class Game {
       monster.id = `nightmare-${index + 1}`;
       monster.recoveryDuration = this.trainingSession ? 40 : settings.nightmareSleep;
       monster.hp = monster.maxHp = this.trainingSession ? 1 : settings.nightmareHp;
+      monster.wallChokeSpeed = this.trainingSession ? Config.monster.wallChokeSpeed : settings.nightmareWallSpeed;
       monster.sleepCycle = 0;
       return monster;
     });
@@ -2555,7 +2646,9 @@ class Game {
     const index = Math.max(0, ['small', 'medium', 'large'].indexOf(scale));
     const multiplier = this.state.coop?.running ? this.state.coop.difficultyMultiplier || 1 : 1;
     return { heavyHp: rules.heavyHp, heavyCount: Math.ceil(rules.heavyCounts[index] * multiplier),
-      nightmareCount: Math.ceil(rules.nightmareCounts[index] * multiplier), nightmareSleep: rules.nightmareSleep, nightmareHp: rules.nightmareHp };
+      nightmareCount: Math.ceil(rules.nightmareCounts[index] * multiplier), nightmareSleep: rules.nightmareSleep,
+      nightmareHp: rules.nightmareHp, nightmareWallSpeed: rules.nightmareWallSpeed,
+      nightmareDamage: rules.nightmareDamage, nightmareOxygenDamage: rules.nightmareOxygenDamage };
   }
 
   _spawnHeavy() {
@@ -2600,9 +2693,7 @@ class Game {
     this.corpseGrid = null;
     this.actorGrid = null;
     this.corpseActive = new Set();
-    this.corpsePosePending = new Map();
     this.corpsePlayerPositions = new WeakMap();
-    this.corpsePoseTimer = 0;
     this.contactSequence = this.lastContactSequence = 0;
     this.renderer?.corpseLayouts?.clear();
     this.renderer?.clearCorpseTextures?.();
@@ -2618,12 +2709,10 @@ class Game {
       if(record.fragments.some(piece=>!piece.sleeping))this.corpseActive.add(record);
     }
     this.corpseGrid.rebuild(pieces);
-    const ids=new Set((this.corpseRegistry||[]).map(record=>record.id));
-    for(const pending of this.corpsePosePending?.values()||[])for(const id of pending.keys())if(!ids.has(id))pending.delete(id);
   }
 
   _updateCorpsePhysics(dt, players = this._onlineCoopPlayers()) {
-    if (this.state.coop?.role === 'guest' || typeof CorpseEffects === 'undefined') return;
+    if (typeof CorpseEffects === 'undefined') return;
     if (!this.corpseGrid) this._rebuildCorpseGrid();
     this.corpsePlayerPositions ||= new WeakMap();
     const touched=new Map();
@@ -2638,30 +2727,11 @@ class Game {
       }
     }
     const candidates=new Set([...this.corpseActive,...touched.keys()]);
-    this.corpsePosePending ||= new Map();
     for(const record of candidates){
       if(CorpseEffects.advance(record,dt,this.map,[...(touched.get(record)||[])])){
         record.fragments.forEach(piece=>this.corpseGrid.reindex(piece));
-        if(this.state.coop.running&&this.state.coop.role==='host')for(const entry of this.remotePlayers.values()){
-          if(entry.online===false)continue;
-          if(!this.corpsePosePending.has(entry.id))this.corpsePosePending.set(entry.id,new Map());
-          this.corpsePosePending.get(entry.id).set(record.id,record);
-        }
       }
       if(record.fragments.every(piece=>piece.sleeping))this.corpseActive.delete(record);else this.corpseActive.add(record);
-    }
-    this.corpsePoseTimer=(this.corpsePoseTimer||0)-dt;
-    if(this.corpsePoseTimer>1e-9)return;this.corpsePoseTimer=.05+this.corpsePoseTimer%.05;
-    const packed=new Map();
-    for(const [peerId,pending]of this.corpsePosePending){
-      if(!this.remotePlayers?.get(peerId)?.online){this.corpsePosePending.delete(peerId);continue;}
-      if(this.remotePlayers.get(peerId).equipmentSyncing)continue;
-      if((this.coopSession?.peers?.get(peerId)?.eventChannel?.bufferedAmount||0)>64000)continue;
-      const poses=[...pending.values()].slice(0,16).map(record=>{
-        if(!packed.has(record.id))packed.set(record.id,CorpseEffects.pose(record));
-        return packed.get(record.id);
-      });
-      if(poses.length&&this.coopSession.sendEvent('corpse-motion',{missionId:this.state.missionFxId,poses},peerId))for(const pose of poses)pending.delete(pose.id);
     }
   }
 
@@ -2731,6 +2801,7 @@ class Game {
     this.corpseRevision = message.revision;
     if (replacement) this.state.corpses = [];
     this._refreshCorpses(Array.isArray(message.revived) ? message.revived : []);
+    this._rebuildCorpseGrid();
     return true;
   }
 
@@ -3481,6 +3552,18 @@ class Game {
     actor.supplyUse = null;
   }
 
+  _applySupplyResult(message) {
+    if (message.missionId !== this.state.missionFxId ||
+        message.requestId !== this._pendingSupplyRequest?.requestId) return false;
+    this._pendingSupplyRequest = null;
+    if (Number.isSafeInteger(message.lastRequestId)) {
+      this._supplyRequestSequence = Math.max(this._supplyRequestSequence || 0, message.lastRequestId);
+    }
+    if (!message.accepted) this.ui.showToast(message.reason === 'stale-request'
+      ? '补给请求已过期，请重试' : '当前无法使用补给，请确认背包、氧气和连接状态');
+    return true;
+  }
+
   _useCarriedSupply(actor, itemId, backpack = this._backpackFor(actor)) {
     const item = backpack?.getItem(itemId);
     if (actor.supplyUse || !this._canUseSupply(actor, item)) return false;
@@ -3531,7 +3614,7 @@ class Game {
       const requestId = this._supplyRequestSequence = (this._supplyRequestSequence || 0) + 1;
       const payload = { action: 'use-supply', itemId: item.id, requestId, missionId: this.state.missionFxId };
       const sent = this.coopSession.sendEvent('action', payload);
-      if (sent) this._pendingSupplyRequest = { requestId, payload, sentAt: performance.now() };
+      if (sent) this._pendingSupplyRequest = { requestId, payload, sentAt: typeof performance !== 'undefined' ? performance.now() : Date.now() };
       if (sent) this.ui.showToast('已请求使用补给，等待房主确认');
       return sent;
     }
@@ -3601,6 +3684,29 @@ class Game {
     this.state.nextFrameAt = 0;
     this.ui.updateFpsCap(fpsCap);
     this._save();
+  }
+
+  _applyTextureQuality() {
+    const low = this.state.textureQuality === 'low';
+    if (typeof document !== 'undefined') document.body?.classList?.toggle('low-quality', low);
+    if (this.renderer) {
+      this.renderer.lowQuality = low;
+      this.renderer.roomCaches = new WeakMap();
+      this.renderer.bulkheadPattern = null;
+      this.renderer.clearCorpseTextures?.();
+    }
+    this.ui.updateTextureQuality?.(this.state.textureQuality);
+  }
+
+  setTextureQuality(value) {
+    this.state.textureQuality = value === 'low' ? 'low' : 'high';
+    this._applyTextureQuality();
+    if (this.trainingSession) {
+      this.trainingSession.backup.state.textureQuality = this.state.textureQuality;
+      try { localStorage.setItem(SaveRewards.key, JSON.stringify({ ...SaveRewards.read(), textureQuality: this.state.textureQuality })); }
+      catch (_) { this.ui.showToast('画质设置未能保存，请检查浏览器存储权限'); }
+    } else this._save();
+    return true;
   }
 
   updateHunterSetting(scaleKey, key, value) {
@@ -4067,12 +4173,24 @@ class Game {
 
   _migrateV18Profiles(data = {}) {
     const profiles = this._migratePlayerFeedbackProfiles(data);
-    if (Number(data.balanceVersion) !== 18) for (const [id, preset] of Object.entries(Config.difficultyPresets)) {
+    if (!(Number(data.balanceVersion) >= 18)) for (const [id, preset] of Object.entries(Config.difficultyPresets)) {
       for (const [scale, settings] of Object.entries(preset.maps)) Object.assign(profiles[id].maps[scale], settings);
       profiles[id].finalTerminalSpawnCount = preset.finalTerminalSpawnCount;
       profiles[id].finalTerminalSpawnInterval = preset.finalTerminalSpawnInterval;
     }
     this.state.balanceVersion = 18;
+    return profiles;
+  }
+
+  _migrateV19Profiles(data = {}) {
+    const profiles = this._migrateV18Profiles(data);
+    if (!(Number(data.balanceVersion) >= 19)) for (const [id, preset] of Object.entries(Config.difficultyPresets)) {
+      for (const [scale, settings] of Object.entries(preset.maps)) {
+        profiles[id].maps[scale].hunters = settings.hunters;
+        profiles[id].maps[scale].hunterMaxHp = settings.hunterMaxHp;
+      }
+    }
+    this.state.balanceVersion = 19;
     return profiles;
   }
 
@@ -4097,6 +4215,8 @@ class Game {
       this.state.masterVolume = Number.isFinite(data.masterVolume) ? Math.max(0, Math.min(100, data.masterVolume)) : 100;
       this.state.ambientVolume = Number.isFinite(data.ambientVolume) ? Math.max(0, Math.min(100, data.ambientVolume)) : 100;
       this.state.hideInteractionHints = data.hideInteractionHints === true;
+      this.state.textureQuality = data.textureQuality === 'low' ? 'low' : 'high';
+      this._applyTextureQuality();
       this.audio.setVolumes?.(this.state.masterVolume, this.state.ambientVolume);
       this.ui.updatePreferences?.(this.state);
       if (data.money != null) this.state.money = data.money;
@@ -4110,7 +4230,7 @@ class Game {
       }
       this.state.storageCapacity = Math.max(Config.storage.capacityCells, Number(data.storageCapacityCells) || Config.storage.capacityCells);
       this._initializeStorage();
-      this.state.difficultyProfiles = this._migrateV18Profiles(data);
+      this.state.difficultyProfiles = this._migrateV19Profiles(data);
       this.state.selectedDifficulty = Config.difficultyPresets[data.difficultyPreset]
         ? data.difficultyPreset
         : 'medium';
@@ -4132,7 +4252,7 @@ class Game {
       this._bindBackpackInventories();
       this._migrateStarshipSupplies(data);
       this._refreshFlashbangStock();
-      if (Number(data.enemyCountMigrationVersion) !== 1 || Number(data.playerFeedbackMigrationVersion) !== 1 || Number(data.balanceVersion) !== 18) this._save();
+      if (Number(data.enemyCountMigrationVersion) !== 1 || Number(data.playerFeedbackMigrationVersion) !== 1 || Number(data.balanceVersion) !== 19) this._save();
     } catch (e) { /* ignore corrupt save */ }
   }
 
@@ -4157,10 +4277,11 @@ class Game {
         difficultyProfiles: this.state.difficultyProfiles,
         difficultyPreset: this.state.personalDifficulty || this.state.selectedDifficulty,
         personalScale: this.state.personalScale || Config.currentScale,
-        balanceVersion: this.state.balanceVersion || 18,
+        balanceVersion: this.state.balanceVersion || 19,
         masterVolume: this.state.masterVolume ?? 100, ambientVolume: this.state.ambientVolume ?? 100,
         hideInteractionHints: this.state.hideInteractionHints === true,
         fpsCap: this.state.fpsCap,
+        textureQuality: this.state.textureQuality,
         corpseLimit: this.state.corpseLimit || 100,
         enemyCountMigrationVersion: this.state.enemyCountMigrationVersion || 1,
         playerFeedbackMigrationVersion: this.state.playerFeedbackMigrationVersion || 1
@@ -6142,6 +6263,8 @@ class Game {
     this.state.muzzleFlashes ||= [];
     this.state.muzzleFlashes.push({
       id: String(shotId), x: shooter.x, y: shooter.y, angle: shooter.angle,
+      shooterId: shooter === this.player ? this.state.coop?.playerId || 'host' : this._remoteEntryForActor(shooter)?.id || 'host',
+      weaponId: shooter.weaponId, downed: shooter.downed === true,
       roomIndex: room ? this.map.worldRooms?.indexOf(room) ?? -1 : -1,
       timer: 0.18, duration: 0.18, range: 550
     });
@@ -6165,7 +6288,7 @@ class Game {
     const room = this.map.getRoomAt(shooter.x, shooter.y);
     const payload = {
       shotId: effectId, requestShotId: String(shotId), shooterId, x: shooter.x, y: shooter.y,
-      angle: shooter.angle, weaponId: shooter.weaponId,
+      angle: shooter.angle, weaponId: shooter.weaponId, downed: shooter.downed === true,
       roomIndex: room ? this.map.worldRooms?.indexOf(room) ?? -1 : -1
     };
     let sent = false;
@@ -6190,6 +6313,8 @@ class Game {
     const room = this.map.getRoomAt(message.x, message.y);
     this.state.muzzleFlashes.push({
       id: String(message.shotId), x: message.x, y: message.y, angle: Number(message.angle) || 0,
+      shooterId: message.shooterId,
+      weaponId: message.weaponId, downed: message.downed === true,
       roomIndex: room ? this.map.worldRooms?.indexOf(room) ?? -1 : -1,
       timer: 0.18, duration: 0.18, range: 550
     });
@@ -6273,8 +6398,12 @@ class Game {
         this.ui.showToast('未命中');
       }
 
-      rays.forEach(ray => {
+      rays.forEach((ray, rayIndex) => {
         this.state.bulletTraces.push({
+          visualId: `${this.state.missionFxId || 'mission'}:${shotId}:${rayIndex}`,
+          shooterId: shooter === this.player ? this.state.coop?.playerId || 'host' : this._remoteEntryForActor(shooter)?.id || 'host',
+          shooterAngle: shooter.angle,
+          weaponId: shooter.weaponId, downed: shooter.downed === true,
           startX: ray.startX, startY: ray.startY,
           currentX: ray.startX, currentY: ray.startY,
           endX: ray.endX, endY: ray.endY,
@@ -6332,16 +6461,20 @@ class Game {
     if (state.running === false || state.transitioning || state.pauseMenuOpen || state.coop?.hostPaused ||
         state.tutorial?.paused || state.activeQte || state.fullMapOpen || state.fullMapClosing ||
         state.inventoryOpen || state.inventoryClosing) return;
-    const zoom = Config.camera.baseZoom * (this._isPlayerAiming(this.player) ? Config.camera.aimMultiplier : 1);
-    const previousZoom = Number(state.cameraZoom) || zoom;
+    const elapsed = Math.max(0, dt);
+    const blend = 1 - Math.exp(-elapsed / Config.camera.smoothingSeconds);
+    const targetZoom = Config.camera.baseZoom * (this._isPlayerAiming(this.player) ? Config.camera.aimMultiplier : 1);
+    const previousZoom = Number(state.cameraZoom) || targetZoom;
+    const zoomBlend = elapsed > 0 && window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? 1 : blend;
+    const zoom = previousZoom + (targetZoom - previousZoom) * zoomBlend;
     state.cameraLookX = (Number(state.cameraLookX) || 0) * previousZoom / zoom;
     state.cameraLookY = (Number(state.cameraLookY) || 0) * previousZoom / zoom;
     state.cameraZoom = zoom;
-    const decay = Math.exp(-10 * Math.max(0, dt));
+    const decay = Math.exp(-10 * elapsed);
     state.recoilX = (Number(state.recoilX) || 0) * decay;
     state.recoilY = (Number(state.recoilY) || 0) * decay;
-    if (Math.abs(state.recoilX) < 0.05) state.recoilX = 0;
-    if (Math.abs(state.recoilY) < 0.05) state.recoilY = 0;
+    if (elapsed > 0 && Math.abs(state.recoilX) < 0.05) state.recoilX = 0;
+    if (elapsed > 0 && Math.abs(state.recoilY) < 0.05) state.recoilY = 0;
     const event = this.lastPointerEvent;
     if (!event || !this.ui.frame) return;
     const rect = this.ui.frame.getBoundingClientRect();
@@ -6358,7 +6491,6 @@ class Game {
     const maxY = Config.VIEW_H * Config.camera.maxLookFraction / zoom;
     const targetX = Math.max(-1, Math.min(1, screenOffsetX / (Config.VIEW_W / 2))) * maxX;
     const targetY = Math.max(-1, Math.min(1, screenOffsetY / (Config.VIEW_H / 2))) * maxY;
-    const blend = 1 - Math.exp(-Math.max(0, dt) / Config.camera.smoothingSeconds);
     state.cameraLookX = Math.max(-maxX, Math.min(maxX, state.cameraLookX + (targetX - state.cameraLookX) * blend));
     state.cameraLookY = Math.max(-maxY, Math.min(maxY, state.cameraLookY + (targetY - state.cameraLookY) * blend));
     state.mouseX = this.player.x + state.cameraLookX + state.recoilX + screenOffsetX / zoom;
@@ -6433,8 +6565,15 @@ class Game {
       this.coopSession.sendEvent('equipment-state-request', { missionId: this.state.missionFxId });
     }
     if (isGuest && this._pendingSupplyRequest && performance.now() - this._pendingSupplyRequest.sentAt > 1500) {
-      this._pendingSupplyRequest.sentAt = performance.now();
-      this.coopSession.sendEvent('action', this._pendingSupplyRequest.payload);
+      const pending = this._pendingSupplyRequest;
+      if ((pending.retries || 0) >= 3) {
+        this._pendingSupplyRequest = null;
+        this.ui.showToast('补给未获房主确认，请重试');
+      } else {
+        pending.retries = (pending.retries || 0) + 1;
+        pending.sentAt = performance.now();
+        this.coopSession.sendEvent('action', pending.payload);
+      }
     }
     const activePlayers = isGuest ? [] : this._onlineCoopPlayers();
     const blockingActors = isGuest ? [] : [
@@ -6454,6 +6593,7 @@ class Game {
     this.ui.updateFlashbangs?.(this.state.flashbangCount, this.state);
     if (this.state.coop.running && this.state.coop.role === 'guest') {
       this._updateGuestCoop(dt);
+      this._updateCorpsePhysics(dt);
       this._updateCoopRevivePrompt();
       return;
     }
@@ -6639,8 +6779,8 @@ class Game {
       if (monsterResult.playerHit) {
         const damage = this._applyDamage(
           monsterTarget,
-          Config.monster.contactDamage,
-          Config.monster.contactOxygenDamage
+          this.trainingSession ? Config.monster.contactDamage : this._getEncounterSettings().nightmareDamage,
+          this.trainingSession ? Config.monster.contactOxygenDamage : this._getEncounterSettings().nightmareOxygenDamage
         );
         if (!damage.blocked) {
           if (monsterTarget === this.player) this.ui.triggerDamageFlash(0.75, 130);
@@ -6651,7 +6791,7 @@ class Game {
       }
 
       if (monsterResult.recovering) {
-        this.ui.threatStatusText.textContent = `休眠中 (${monsterResult.recoverTimeLeft.toFixed(1)}s)`;
+        this.ui.threatStatusText.textContent = `休眠中 (${Number(monsterResult.recoverTimeLeft ?? monster.recoverTimer).toFixed(1)}s)`;
         this.ui.threatStatusText.className = 'ok';
       }
 
@@ -7300,6 +7440,9 @@ class Game {
     });
     if (this.ui.fpsCapSelect) {
       this.ui.fpsCapSelect.addEventListener('change', () => this.setFpsCap(this.ui.fpsCapSelect.value));
+    }
+    if (this.ui.textureQualitySelect) {
+      this.ui.textureQualitySelect.addEventListener('change', () => this.setTextureQuality(this.ui.textureQualitySelect.value));
     }
     if (this.ui.corpseLimitSelect) {
       this.ui.corpseLimitSelect.addEventListener('change', () => this.setCorpseLimit(this.ui.corpseLimitSelect.value));

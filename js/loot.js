@@ -9,6 +9,7 @@ class LootController {
     this.requestSequence = 0;
     this.bagSequence = 0;
     this.selected = null;
+    this.lastTap = null;
     this.game.state.lootContainerId = null;
     this.close();
   }
@@ -41,6 +42,7 @@ class LootController {
   close() {
     this.game.state.lootContainerId = null;
     this.selected = null;
+    this.lastTap = null;
     this.cancelDrag();
     if (this.panel) this.panel.hidden = true;
     this.overlay?.classList.remove('has-container');
@@ -243,11 +245,27 @@ class LootController {
     this.render();
   }
 
+  _isDoubleTap(kind, id, event) {
+    const now = Number.isFinite(event.timeStamp) ? event.timeStamp : Date.now();
+    const last = this.lastTap;
+    this.lastTap = { kind, id, x: event.clientX, y: event.clientY, at: now };
+    if (!last || last.kind !== kind || String(last.id) !== String(id) || now - last.at > 350 ||
+        Math.hypot(last.x - event.clientX, last.y - event.clientY) > 10) return false;
+    this.lastTap = null;
+    return true;
+  }
+
   startDrag(event, kind) {
     if (!this.game.state.lootContainerId || event.button !== 0) return;
     const tile = event.target.closest('.bp-item');if (!tile) return;
     const item = this.manager(kind)?.getItem(tile.dataset.itemId);if (!item) return;
     event.preventDefault();event.stopImmediatePropagation();
+    if (this._isDoubleTap(kind, item.id, event)) {
+      this.cancelDrag();
+      this.selected = { kind, id: item.id };
+      this.request(kind === 'bag' ? 'deposit' : 'take', item.id);
+      return;
+    }
     this.selected = { kind, id: item.id };
     this.game.selectedItemId = kind === 'bag' ? item.id : null;
     for (const [side, grid] of [['bag', this.packGrid], ['crate', this.grid]]) {
@@ -268,7 +286,7 @@ class LootController {
     if (!this.drag) return;
     this.drag.x = event.clientX;this.drag.y = event.clientY;
     if (Math.hypot(event.clientX - this.drag.startX, event.clientY - this.drag.startY) > 5) this.drag.moved = true;
-    if (this.drag.moved) { this.overlay.classList.add('is-loot-dragging');this.updateDragPreview(); }
+    if (this.drag.moved) { this.lastTap = null;this.overlay.classList.add('is-loot-dragging');this.updateDragPreview(); }
   }
 
   updateDragPreview() {

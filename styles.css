@@ -3122,3 +3122,63 @@ body[data-menu-screen="prep"]:not(.in-dive) .transaction-notices { top: 84px; }
   #inventoryOverlay.has-container .inventory-side { grid-column: 1; }
   .loot-container-panel { padding: 10px; }
 }
+
+/* Larger, matching field tools; the world camera is unaffected. */
+body.in-dive .full-map-modal { padding: 12px; }
+body.in-dive .full-map-container { max-width: 1600px; max-height: calc(100dvh - 24px); background: #061824; border-color: #4c9aa9; }
+body.in-dive .full-map-title-group h3 { font-size: clamp(17px, 1.5vw, 24px); }
+body.in-dive .full-map-header :is(button, .stat-tag) { min-height: 44px; font-size: clamp(12px, 1vw, 15px); }
+body.in-dive #inventoryOverlay.inventory-overlay { width: min(1040px, calc(100% - 24px)); max-height: calc(100% - 24px); padding: 20px !important; }
+body.in-dive #inventoryOverlay.has-container { width: min(1260px, calc(100% - 24px)); }
+body.in-dive #inventoryOverlay .inventory-header h2 { font-size: clamp(23px, 2vw, 30px); }
+body.in-dive #inventoryOverlay .inventory-readout, body.in-dive #inventoryOverlay .inventory-hint,
+body.in-dive #inventoryOverlay .item-desc { font-size: 14px; }
+body.in-dive #inventoryOverlay .inventory-actions .action-button { min-height: 44px; font-size: 14px !important; }
+body.in-dive #inventoryOverlay .inventory-grid-viewport { zoom: 1.7; overflow: auto; }
+body.in-dive #inventoryOverlay.has-container .loot-grid-viewport { zoom: 1.35; }
+body.in-dive #inventoryOverlay .inventory-side { flex: 1 1 220px; }
+@media (max-width: 740px) {
+  body.in-dive #inventoryOverlay.inventory-overlay { padding: 12px !important; }
+  body.in-dive #inventoryOverlay .inventory-grid-viewport,
+  body.in-dive #inventoryOverlay.has-container .loot-grid-viewport { zoom: 1.05; }
+}
+
+/* Low quality is a local flat-art mode, not a different collision map. */
+body.low-quality { background: #061018 !important; }
+body.low-quality *, body.low-quality *::before, body.low-quality *::after {
+  background-image: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  backdrop-filter: none !important;
+  filter: none !important;
+}
+body.low-quality img { display: none !important; }
+body.low-quality :is(.title-screen, .safehouse-shell, .panel, .menu-page, .menu-media-frame,
+  .inventory-overlay, .full-map-container, .loot-container-panel) { background-color: #0b1b25 !important; }
+body.low-quality :is(.menu-media-frame, .brief-location, .loadout-card, .facility-card, .map-enemy) {
+  border: 1px solid #496c78;
+  background-color: #102633 !important;
+}
+body.low-quality .menu-media-frame::after { content: '▶'; display: grid; place-items: center; min-height: 64px; color: #75ddd0; font-size: 28px; }
+body.low-quality .map-enemy::after { content: attr(data-enemy); display: block; padding: 6px; color: #a6e1df; font: 700 12px var(--mono); }
+body.low-quality #inventoryOverlay .bp-art-mask { display: none; }
+body.low-quality #inventoryOverlay .bp-item-name { display: block; font-size: 11px; }
+body.low-quality .scanlines { display: none; }
+body.low-quality .menu-motion { display: none !important; }
+body.low-quality .title-menu h1 { line-height: 1; margin-bottom: 18px; }
+body.low-quality .title-menu h1::after {
+  content: 'VOID SHIFT'; display: block; color: #d8f6ee; font: 800 clamp(42px, 7vw, 100px)/1 var(--display);
+  letter-spacing: .16em;
+}
+body.low-quality .title-menu #enterPreparationButton {
+  background: #a8e2d0 !important; color: #0a1c25 !important; border-color: #d7f36b !important;
+}
+body.low-quality .settings-section-btn.active { background: #21464a !important; color: #e6f9ef !important; }
+body.low-quality #preparationScreen .action-button,
+body.low-quality #preparationScreen .coop-action.primary:not(:disabled) {
+  background: #a8e2d0 !important; color: #0a1c25 !important;
+}
+body.low-quality #preparationScreen .tab-btn.active {
+  background: #274a3b !important; color: #e6ffa0 !important;
+}
+body.low-quality #preparationScreen button:disabled { background: #24343d !important; color: #91a8b1 !important; }

@@ -535,7 +535,7 @@ function isPointVisibleToPlayer(x, y, observer, mapManager, roomLightsOn = false
     if (difference > Config.player.flashlightSpread) return false;
     const room = roomLightsOn && mapManager.getRoomAt(x, y);
     const range = room && room.lights && room.lights.length
-      ? Math.hypot(Config.VIEW_W, Config.VIEW_H) / Config.camera.baseZoom
+      ? Config.player.poweredRoomVisionRange
       : Config.player.flashlightRange * (observer.flashlight ? 1 : 0.3);
     if (distance > range) return false;
   }
@@ -1041,7 +1041,7 @@ class Monster {
     this.discoveryTimer = Math.max(0, this.discoveryTimer - dt);
     if (this.flashStunTimer > 0) {
       this.flashStunTimer = Math.max(0, this.flashStunTimer - dt);
-      return { playerHit: false, recovering: this.recoverTimer > 0 };
+      return { playerHit: false, recovering: this.recoverTimer > 0, recoverTimeLeft: this.recoverTimer };
     }
 
     const distance = Math.hypot(this.x - player.x, this.y - player.y);
@@ -1114,7 +1114,7 @@ class Monster {
         if (mapManager.movementBarrierAt?.(nextX, nextY, this.radius)) break;
         const crossingWall = mapManager.blocked(nextX, nextY, this.radius);
         // Preserve slow wall phasing without skipping the wall at chase speed.
-        const monsterSpeed = crossingWall ? Config.monster.wallChokeSpeed : speed;
+        const monsterSpeed = crossingWall ? (this.wallChokeSpeed ?? Config.monster.wallChokeSpeed) : speed;
         this.x += Math.cos(angle) * monsterSpeed * stepTime;
         this.y += Math.sin(angle) * monsterSpeed * stepTime;
         this.angle = angle;

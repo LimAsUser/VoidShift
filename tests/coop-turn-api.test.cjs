@@ -3,7 +3,7 @@ const {DatabaseSync}=require('node:sqlite'),{stripTypeScriptTypes}=require('node
 async function setup(){
   const sqlite=new DatabaseSync(':memory:');
   for(const f of fs.readdirSync('drizzle').filter(f=>f.endsWith('.sql')).sort())sqlite.exec(fs.readFileSync('drizzle/'+f,'utf8'));
-  const now=Date.now();sqlite.prepare('INSERT INTO rooms(code,host_token,offer_sdp,protocol_version,status,created_at,expires_at) VALUES(?,?,?,?,?,?,?)').run('ABC234','host-secret','MULTI_PEER_V18',18,'lobby',now,now+600000);
+  const now=Date.now();sqlite.prepare('INSERT INTO rooms(code,host_token,offer_sdp,protocol_version,status,created_at,expires_at) VALUES(?,?,?,?,?,?,?)').run('ABC234','host-secret','MULTI_PEER_V20',20,'lobby',now,now+600000);
   const hash=Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode('member-secret'))).toString('hex');
   sqlite.prepare('INSERT INTO room_members(id,room_code,slot,token_hash,status,created_at) VALUES(?,?,?,?,?,?)').run('p','ABC234',2,hash,'waiting',now);
   const env={DB:{prepare:sql=>({bind:(...args)=>({first:async()=>sqlite.prepare(sql).get(...args)||null})})}};

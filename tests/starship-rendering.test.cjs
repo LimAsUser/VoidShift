@@ -52,7 +52,7 @@ function setup() {
   const state = { elapsed: 0, cameraZoom: 1, cameraLookX: 0, cameraLookY: 0, powerLossStartedAt: null, bulletTraces: [], impactParticles: [] };
   const monster = { x: 180, y: 150, angle: 0, active: false };
   renderer.prepareCamera(player, state);
-  return { renderer, map, player, state, room, world, vision, full, buffers, monster };
+  return { renderer, map, player, state, room, world, vision, full, buffers, monster, Config: sandbox.Config };
 }
 
 test('all lamps flicker four times then go dark, while reduced motion fades without strobing', () => {
@@ -81,8 +81,11 @@ test('ambient lights reuse room buffers, stay forward and stop at closed doors i
   renderer.drawCenteredVision(player, map, state);
   const openClip = vision.calls.find(call => call.kind === 'clip');
   assert.ok(Math.max(...openClip.points.map(([x]) => x)) > 400, 'an open door permits the existing forward view into lit space');
-  const illumination = buffers.find(buffer => buffer.calls.some(call => call.kind === 'gradient' && call.gradient.stops[0]?.[1] === 'rgba(0,0,0,.44)'));
-  assert.ok(illumination, 'strip light uses cached distance attenuation');
+  const illumination = renderer.roomLightField(map.worldRooms[0], state);
+  assert.ok(buffers.includes(illumination.canvas), 'strip light uses its cached room field');
+  assert.ok(illumination.values[2 * illumination.width + 25] > illumination.values[30 * illumination.width + 25],
+    'near-strip light remains brighter than the far side of the room');
+  assert.equal(renderer.roomLightField(map.worldRooms[0], state), illumination);
   state.powerLossStartedAt = 0; state.elapsed = 3;
   vision.calls.length = 0;
   renderer.drawCenteredVision(player, map, state);
@@ -99,6 +102,22 @@ test('raster room surfaces are cached and offscreen compartments do not allocate
   const allocated = buffers.length;
   renderer.draw(player, monster, map, state, []);
   assert.equal(buffers.length, allocated);
+});
+
+test('powered vision retains the original world range regardless of display zoom', () => {
+  const { renderer, map, player, state, Config } = setup();
+  const ranges = [], original = renderer.forwardVisibilityPolygon;
+  renderer.forwardVisibilityPolygon = function (...args) {
+    ranges.push(args[2]);
+    return original.apply(this, args);
+  };
+  for (const zoom of [1.25, 1.375, 1.56]) {
+    Config.camera.baseZoom = zoom;
+    state.cameraZoom = zoom;
+    renderer.drawCenteredVision(player, map, state);
+  }
+  assert.equal(ranges.length, 3);
+  for (const range of ranges) assert.ok(Math.abs(range - Math.hypot(900, 602) / 1.56) < 1e-10);
 });
 
 test('discovered terminal roomIndex reveals a cyan screen-sized pulse and solved terminals stop pulsing', () => {
@@ -134,11 +153,11 @@ test('grenades use their own sprite and orange blast with the same physical blas
   state.flashbangs = [{ x: 200, y: 150, skillId: 'grenade', landed: true, fuse: 1 }];
   state.flashBursts = [{ x: 200, y: 150, skillId: 'grenade', lifetime: .2 }];
   renderer.draw(player, monster, map, state, []);
-  assert.ok(world.calls.some(call => call.kind === 'drawImage' && call.args[0].src?.endsWith('abilities/grenade.png')));
+  assert.ok(world.calls.some(call => call.kind === 'drawImage' && call.args[0].src?.endsWith('equipment-v17/grenade.png')));
   assert.ok(world.calls.some(call => call.kind === 'fill' && String(call.fill).startsWith('rgba(255,112,40,')));
   assert.ok(!world.calls.some(call => call.kind === 'fill' && String(call.fill).startsWith('rgba(255,247,211,')));
   const blast = world.calls.find(call => call.kind === 'fill' && String(call.fill).startsWith('rgba(255,112,40,'));
-  assert.equal(Math.max(...blast.points.map(([x]) => x)), 280, 'the warning and explosion must match the 80-unit damage radius');
+  assert.equal(Math.max(...blast.points.map(([x]) => x)), 320, 'the warning and explosion must match the existing 120-unit damage radius');
 });
 
 test('terminal pulses remain the same screen size through zoom and reduced motion holds the rings still', () => {

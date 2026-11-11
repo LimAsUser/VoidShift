@@ -18,6 +18,6 @@ test('multiple Nightmares use stable separate identities and accumulate damage i
  const g=Object.create(Game.prototype);g.state={selectedDifficulty:'hard',missionFxId:'m',coop:{running:true,difficultyMultiplier:2}};
  g.map={enemyTypes:['monster'],monsterSpawns:[{x:1000,y:1000}],getRoomAt:()=>null};
  assert.equal(typeof g._resetNightmares,'function');g._resetNightmares('large');assert.equal(g.nightmares.length,8);
- assert.equal(new Set(g.nightmares.map(n=>n.id)).size,8);g.nightmares[0].registerHit(2);assert.equal(g.nightmares[0].hp,3);
- g.nightmares[0].registerHit(3);assert.equal(g.nightmares[0].recoverTimer,20);assert.equal(g.nightmares[1].recoverTimer,0);assert.equal(g.nightmares[1].hp,5);
+ assert.equal(new Set(g.nightmares.map(n=>n.id)).size,8);g.nightmares[0].registerHit(1);
+ assert.equal(g.nightmares[0].recoverTimer,30);assert.equal(g.nightmares[1].recoverTimer,0);assert.equal(g.nightmares[1].hp,1);
 });

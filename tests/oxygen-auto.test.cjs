@@ -2,12 +2,13 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 const sandbox={window:{addEventListener(){}},structuredClone};
 for(const file of ['config','inventory','entities','game'])vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../js',`${file}.js`),'utf8'),sandbox);
 const {Game,BackpackManager}=vm.runInNewContext('({Game,BackpackManager})',sandbox);
-function game(){const g=Object.create(Game.prototype);g.state={running:true,coop:{running:false},inventory:[]};g.player={oxygen:10,downed:false};g.backpack=BackpackManager.fromType('field');g.ui={showToast(){}};g._save=g.updateInventoryUI=()=>{};return g;}
+function game(){const g=Object.create(Game.prototype);g.state={running:true,elapsed:0,coop:{running:false},inventory:[]};g.player={oxygen:10,downed:false};g.backpack=BackpackManager.fromType('field');g.ui={showToast(){}};g._save=g.updateInventoryUI=g._tutorialAction=()=>{};return g;}
 test('C automatically consumes unbound bottles one at a time then uses the next',()=>{
   const g=game();g.backpack.items=[{id:'first',effect:'oxygen-50'},{id:'second',effect:'oxygen-50',quickUse:true}];
-  assert.equal(g.useQuickItem(),true);assert.equal(g.player.oxygen,60);
+  assert.equal(g.useQuickItem(),true);assert.equal(g.player.oxygen,10);
+  g.state.elapsed=2;g._updateSupplyUses();assert.equal(g.player.oxygen,60);
   assert.deepEqual(g.backpack.items.map(x=>x.id),['second']);
-  assert.equal(g.useQuickItem(),true);assert.equal(g.player.oxygen,100);assert.equal(g.backpack.items.length,0);
+  assert.equal(g.useQuickItem(),true);g.state.elapsed=4;g._updateSupplyUses();assert.equal(g.player.oxygen,100);assert.equal(g.backpack.items.length,0);
 });
 test('C never uses warehouse stock and respects full oxygen, stun, roll and modal restrictions',()=>{
   const g=game();g.storageBackpack={items:[{id:'stored',effect:'oxygen-50'}]};assert.equal(g.useQuickItem(),false);

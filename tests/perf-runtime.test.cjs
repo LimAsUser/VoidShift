@@ -13,25 +13,24 @@ test('linear target selection preserves stealth, ties, current downed state and 
   enemy.alerted=true;assert.equal(g._getThreatTarget(enemy,players),players[0]);assert.equal(queries,0);
   players.forEach(p=>p.downed=true);assert.equal(g._getThreatTarget(enemy,players),g.player);
 });
-test('corpse poses encode only at send cadence and are shared across three independent peers',()=>{
+test('corpse motion stays local even with three connected peers',()=>{
   const g=Object.create(Game.prototype);g.state={coop:{running:true,role:'host'},missionFxId:'perf'};g.player=new Player();g._clearEnemyEffects();g.map={blocked:()=>false};
   g.remotePlayers=new Map(['a','b','c'].map(id=>[id,{id,online:true,player:new Player()}]));const sent=[];
   g.coopSession={peers:new Map(),sendEvent:(type,payload,id)=>{sent.push({id,payload});return true;}};
   const body={id:'corpse',kind:'hunter',seed:5,width:63,x:100,y:100,angle:0};CorpseEffects.initialize(body);g.corpseRegistry=[body];g._rebuildCorpseGrid();
   const original=CorpseEffects.pose;let packs=0;CorpseEffects.pose=record=>{packs++;return original.call(CorpseEffects,record);};
   try{
-    g._updateCorpsePhysics(.01);assert.equal(packs,1);assert.equal(sent.length,3);assert.equal(sent[0].payload.poses[0],sent[1].payload.poses[0]);
-    packs=0;sent.length=0;for(let i=0;i<3;i++)g._updateCorpsePhysics(.01);assert.equal(packs,0);assert.equal(sent.length,0);
-    g._updateCorpsePhysics(.011);assert.equal(packs,1);assert.equal(sent.length,3);
+    for(let i=0;i<5;i++)g._updateCorpsePhysics(.01);
+    assert.equal(packs,0);assert.equal(sent.length,0);
   }finally{CorpseEffects.pose=original;}
 });
 
-test('moving corpse updates retain a twenty-Hz target at30,60 and120 simulation FPS',()=>{
+test('moving corpse updates send no pose messages at30,60 and120 simulation FPS',()=>{
   for(const fps of [30,60,120]){
     const g=Object.create(Game.prototype);g.state={coop:{running:true,role:'host'},missionFxId:'cadence'};g.player=new Player();g._clearEnemyEffects();g.map={blocked:()=>false};
     g.remotePlayers=new Map([['a',{id:'a',online:true,player:new Player()}]]);let sends=0;g.coopSession={peers:new Map(),sendEvent:()=>{sends++;return true;}};
     const body={id:'c',kind:'hunter',seed:5,width:63,x:500,y:500,angle:0};CorpseEffects.initialize(body);g.corpseRegistry=[body];g._rebuildCorpseGrid();
     const tick=()=>{const p=body.fragments[0];p.sleeping=false;p.vx=30;g.corpseActive.add(body);g._updateCorpsePhysics(1/fps);};
-    tick();sends=0;for(let i=0;i<fps;i++)tick();assert.equal(sends,20,`${fps}FPS`);
+    tick();sends=0;for(let i=0;i<fps;i++)tick();assert.equal(sends,0,`${fps}FPS`);
   }
 });

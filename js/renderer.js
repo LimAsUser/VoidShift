@@ -19,6 +19,7 @@ class Renderer {
   }
 
   sprite(name) {
+    if (this.lowQuality) return this.emptySprite ||= { complete: false, naturalWidth: 0, naturalHeight: 0 };
     if (!this.sprites[name]) {
       const image = new Image();
       image.src = `resources/images/${name}${['monster', 'hunter', 'heavy'].includes(name) ? '-topdown' : ''}.png`;
@@ -28,6 +29,18 @@ class Renderer {
   }
 
   drawEnemyBody(ctx, name, width, hitFlash = false) {
+    if (this.lowQuality) {
+      const down = name.endsWith('-down');
+      ctx.fillStyle = hitFlash ? '#ffffff' : name.startsWith('heavy') ? '#a65649' : name.startsWith('hunter') ? '#52b4a8' : '#b985b6';
+      ctx.beginPath();
+      ctx.moveTo(down ? width * 0.22 : width * 0.42, 0);
+      ctx.lineTo(-width * 0.3, -width * 0.27);
+      ctx.lineTo(-width * 0.18, 0);
+      ctx.lineTo(-width * 0.3, width * 0.27);
+      ctx.closePath();
+      ctx.fill();
+      return true;
+    }
     const image = this.sprite(name);
     if (!image.complete || !image.naturalWidth) return false;
     const height = width * image.naturalHeight / image.naturalWidth;
@@ -47,6 +60,33 @@ class Renderer {
       ctx.drawImage(this.hitMasks[name], -width / 2, -height / 2, width, height);
     }
     return true;
+  }
+
+  drawPlayerBody(ctx, actor, state, identity, color, gunColor) {
+    if (typeof PlayerArt === 'function') {
+      this.playerArt ||= new PlayerArt(name => this.sprite(name), () => this.motionQuery?.matches);
+      if (this.playerArt.draw(ctx, actor, state, identity)) return;
+    }
+    ctx.fillStyle = color;
+    ctx.beginPath();ctx.moveTo(14, 0);ctx.lineTo(-9, -9);ctx.lineTo(-6, 0);ctx.lineTo(-9, 9);ctx.closePath();ctx.fill();
+    ctx.fillStyle = gunColor;ctx.fillRect(2, -2, 8, 4);
+  }
+
+  drawPlayerMuzzleFlashes(ctx, observer, map, state) {
+    if (this.lowQuality || !this.playerArt) return;
+    for (const flash of state.muzzleFlashes || []) {
+      if (!(flash.timer > 0.13) || !PlayerArt.weapons[flash.weaponId] || !this.playerArt.assets(flash.weaponId, flash.downed)) continue;
+      const source = this.playerDisplayPositions?.get(flash.shooterId) || flash;
+      const distance = PlayerArt.muzzleDistance(flash.weaponId, flash.downed);
+      const dx = Math.cos(source.angle), dy = Math.sin(source.angle);
+      if (map.rayWallDistance(source.x, source.y, dx, dy, distance + 5) < distance) continue;
+      const point = PlayerArt.muzzlePoint(source, flash.weaponId, flash.downed);
+      if (!this.visibleWorldPoint(point, observer, map, state)) continue;
+      ctx.save();ctx.translate(point.x, point.y);ctx.rotate(source.angle);
+      ctx.globalAlpha = Math.min(1, (flash.timer - 0.13) / 0.05);
+      ctx.fillStyle = '#fff3cb';ctx.beginPath();ctx.moveTo(0, -1.5);ctx.lineTo(6, 0);ctx.lineTo(0, 1.5);ctx.closePath();ctx.fill();
+      ctx.restore();
+    }
   }
 
   visibleWorldPoint(point, player, mapManager, state) {
@@ -277,6 +317,19 @@ class Renderer {
 
   drawCorpseFragments(ctx, corpse, player, mapManager, state) {
     if (!this._corpseInViewport(corpse, state)) return;
+    if (this.lowQuality) {
+      ctx.save();
+      ctx.globalAlpha = corpse.fadeRemaining == null ? 0.7 : Math.max(0, corpse.fadeRemaining) * 0.7;
+      ctx.fillStyle = '#76454b';
+      for (const part of corpse.fragments) {
+        if (!this.visibleWorldPoint(part, player, mapManager, state)) continue;
+        const size = Math.max(3, Math.min(16, part.radius || 8));
+        ctx.save();ctx.translate(part.x, part.y);ctx.rotate(part.angle || 0);
+        ctx.fillRect(-size / 2, -size / 2, size, size);ctx.restore();
+      }
+      ctx.restore();
+      return;
+    }
     this.corpseLayouts ||= new Map();
     let layout=this.corpseLayouts.get(corpse.id);
     if(!layout){
@@ -515,7 +568,7 @@ class Renderer {
   roomBuffer(room, kind) {
     const cached = this.roomCache(room);
     const deck = kind === 'floor' ? this.sprite('starship/floor-deck') : null;
-    const ready = !!(deck?.complete && deck.naturalWidth);
+    const ready = !!(deck?.complete && deck.naturalWidth > 0 && deck.naturalHeight > 0);
     if (cached[kind] && (kind !== 'floor' || cached.floorReady === ready)) return cached;
     const canvas = document.createElement('canvas');
     const scale = Math.min(1, (kind === 'floor' ? 640 : 320) / Math.max(cached.w, cached.h));
@@ -530,18 +583,30 @@ class Renderer {
       ctx.fillStyle = '#17232d';
       ctx.fillRect(cached.x, cached.y, cached.w, cached.h);
       if (ready) {
-        for (let y = cached.y; y < cached.y + cached.h; y += 192) {
-          for (let x = cached.x; x < cached.x + cached.w; x += 192) ctx.drawImage(deck, x, y, 192, 192);
+        ctx.globalAlpha = 0.07;
+        for (let y = cached.y; y < cached.y + cached.h; y += 320) {
+          for (let x = cached.x; x < cached.x + cached.w; x += 320) ctx.drawImage(deck, x, y, 320, 320);
         }
+        ctx.globalAlpha = 1;
       }
-      ctx.globalAlpha = room.kind === 'corridor' ? 0.08 : 0.12;
+      ctx.globalAlpha = room.kind === 'corridor' ? 0.025 : 0.035;
       ctx.fillStyle = room.accent || '#65ddeb';
       ctx.fillRect(cached.x, cached.y, cached.w, cached.h);
-      ctx.globalAlpha = 0.35;
-      ctx.strokeStyle = '#506c79';
-      ctx.lineWidth = 14;
-      this.traceRoom(ctx, room);
-      ctx.stroke();
+      for (let y = Math.floor(cached.y / 160) * 160; y < cached.y + cached.h; y += 160) {
+        for (let x = Math.floor(cached.x / 192) * 192; x < cached.x + cached.w; x += 192) {
+          ctx.globalAlpha = 0.035;
+          ctx.fillStyle = '#91a8b5';
+          ctx.fillRect(x + 2, y + 2, 188, 156);
+          ctx.globalAlpha = 0.18;
+          ctx.fillStyle = '#070e17';
+          ctx.fillRect(x + 2, y + 158, 188, 2);
+          ctx.fillRect(x + 190, y + 2, 2, 156);
+          ctx.globalAlpha = 0.045;
+          ctx.fillStyle = '#b5c6ce';
+          ctx.fillRect(x + 3, y + 3, 186, 1);
+        }
+      }
+      ctx.globalAlpha = 1;
       cached.floorReady = ready;
     }
     cached[kind] = canvas;
@@ -664,6 +729,7 @@ class Renderer {
     const w = this.ui.canvas.clientWidth;
     const h = this.ui.canvas.clientHeight;
     if (!(w > 0 && h > 0)) return;
+    this.lowQuality = gameState.textureQuality === 'low';
     this._beginRenderFrame(player, mapManager, gameState);
     const scaleX = w / Config.VIEW_W;
     const scaleY = h / Config.VIEW_H;
@@ -691,14 +757,16 @@ class Renderer {
     // Raster floor panels are composed once per compartment, then drawn only near the camera.
     const visibleRooms = mapManager.worldRooms.filter(room => this.inViewport(this.roomCache(room), gameState));
     for (const room of visibleRooms) {
-      const cached = this.roomBuffer(room, 'floor');
-      ctx.drawImage(cached.floor, cached.x, cached.y, cached.w, cached.h);
+      if (this.lowQuality) {
+        this.traceRoom(ctx, room);
+        ctx.fillStyle = room.kind === 'corridor' ? '#17222c' : '#1c2b35';
+        ctx.fill();
+        ctx.strokeStyle = '#456070';ctx.lineWidth = 2;ctx.stroke();
+      } else {
+        const cached = this.roomBuffer(room, 'floor');
+        ctx.drawImage(cached.floor, cached.x, cached.y, cached.w, cached.h);
+      }
     }
-    const deck = this.sprite('starship/floor-deck');
-    if (!this.bulkheadPattern && deck.complete && deck.naturalWidth && ctx.createPattern) {
-      this.bulkheadPattern = ctx.createPattern(deck, 'repeat');
-    }
-
     // Draw solid walls and obstacles with metallic bulkhead detailing
     mapManager.walls.forEach(wall => {
       const bounds = wall.x1 !== undefined ? { x: Math.min(wall.x1, wall.x2), y: Math.min(wall.y1, wall.y2),
@@ -707,9 +775,23 @@ class Renderer {
       if (wall.x1 !== undefined) {
         // Line segment bulkhead wall
         ctx.save();
+        const length = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1) || 1;
+        let nx = -(wall.y2 - wall.y1) / length, ny = (wall.x2 - wall.x1) / length;
+        if ((Math.abs(nx) > Math.abs(ny) ? nx : ny) < 0) { nx = -nx; ny = -ny; }
+        ctx.lineCap = 'butt';
+        if (!this.lowQuality) {
+          // Offset only across the wall so decorative depth cannot bridge a doorway.
+          ctx.globalAlpha = 0.45;
+          ctx.lineWidth = 14;
+          ctx.strokeStyle = '#030910';
+          ctx.beginPath();
+          ctx.moveTo(wall.x1 + nx * 3, wall.y1 + ny * 3);
+          ctx.lineTo(wall.x2 + nx * 3, wall.y2 + ny * 3);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
         // Heavy structural casing
         ctx.lineWidth = 14;
-        ctx.lineCap = 'butt';
         ctx.strokeStyle = '#172633';
         ctx.beginPath();
         ctx.moveTo(wall.x1, wall.y1);
@@ -718,7 +800,7 @@ class Renderer {
 
         // Inner metallic plate
         ctx.lineWidth = 8;
-        ctx.strokeStyle = this.bulkheadPattern || '#203545';
+        ctx.strokeStyle = this.lowQuality ? '#203545' : '#304552';
         ctx.beginPath();
         ctx.moveTo(wall.x1, wall.y1);
         ctx.lineTo(wall.x2, wall.y2);
@@ -726,10 +808,11 @@ class Renderer {
 
         // Structural bevel highlight
         ctx.lineWidth = 1.5;
-        ctx.strokeStyle = '#477184';
+        ctx.strokeStyle = this.lowQuality ? '#477184' : '#617d8c';
         ctx.beginPath();
-        ctx.moveTo(wall.x1, wall.y1);
-        ctx.lineTo(wall.x2, wall.y2);
+        const bevel = this.lowQuality ? 0 : 4;
+        ctx.moveTo(wall.x1 - nx * bevel, wall.y1 - ny * bevel);
+        ctx.lineTo(wall.x2 - nx * bevel, wall.y2 - ny * bevel);
         ctx.stroke();
         ctx.restore();
       } else if (wall.x !== undefined) {
@@ -888,6 +971,7 @@ class Renderer {
 
         const terminalImage = this.sprite('equipment-v17/terminal');
         if (terminalImage.complete && terminalImage.naturalWidth) ctx.drawImage(terminalImage, -22, -22, 44, 44);
+        else { ctx.fillStyle = '#254750'; ctx.fillRect(-10, -10, 20, 20); }
         ctx.fillStyle = term.solved ? '#50e3c2' : '#f5a623';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -910,11 +994,10 @@ class Renderer {
 
     // Searchable salvage uses a dedicated sprite; fog is applied later as usual.
     const crateImage = this.sprite('equipment-v17/crate');
-    if (crateImage.complete && crateImage.naturalWidth) {
-      for (const box of mapManager.containers || []) {
-        const width = box.w || 44, height = box.h || 32;
-        ctx.drawImage(crateImage, box.x - width / 2, box.y - height / 2, width, height);
-      }
+    for (const box of mapManager.containers || []) {
+      const width = box.w || 44, height = box.h || 32;
+      if (crateImage.complete && crateImage.naturalWidth) ctx.drawImage(crateImage, box.x - width / 2, box.y - height / 2, width, height);
+      else { ctx.fillStyle = '#4a5f66';ctx.fillRect(box.x - width / 2, box.y - height / 2, width, height); }
     }
 
     // Training/legacy collectibles (formal maps now use containers).
@@ -1116,23 +1199,16 @@ class Renderer {
       ? remotePlayers
       : remotePlayers ? [{ player: remotePlayers, slot: 2, online: true }] : [];
     const playerColors = ['#75ddd0', '#75ddd0', '#75ddd0', '#75ddd0'];
+    this.playerDisplayPositions = new Map([[gameState.coop?.playerId || 'host', player]]);
     remoteEntries.forEach(entry => {
       const remotePlayer = entry.player || entry;
+      if (entry.id) this.playerDisplayPositions.set(entry.id, remotePlayer);
       const color = playerColors[(Math.max(1, entry.slot || 2) - 1) % playerColors.length];
       ctx.save();
       ctx.globalAlpha = (remotePlayer.downed ? 0.42 : 1) * (entry.online === false ? 0.3 : 1);
       ctx.translate(remotePlayer.x, remotePlayer.y);
       ctx.rotate(remotePlayer.angle);
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.moveTo(14, 0);
-      ctx.lineTo(-9, -9);
-      ctx.lineTo(-6, 0);
-      ctx.lineTo(-9, 9);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = '#f5a623';
-      ctx.fillRect(2, -2, 8, 4);
+      this.drawPlayerBody(ctx, remotePlayer, gameState, entry.id || `slot-${entry.slot || 2}`, color, '#f5a623');
       ctx.restore();
       this.drawShield(ctx, remotePlayer, gameState);
       if (remotePlayer.invulnerable) {
@@ -1164,16 +1240,7 @@ class Renderer {
     if (player.downed) ctx.globalAlpha = 0.42;
     ctx.translate(player.x, player.y);
     ctx.rotate(player.angle);
-    ctx.fillStyle = localColor;
-    ctx.beginPath();
-    ctx.moveTo(14, 0);
-    ctx.lineTo(-9, -9);
-    ctx.lineTo(-6, 0);
-    ctx.lineTo(-9, 9);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = '#d7f36b';
-    ctx.fillRect(2, -2, 8, 4);
+    this.drawPlayerBody(ctx, player, gameState, 'local', localColor, '#d7f36b');
     ctx.restore();
     this.drawShield(ctx, player, gameState);
 
@@ -1259,7 +1326,27 @@ class Renderer {
     }
 
     // --- DRAW FLYING BULLET TRACERS AND IMPACT SHADOW SPLASHES INSIDE THE MAP COORDINATE SPACE ---
+    if (this.tracerMissionId !== gameState.missionFxId) {
+      this.tracerVisualStarts = new Map();this.tracerMissionId = gameState.missionFxId;
+    }
+    this.tracerVisualStarts ||= new Map();
+    const activeTracers = new Set();
     gameState.bulletTraces.forEach(trace => {
+      const angle = Math.atan2(trace.endY - trace.startY, trace.endX - trace.startX);
+      const travelDistance = Math.hypot(trace.currentX - trace.startX, trace.currentY - trace.startY);
+      const muzzle = !this.lowQuality && typeof PlayerArt === 'function' && PlayerArt.weapons[trace.weaponId] && this.playerArt?.assets(trace.weaponId, trace.downed)
+        ? PlayerArt.muzzleDistance(trace.weaponId, trace.downed) : 0;
+      if (travelDistance < muzzle) return;
+      let segment;
+      if (muzzle) {
+        const key = trace.visualId || trace;
+        activeTracers.add(key);
+        if (!this.tracerVisualStarts.has(key)) {
+          const source = this.playerDisplayPositions.get(trace.shooterId) || { x: trace.startX, y: trace.startY, angle: trace.shooterAngle ?? angle };
+          this.tracerVisualStarts.set(key, PlayerArt.muzzlePoint(source, trace.weaponId, trace.downed));
+        }
+        segment = PlayerArt.tracerSegment(trace, this.tracerVisualStarts.get(key));
+      }
       ctx.save();
       ctx.strokeStyle = trace.color;
       ctx.lineWidth = 2.5;
@@ -1268,23 +1355,18 @@ class Renderer {
       ctx.shadowBlur = 6;
 
       ctx.beginPath();
-      const angle = Math.atan2(trace.endY - trace.startY, trace.endX - trace.startX);
       const tailLength = 24;
-      const travelDistance = Math.hypot(trace.currentX - trace.startX, trace.currentY - trace.startY);
-      
-      let tailX = trace.startX;
-      let tailY = trace.startY;
-      
-      if (travelDistance > tailLength) {
-        tailX = trace.currentX - Math.cos(angle) * tailLength;
-        tailY = trace.currentY - Math.sin(angle) * tailLength;
-      }
+      const tailDistance = Math.max(muzzle, travelDistance - tailLength);
+      const tailX = trace.startX + Math.cos(angle) * tailDistance;
+      const tailY = trace.startY + Math.sin(angle) * tailDistance;
 
-      ctx.moveTo(tailX, tailY);
-      ctx.lineTo(trace.currentX, trace.currentY);
+      ctx.moveTo(segment?.tailX ?? tailX, segment?.tailY ?? tailY);
+      ctx.lineTo(segment?.headX ?? trace.currentX, segment?.headY ?? trace.currentY);
       ctx.stroke();
       ctx.restore();
     });
+    for (const key of this.tracerVisualStarts.keys()) if (!activeTracers.has(key)) this.tracerVisualStarts.delete(key);
+    this.drawPlayerMuzzleFlashes(ctx, player, mapManager, gameState);
 
     // --- DRAW EXPLODING IMPACT SPARK PARTICLES INSIDE THE MAP COORDINATE SPACE ---
     gameState.impactParticles.forEach(p => {
@@ -1641,7 +1723,7 @@ class Renderer {
     if (litRooms.length) {
       visionCtx.setTransform(this.renderDpr, 0, 0, this.renderDpr, 0, 0);
       this.applyCamera(visionCtx, scaleX, scaleY, gameState);
-      const range = Math.hypot(Config.VIEW_W, Config.VIEW_H) / (Config.camera?.baseZoom || 1);
+      const range = Config.player.poweredRoomVisionRange;
       const visible = this.forwardVisibilityPolygon(player, mapManager, range);
       visionCtx.beginPath();
       visionCtx.moveTo(visible[0].x, visible[0].y);

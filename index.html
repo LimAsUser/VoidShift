@@ -10,8 +10,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=15" />
-  <link rel="stylesheet" href="menu.css?v=22" />
+  <link rel="stylesheet" href="styles.css?v=17" />
+  <link rel="stylesheet" href="menu.css?v=24" />
 </head>
 <body data-menu-screen="title">
   <div class="menu-motion" data-menu-motion="prep" hidden aria-hidden="true">
@@ -58,6 +58,7 @@
           <button class="settings-section-btn" type="button" data-settings-section="performanceSettingsContent">性能</button>
           <button class="settings-section-btn" type="button" data-settings-section="audioSettingsContent">声音与提示</button>
           <button class="settings-section-btn" type="button" data-settings-section="personalRecordsContent">个人战绩</button>
+          <button class="settings-section-btn" type="button" data-settings-section="profileTransferContent">个人档案</button>
           <button class="settings-section-btn" type="button" data-settings-section="versionLogContent">更新日志</button>
         </div>
         <section class="settings-modal-content" id="hunterSettingsContent">
@@ -105,6 +106,14 @@
             <tr><th>困难</th><td data-record="hard-success">0</td><td data-record="hard-failure">0</td></tr>
           </tbody></table><small>按任务难度分别记录；训练不计入战绩。</small>
         </section>
+        <section class="settings-modal-content profile-transfer-content" id="profileTransferContent" hidden>
+          <h3>迁移个人档案</h3>
+          <p>在线网址与 LAN / VPN 地址使用独立存档。导出后，可在目标网址导入信用点、装备、仓库、战绩与个人设置。</p>
+          <p>导入会替换当前网址的个人档案。请先关闭其他游戏标签页；原档案可通过恢复备份撤回。</p>
+          <div class="profile-transfer-actions"><button id="profileExportButton" type="button">导出档案</button><button id="profileImportButton" type="button">导入档案</button><button id="profileRestoreButton" type="button">恢复备份</button></div>
+          <input id="profileImportFile" type="file" accept="application/json,.json" hidden>
+          <p id="profileTransferStatus" role="status" aria-live="polite">请在安全屋中离开联机房间，等待奖励同步完成后操作。</p>
+        </section>
         <section class="settings-modal-content audio-settings-content" id="audioSettingsContent" hidden>
           <h3>声音与交互提示</h3>
           <label for="masterVolume">总音量 <output id="masterVolumeValue">100%</output></label>
@@ -117,6 +126,12 @@
         </section>
         <section class="settings-modal-content performance-settings-content" id="performanceSettingsContent" hidden>
           <p class="update-category">LOCAL DISPLAY // FRAME RATE</p>
+          <label for="textureQualitySelect">贴图画质</label>
+          <select id="textureQualitySelect" aria-describedby="textureQualityHelp">
+            <option value="high" selected>标准 · 简洁科幻舱板</option>
+            <option value="low">低画质 · 无贴图复古箭头</option>
+          </select>
+          <small id="textureQualityHelp">立即切换本机画面；不改变碰撞、地图或联机规则。</small>
           <label for="fpsCapSelect">画面帧率上限</label>
           <select id="fpsCapSelect" aria-describedby="fpsCapHelp">
             <option value="30">30 FPS · 省电</option>
@@ -135,7 +150,8 @@
           <small id="corpseLimitHelp">限制本机显示的碎尸和关联血迹数量，超过后最旧的淡出；残骸可踩过拨动，不会堵住通路。</small>
         </section>
         <section class="settings-modal-content version-log-content" id="versionLogContent" hidden>
-          <div class="noise-update-notice"><span>V18 // 当前规则</span><strong>碎尸反馈与进阶资格</strong><p>大型地图与困难模式需要单人标准中等通关中型地图。救援等待为简单 20／中等 40／困难 60 秒，中等／困难呼叫后每 10 秒补怪；仅补存活上限内的空缺。</p><p>新增总音量、背景氛围音量、交互提示开关与累计击败统计。以下为历史版本记录。</p></div>
+            <div class="noise-update-notice"><span>V20 // 当前版本</span><strong>俯视回收人员与 LAN／VPN 联机</strong><p>标准画质显示人物动作和六把俯视枪械；低画质保留箭头。任务／小队新增 LAN／VPN 地址入口，个人档案可导出、导入及恢复备份。</p><p>联机需要所有玩家使用 V20；LAN 的房主须启动本地服务。以下为历史版本记录。</p></div>
+            <div class="noise-update-notice"><span>V19 // 历史记录</span><strong>简洁地板与本机低画质</strong><p>简单模式固定出现 Hunter 和 Heavy；背包与箱子可双击转移。</p><p>低画质仅改变本机显示，不改变碰撞、地图或队友的画面。</p></div>
           <div class="noise-update-notice" role="note" aria-label="战斗与噪音协议更新">
             <span>SYSTEM UPDATE // HUNTER PROFILES</span>
             <strong>猎手数量与无限增援</strong>
@@ -291,8 +307,9 @@
             </div>
             </div>
             <section class="brief-crew-panel coop-panel" id="briefCrewPanel">
+              <div class="coop-mode-controls"><div role="group" aria-label="联机模式"><button type="button" data-coop-mode="online" aria-pressed="true">在线房间</button><button type="button" data-coop-mode="lan" aria-pressed="false">LAN / VPN</button></div><p id="coopModeNote" role="status" aria-live="polite">在线房间使用 6 位房间码；最多四人。</p><button id="coopLanServiceRetry" type="button" onclick="game.refreshLanService()" hidden>重新检查 LAN 服务</button></div>
               <div class="coop-link-header"><h2>房间 <span class="coop-code" id="coopRoomCode">------</span></h2><button class="coop-action" id="copyRoomButton" type="button">复制房间码</button><strong id="menuRoomSummary">尚未连接</strong><span class="coop-status" id="coopStatus">选择创建或加入房间</span></div>
-              <div class="coop-room-entry"><div><img class="room-entry-art" src="resources/images/menu/crew-empty.png" alt="等待出发的装备" draggable="false"><h2>集结你的回收小队</h2><p>最多四人，一起搜刮、安全撤离。</p></div><div><button class="coop-action primary" id="coopHostButton" type="button" onclick="game.hostCoopRoom()">创建四人房间</button><div class="coop-join-row"><input id="coopJoinCode" maxlength="6" autocomplete="off" placeholder="输入 6 位房间代码" aria-label="6位房间码"><button class="coop-action" id="coopJoinButton" type="button" onclick="game.joinCoopRoom()">加入房间</button></div></div></div>
+              <div class="coop-room-entry"><div><img class="room-entry-art" src="resources/images/menu/crew-empty.png" alt="等待出发的装备" draggable="false"><h2>集结你的回收小队</h2><p>最多四人，一起搜刮、安全撤离。</p></div><div><button class="coop-action primary" id="coopHostButton" type="button" onclick="game.hostCoopRoom()">创建四人房间</button><div class="coop-join-row" id="coopOnlineJoinRow"><input id="coopJoinCode" maxlength="6" autocomplete="off" placeholder="输入 6 位房间代码" aria-label="6位房间码"><button class="coop-action" id="coopJoinButton" type="button" onclick="game.joinCoopRoom()">加入房间</button></div><div class="coop-join-row" id="coopLanJoinRow" hidden><input id="coopLanAddress" maxlength="260" autocomplete="off" placeholder="房主 IP:端口 · 默认 8787" aria-label="房主 LAN 或 VPN 地址"><button class="coop-action" id="coopLanJoinButton" type="button" onclick="game.joinCoopRoom()">打开 LAN 游戏</button></div></div></div>
               <div class="coop-lobby" id="coopLobby" hidden>
                 <p class="coop-offline-preview" id="coopOfflinePreviewBanner" hidden>离线界面预览 · 未创建房间；只有你的装备是真实数据</p>
                 <div class="coop-map-summary"><div><strong id="lobbyScaleName">小型（16 舱）</strong><small>房主当前选择的设施结构 · 出生点已标记</small></div><canvas class="facility-map-preview" id="lobbyMapPreview" aria-label="房主当前设施结构与出生点"></canvas><div class="brief-enemies" id="briefEnemyTypes" aria-live="polite"></div></div>
@@ -568,22 +585,25 @@
     <section class="result-strip panel"><div><p class="kicker">CONTRACT OUTCOME</p><h2 id="resultTitle">今晚的账单还没写完</h2></div><div class="result-metric"><span>预测结算</span><strong id="predictedValue"><span class="credit-value" aria-label="0 信用点"><img class="credit-token-image" src="resources/images/equipment-v17/credit.png" alt="" aria-hidden="true"><span>0</span></span></strong></div><div class="result-metric"><span>航程状态</span><strong id="missionState">未开始</strong></div></section>
     <footer><span>VOID SHIFT <b>•</b> RECOVERY OPERATIONS DIVISION</span><span>DEMO BUILD 0.7</span></footer>
   </main>
-  <script src="js/config.js?v=9"></script>
+  <script src="js/config.js?v=11"></script>
   <script src="js/audio.js?v=3"></script>
-  <script src="js/ui.js?v=24"></script>
-  <script src="js/entities.js?v=10"></script>
-  <script src="js/map.js?v=10"></script>
+  <script src="js/ui.js?v=26"></script>
+  <script src="js/entities.js?v=12"></script>
+  <script src="js/map.js?v=11"></script>
   <script src="js/training.js?v=4"></script>
   <script src="js/corpses.js?v=1"></script>
-  <script src="js/renderer.js?v=14"></script>
-  <script src="js/network.js?v=19"></script>
+  <script src="js/player-art.js?v=2"></script>
+  <script src="js/renderer.js?v=17"></script>
+  <script src="js/network.js?v=21"></script>
+  <script src="js/lan-network.js?v=20"></script>
   <script src="js/inventory.js?v=4"></script>
-  <script src="js/rewards.js?v=3"></script>
+  <script src="js/rewards.js?v=4"></script>
   <script src="js/reward-client.js?v=1"></script>
-  <script src="js/loot.js?v=2"></script>
-  <script src="js/equipment.js?v=1"></script>
-  <script src="js/game.js?v=26"></script>
-  <script src="js/menu.js?v=18"></script>
+  <script src="js/profile-transfer.js?v=20"></script>
+  <script src="js/loot.js?v=3"></script>
+  <script src="js/equipment.js?v=2"></script>
+  <script src="js/game.js?v=29"></script>
+  <script src="js/menu.js?v=20"></script>
 </body>
 </html>
 

@@ -13,6 +13,7 @@ const sandbox = {
 vm.runInNewContext(`${fs.readFileSync(path.join(root, 'js/config.js'), 'utf8')}\nglobalThis.ConfigUnderTest = Config;`, sandbox);
 vm.runInNewContext(`${fs.readFileSync(path.join(root, 'js/inventory.js'), 'utf8')}\nglobalThis.BackpackManagerUnderTest = BackpackManager;`, sandbox);
 vm.runInNewContext(`${fs.readFileSync(path.join(root, 'js/entities.js'), 'utf8')}\nglobalThis.PlayerUnderTest = Player; globalThis.MonsterUnderTest = Monster;`, sandbox);
+vm.runInNewContext(`${fs.readFileSync(path.join(root, 'js/rewards.js'), 'utf8')}\nglobalThis.SaveRewardsUnderTest = SaveRewards;`, sandbox);
 vm.runInNewContext(`${fs.readFileSync(path.join(root, 'js/game.js'), 'utf8')}\nglobalThis.GameUnderTest = Game;`, sandbox);
 vm.runInNewContext(`${fs.readFileSync(path.join(root, 'js/ui.js'), 'utf8')}\nglobalThis.UIManagerUnderTest = UIManager;`, sandbox);
 
@@ -20,6 +21,7 @@ const Config = sandbox.ConfigUnderTest;
 const BackpackManager = sandbox.BackpackManagerUnderTest;
 const Player = sandbox.PlayerUnderTest;
 const Monster = sandbox.MonsterUnderTest;
+const SaveRewards = sandbox.SaveRewardsUnderTest;
 const Game = sandbox.GameUnderTest;
 const UIManager = sandbox.UIManagerUnderTest;
 const clearMap = { spawnPoint: { x: 100, y: 100 }, blocked: () => false, rayWallDistance: () => 650 };
@@ -35,10 +37,10 @@ const testArmory = {
     revolver: { magazine: 0, reserve: 0 }
   }
 };
-let savedRecord = null;
+const savedRecords = new Map();
 sandbox.localStorage = {
-  getItem: () => savedRecord,
-  setItem: (_key, value) => { savedRecord = value; }
+  getItem: key => savedRecords.get(key) ?? null,
+  setItem: (key, value) => { savedRecords.set(key, String(value)); }
 };
 
 function makeGame(armory = testArmory, money = 5000) {
@@ -113,7 +115,7 @@ test('sprint moves 150 units per second without changing walking or stamina cost
   assert.equal(player.stamina, 94);
 });
 
-test('normal Monster pursuit is 385 while crossing-wall movement stays 28', () => {
+test('normal Monster pursuit is 385 while default crossing-wall movement stays 22.4', () => {
   const target = { x: 1000, y: 100, noise: 100, invulnerable: false };
   const makeMonster = () => {
     const monster = new Monster();
@@ -125,18 +127,23 @@ test('normal Monster pursuit is 385 while crossing-wall movement stays 28', () =
   assert.ok(Math.abs(clear.x - 138.5) < 0.001);
   const blocked = makeMonster();
   blocked.update(0.1, target, 100, { blocked: () => true, getRoomAt: () => null }, quietAudio);
-  assert.equal(Math.round((blocked.x - 100) * 10), 28);
+  assert.ok(Math.abs((blocked.x - 100) * 10 - 22.4) < 0.001);
 });
 
-test('Monster stays incapacitated for twenty seconds after its fifth hit', () => {
+test('Monster sleeps for forty seconds when damage depletes its HP', () => {
   const monster = new Monster();
-  for (let i = 0; i < 4; i++) assert.equal(monster.registerHit().triggeredRecovery, false);
-  assert.equal(monster.registerHit().triggeredRecovery, true);
-  assert.equal(monster.recoverTimer, 20);
-  assert.equal(monster.stagger, 20);
+  assert.equal(monster.hp, 1);
+  assert.equal(monster.registerHit(0.25).triggeredRecovery, false);
+  assert.equal(monster.hp, 0.75);
+  assert.equal(monster.registerHit(0.75).triggeredRecovery, true);
+  assert.equal(monster.hp, 0);
+  assert.equal(monster.recoverTimer, 40);
+  assert.equal(monster.stagger, 40);
+  assert.equal(monster.registerHit().triggeredRecovery, false);
+  assert.equal(monster.sleepCycle, 1);
   monster.active = true;
   const map = { blocked: () => false, getRoomAt: () => null };
-  assert.equal(monster.update(19.9, { x: 1000, y: 1000, noise: 0 }, 0, map, quietAudio).recovering, true);
+  assert.equal(monster.update(39.9, { x: 1000, y: 1000, noise: 0 }, 0, map, quietAudio).recovering, true);
   assert.ok(monster.recoverTimer > 0);
   assert.equal(monster.update(0.2, { x: 1000, y: 1000, noise: 0 }, 0, map, quietAudio).recovered, true);
 });
@@ -202,7 +209,7 @@ test('monster contact during a roll neither damages nor teleports the monster', 
   assert.deepEqual([monster.x, monster.y], [101, 100]);
 });
 
-test('vulnerable monster contact still registers and teleports after a hit', () => {
+test('vulnerable monster contact registers in place and respects its attack interval', () => {
   const monster = new Monster();
   monster.active = true;
   monster.alerted = true;
@@ -215,7 +222,11 @@ test('vulnerable monster contact still registers and teleports after a hit', () 
   const result = monster.update(0.05, player, 0, map, quietAudio);
 
   assert.equal(result.playerHit, true);
-  assert.deepEqual([monster.x, monster.y], [700, 700]);
+  assert.deepEqual([monster.x, monster.y], [101, 100]);
+  assert.equal(monster.attackCooldown, 0.2);
+  assert.equal(monster.update(0.05, player, 0, map, quietAudio).playerHit, false);
+  assert.equal(monster.update(0.15, player, 0, map, quietAudio).playerHit, true);
+  assert.deepEqual([monster.x, monster.y], [101, 100]);
 });
 
 test('rolling can spend any positive stamina up to 20, including a fractional remainder', () => {
@@ -315,11 +326,11 @@ test('a roll consumes 20 stamina, travels 100 units over 0.35 seconds and grants
 
 test('weapon catalog carries the agreed magazine, reserve, cadence, reload and noise values', () => {
   assert.deepEqual(
-    ['pistol', 'smg', 'shotgun', 'revolver'].map(id => {
+    ['pistol', 'smg', 'shotgun', 'revolver', 'mini-shotgun'].map(id => {
       const weapon = Config.weapons[id];
-      return [weapon.maxAmmo, weapon.initialReserve, weapon.shootCooldownDuration, weapon.shotNoise];
+      return [weapon.maxAmmo, weapon.initialReserve, weapon.shootCooldownDuration, weapon.reloadDuration, weapon.reloadMode, weapon.shotNoise];
     }),
-    [[6, 120, 0.4, 2], [24, 240, 0.1, 2], [8, 80, 0.8, 4], [4, 24, 1.2, 2]]
+    [[6, 120, 0.4, 2, 'magazine', 2], [24, 240, 0.1, 4, 'magazine', 2], [8, 80, 0.6, 1, 'magazine', 4], [4, 24, 0.5, 2, 'magazine', 2], [2, 0, 0.3, 1, 'shell', 4]]
   );
 });
 
@@ -327,31 +338,36 @@ test('shell loading inserts one round at a time and switching cancels only the p
   const player = new Player();
   const armory = Player.normalizeArmory({
     ...testArmory,
-    ownedWeapons: { ...testArmory.ownedWeapons, shotgun: true },
-    loadout: { primary: 'shotgun', sidearm: 'pistol' },
+    ownedWeapons: { ...testArmory.ownedWeapons, 'mini-shotgun': true },
+    loadout: { primary: 'smg', sidearm: 'mini-shotgun' },
+    activeSlot: 'sidearm',
     weaponAmmo: {
       ...testArmory.weaponAmmo,
-      shotgun: { magazine: 6, reserve: 5 }
+      'mini-shotgun': { magazine: 0, reserve: 5 }
     }
   });
   player.reset(clearMap, armory);
 
   assert.equal(player.reload(quietAudio), true);
   player.update(0.5, {}, false, clearMap, quietAudio);
-  assert.equal(player.ammo, 7);
-  assert.equal(player.reserveAmmo, 4);
+  assert.equal(player.ammo, 0);
+  assert.equal(player.reserveAmmo, 5);
   assert.equal(player.reloading, 0.5);
+  player.update(0.5, {}, false, clearMap, quietAudio);
+  assert.equal(player.ammo, 1);
+  assert.equal(player.reserveAmmo, 4);
+  assert.equal(player.reloading, 1);
 
-  assert.equal(player.switchWeaponSlot('sidearm'), true);
-  assert.equal(player.reloading, 0);
   assert.equal(player.switchWeaponSlot('primary'), true);
-  assert.equal(player.ammo, 7);
+  assert.equal(player.reloading, 0);
+  assert.equal(player.switchWeaponSlot('sidearm'), true);
+  assert.equal(player.ammo, 1);
   assert.equal(player.reserveAmmo, 4);
 
   const shot = player.shoot(false, clearMap, quietAudio, { active: false });
   assert.equal(shot.fired, true);
   assert.equal(shot.reloadInterrupted, false);
-  assert.equal(player.ammo, 6);
+  assert.equal(player.ammo, 0);
   assert.equal(player.reloading, 0);
 });
 
@@ -359,19 +375,50 @@ test('shell reload reports completion only after reaching the magazine limit', (
   const player = new Player();
   player.reset(clearMap, Player.normalizeArmory({
     ...testArmory,
+    ownedWeapons: { ...testArmory.ownedWeapons, 'mini-shotgun': true },
+    loadout: { primary: 'smg', sidearm: 'mini-shotgun' },
+    activeSlot: 'sidearm',
+    weaponAmmo: { ...testArmory.weaponAmmo, 'mini-shotgun': { magazine: 0, reserve: 5 } }
+  }));
+  player.reload(quietAudio);
+
+  const firstShell = player.update(1, {}, false, clearMap, quietAudio);
+  assert.equal(firstShell.shellLoaded, true);
+  assert.equal(firstShell.reloaded, false);
+  assert.equal(player.ammo, 1);
+  const finish = player.update(1, {}, false, clearMap, quietAudio);
+  assert.equal(finish.shellLoaded, true);
+  assert.equal(finish.reloaded, true);
+  assert.equal(player.ammo, 2);
+  assert.equal(player.reserveAmmo, 3);
+});
+
+test('shotgun magazine reload blocks firing and loads its missing rounds together after one second', () => {
+  const player = new Player();
+  player.reset(clearMap, Player.normalizeArmory({
+    ...testArmory,
     ownedWeapons: { ...testArmory.ownedWeapons, shotgun: true },
     loadout: { primary: 'shotgun', sidearm: 'pistol' },
     weaponAmmo: { ...testArmory.weaponAmmo, shotgun: { magazine: 6, reserve: 5 } }
   }));
-  player.reload(quietAudio);
 
-  const firstShell = player.update(0.5, {}, false, clearMap, quietAudio);
-  assert.equal(firstShell.shellLoaded, true);
-  assert.equal(firstShell.reloaded, false);
-  const finish = player.update(0.5, {}, false, clearMap, quietAudio);
-  assert.equal(finish.shellLoaded, true);
+  assert.equal(player.reload(quietAudio), true);
+  const pending = player.update(0.5, {}, false, clearMap, quietAudio);
+  assert.equal(pending.reloaded, false);
+  assert.deepEqual([player.ammo, player.reserveAmmo, player.reloading], [6, 5, 0.5]);
+  const blockedShot = player.shoot(false, clearMap, quietAudio, { active: false });
+  assert.equal(blockedShot.fired, false);
+  assert.equal(blockedShot.reason, 'reloading');
+  assert.deepEqual([player.ammo, player.reserveAmmo, player.reloading], [6, 5, 0.5]);
+
+  assert.equal(player.switchWeaponSlot('sidearm'), true);
+  assert.equal(player.switchWeaponSlot('primary'), true);
+  assert.deepEqual([player.ammo, player.reserveAmmo, player.reloading], [6, 5, 0]);
+  assert.equal(player.reload(quietAudio), true);
+  const finish = player.update(1, {}, false, clearMap, quietAudio);
   assert.equal(finish.reloaded, true);
-  assert.equal(player.ammo, 8);
+  assert.equal(finish.shellLoaded, false);
+  assert.deepEqual([player.ammo, player.reserveAmmo, player.reloading], [8, 3, 0]);
 });
 
 test('starting a melee swing consumes 10 stamina and applies its one-second cooldown', () => {
@@ -389,17 +436,19 @@ test('firing during shell reload preserves loaded rounds and interrupts the inco
   const player = new Player();
   player.reset(clearMap, Player.normalizeArmory({
     ...testArmory,
-    ownedWeapons: { ...testArmory.ownedWeapons, shotgun: true },
-    loadout: { primary: 'shotgun', sidearm: 'pistol' },
-    weaponAmmo: { ...testArmory.weaponAmmo, shotgun: { magazine: 6, reserve: 5 } }
+    ownedWeapons: { ...testArmory.ownedWeapons, 'mini-shotgun': true },
+    loadout: { primary: 'smg', sidearm: 'mini-shotgun' },
+    activeSlot: 'sidearm',
+    weaponAmmo: { ...testArmory.weaponAmmo, 'mini-shotgun': { magazine: 1, reserve: 5 } }
   }));
 
   player.reload(quietAudio);
+  player.update(0.5, {}, false, clearMap, quietAudio);
   const shot = player.shoot(false, clearMap, quietAudio, { active: false });
 
   assert.equal(shot.fired, true);
   assert.equal(shot.reloadInterrupted, true);
-  assert.equal(player.ammo, 5);
+  assert.equal(player.ammo, 0);
   assert.equal(player.reserveAmmo, 5);
   assert.equal(player.reloading, 0);
 });
@@ -705,20 +754,23 @@ test('tutorial filters weapon-switch practice until both equipped slots are owne
 });
 
 test('legacy saves preserve credits and cargo but migrate weapon ownership to pistol only', () => {
-  savedRecord = JSON.stringify({
+  savedRecords.clear();
+  savedRecords.set(SaveRewards.key, JSON.stringify({
     money: 2875,
     storageItems: [{ name: '旧存档物资', value: 50 }],
     selectedWeapon: 'smg',
     fpsCap: '60'
-  });
-  const game = Object.create(Game.prototype);
-  game.state = { money: 1000, storageItems: [], selectedDifficulty: 'medium', fpsCap: '60' };
-  game.player = new Player();
+  }));
+  const game = makeGame(Player.createDefaultArmory(), 1000);
+  Object.assign(game.state, { storageItems: [], inventory: [], selectedDifficulty: 'medium', fpsCap: '60' });
+  game.backpack = BackpackManager.fromType(Config.activeBackpack);
+  game.remoteBackpack = BackpackManager.fromType(Config.activeBackpack);
 
   game._loadSave();
 
   assert.equal(game.state.money, 2875);
   assert.equal(game.state.storageItems.length, 1);
+  assert.equal(game.state.storageItems[0].name, '旧存档物资');
   assert.equal(game.player.armory.ownedWeapons.pistol, true);
   assert.equal(game.player.armory.ownedWeapons.smg, false);
   assert.equal(game.player.armory.weaponAmmo.pistol.reserve, 120);

@@ -87,7 +87,7 @@ function serveGuest(h) {
   let generation=0;
   h.context.fetch=async(url,options={})=>{
     h.requests.push({url,options,at:h.clock.now()});
-    if(url==='/api/rooms/ABC234')return h.response(200,{protocol_version:18,expires_at:h.clock.now()+600000});
+    if(url==='/api/rooms/ABC234')return h.response(200,{protocol_version:20,expires_at:h.clock.now()+600000});
     if(url.endsWith('/ice'))return h.response(200,{iceServers:[{urls:'stun:stun.cloudflare.com:3478'}],turnConfigured:false});
     if(options.method==='POST'){
       if(JSON.parse(options.body).memberId)generation++;

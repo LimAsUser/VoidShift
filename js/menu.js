@@ -74,13 +74,19 @@ class SafehouseMenu {
     });
     document.getElementById('copyRoomButton').addEventListener('click', async () => {
       if (!game.state.coop.code) return;
+      const value = game.coopMode === 'lan' ? window.location.host : game.state.coop.code;
       try {
-        await navigator.clipboard.writeText(game.state.coop.code);
-        game.ui.showToast('房间码已复制');
+        await navigator.clipboard.writeText(value);
+        game.ui.showToast(game.coopMode === 'lan' ? 'LAN 地址已复制' : '房间码已复制');
       } catch {
-        game.ui.showToast(`房间码：${game.state.coop.code}`);
+        game.ui.showToast(`${game.coopMode === 'lan' ? 'LAN 地址' : '房间码'}：${value}`);
       }
     });
+    document.querySelectorAll('[data-coop-mode]').forEach(button => {
+      button.addEventListener('click', () => game.setCoopMode(button.dataset.coopMode));
+    });
+    this.bindProfileTransfer();
+    globalThis.LANRuntime?.ready.then(() => game.updateCoopUI());
     this.confirmLeave = () => new Promise(resolve => {
       const dialog = document.getElementById('leaveMenuDialog');
       dialog.returnValue = 'cancel';
@@ -112,6 +118,44 @@ class SafehouseMenu {
   enterPreparation() {
     if (this.game.state.running || this.game.state.coop.running || this.game.state.transitioning) return;
     this.setScreen('prep');
+  }
+
+  bindProfileTransfer() {
+    const status = document.getElementById('profileTransferStatus'), file = document.getElementById('profileImportFile');
+    const run = async operation => {
+      if (this.profileTransferBusy) return;
+      this.profileTransferBusy = true;
+      try {
+        if (!globalThis.SaveProfile?.canTransfer(this.game)) throw new Error('请结束任务、离开联机房间并等待奖励同步后再迁移档案');
+        status.textContent = '正在处理个人档案…';
+        await operation();
+      } catch (error) { status.textContent = error.message || '个人档案处理失败'; }
+      finally { this.profileTransferBusy = false; }
+    };
+    document.getElementById('profileExportButton')?.addEventListener('click', () => run(async () => {
+      const serialized = await SaveProfile.export(this.game);
+      const url = URL.createObjectURL(new Blob([serialized], { type: 'application/json' }));
+      const link = document.createElement('a'); link.href = url; link.download = `voidshift-profile-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+      status.textContent = '个人档案已导出；可在另一个网址的设置中导入';
+    }));
+    document.getElementById('profileImportButton')?.addEventListener('click', () => {
+      if (!globalThis.SaveProfile?.canTransfer(this.game)) { status.textContent = '请结束任务、离开联机房间并等待奖励同步后再迁移档案'; return; }
+      file.click();
+    });
+    file?.addEventListener('change', () => run(async () => {
+      const selected = file.files?.[0]; file.value = '';
+      if (!selected) return;
+      if (selected.size > 2 * 1024 * 1024) throw new Error('档案文件超过 2 MiB 限制');
+      if (!window.confirm('导入会替换当前网址的个人档案。请先关闭其他游戏标签页；原档案可通过恢复备份撤回。确认导入？')) { status.textContent = '已取消导入'; return; }
+      const result = await SaveProfile.import(await selected.text(), this.game);
+      if (result?.reloadRequired) window.location.reload();
+    }));
+    document.getElementById('profileRestoreButton')?.addEventListener('click', () => run(async () => {
+      if (!window.confirm('请先关闭其他游戏标签页。恢复备份会替换当前个人档案，确认恢复？')) { status.textContent = '已取消恢复'; return; }
+      const result = await SaveProfile.restoreBackup(this.game);
+      if (result?.reloadRequired) window.location.reload();
+    }));
   }
 
   showRoomError(error) {
@@ -743,6 +787,7 @@ class SafehouseMenu {
     const rows = types.map(type => {
       const row = document.createElement('span');
       row.className = 'map-enemy';
+      row.dataset.enemy = names[type] || type;
       const art = document.createElement('img');
       art.src = `resources/images/${type}-topdown.png`;
       art.alt = names[type] || type;

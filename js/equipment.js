@@ -138,13 +138,13 @@ class EquipmentController {
 
   blueprint(actor, targetX, targetY, vertical = false) {
     const g = this.game, map = g.map;
-    let cx = targetX, cy = targetY, w = vertical ? 16 : 128, h = vertical ? 128 : 16;
+    let cx = targetX, cy = targetY, w = vertical ? 32 : 64, h = vertical ? 64 : 32;
     const door = map.doors.find(d => Math.hypot(targetX - d.x - d.w / 2, targetY - d.y - d.h / 2) < 44);
     if (door) {
       const horizontal = door.w >= door.h;
       cx = door.x + door.w / 2; cy = door.y + door.h / 2;
-      if (horizontal) { w = Math.max(16, door.w - 18); h = 16; cy += (actor.y < cy ? -1 : 1) * 28; }
-      else { h = Math.max(16, door.h - 18); w = 16; cx += (actor.x < cx ? -1 : 1) * 28; }
+      if (horizontal) cy += (actor.y < cy ? -1 : 1) * 28;
+      else cx += (actor.x < cx ? -1 : 1) * 28;
     }
     const b = { x: cx - w / 2, y: cy - h / 2, w, h, hp: 20, vertical: h > w };
     const dist = Math.hypot(cx - actor.x, cy - actor.y);
@@ -226,12 +226,17 @@ class EquipmentController {
     const last = this.enemyBlocks.get(enemy) || { x:enemy.x,y:enemy.y,remaining:0 };
     last.remaining = Math.max(0,last.remaining-dt);
     const moved = Math.hypot(enemy.x-last.x,enemy.y-last.y); last.x=enemy.x;last.y=enemy.y;this.enemyBlocks.set(enemy,last);
-    if (!target || Math.hypot(target.x-enemy.x,target.y-enemy.y)<enemy.radius+(target.radius||10)+5) return;
-    const angle = Math.atan2(target.y-enemy.y,target.x-enemy.x), reach=enemy.radius+14;
-    const b = this.at(enemy.x+Math.cos(angle)*reach,enemy.y+Math.sin(angle)*reach,3);
-    if (!b || moved > 3 || last.remaining > 0) return;
-    const d=Math.hypot(b.x+b.w/2-enemy.x,b.y+b.h/2-enemy.y);
-    if (d && this.game.map.rayWallDistance(enemy.x,enemy.y,Math.cos(angle),Math.sin(angle),d)<Math.max(0,d-Math.max(b.w,b.h)/2-2)) return;
+    if ((!target && !enemy.alerted) || moved > 3 || last.remaining > 0) return;
+    if (target && Math.hypot(target.x-enemy.x,target.y-enemy.y)<enemy.radius+(target.radius||10)+5) return;
+    const nearest = this.nearby(enemy.x, enemy.y, enemy.radius + 18)
+      .map(b => ({ b, x:Math.max(b.x,Math.min(enemy.x,b.x+b.w)), y:Math.max(b.y,Math.min(enemy.y,b.y+b.h)) }))
+      .sort((a,b) => Math.hypot(a.x-enemy.x,a.y-enemy.y)-Math.hypot(b.x-enemy.x,b.y-enemy.y));
+    const block = nearest.find(point => Math.hypot(point.x-enemy.x,point.y-enemy.y) <= enemy.radius+12);
+    if (!block) return;
+    const {b}=block, d=Math.hypot(block.x-enemy.x,block.y-enemy.y);
+    const angle=Math.atan2(block.y-enemy.y,block.x-enemy.x);
+    if (d && this.game.map.rayWallDistance(enemy.x,enemy.y,Math.cos(angle),Math.sin(angle),d)<d-1) return;
+    enemy.angle=angle;
     if (type==='heavy') {enemy.phase='windup';enemy.phaseTimer=2;enemy.chargeAngle=angle;enemy.angle=angle;return;}
     if ((enemy.attackCooldown||0)>0) return;
     const interval=type==='hunter'?0.5:0.2;

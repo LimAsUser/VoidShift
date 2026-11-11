@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VOID SHIFT 分层人物验收</title>
+<style>body{margin:0;padding:20px;background:#07131d;color:#d8edf3;font:16px system-ui}h1{font-size:24px}p{color:#aacbd4}button{min-height:44px;padding:8px 18px;border:1px solid #61bdd0;background:#12303d;color:#d8edf3}canvas{display:block;max-width:100%;height:auto;background:#182b36;border:1px solid #37616c;margin-top:16px}</style>
+<h1>VOID SHIFT · 分层人物与六枪验收</h1>
+<p>独立绘制检查，没有游戏存档、任务或联机操作。前四排依次为前进、后退、左移、右移；最后一排检查转向、待机与倒地。</p>
+<button id="pause">暂停动作</button> <button id="step">下一步相</button> <button id="quality">低画质对照</button>
+<canvas id="scene" width="1200" height="800"></canvas>
+<script src="../js/player-art.js"></script>
+<script>
+const canvas=document.getElementById('scene'),ctx=canvas.getContext('2d'),images=new Map();
+const art=new PlayerArt(name=>{if(!images.has(name)){const im=new Image();im.src='../resources/images/'+name+'.png';images.set(name,im);}return images.get(name);});
+const state={running:true,missionFxId:'tactical-inspection',textureQuality:'high',coop:{}},weapons=Object.keys(PlayerArt.weapons);
+const names=['手枪','冲锋枪','散弹枪','左轮','机关枪','小型散弹枪'],modes=['前进','后退','左移','右移'],vectors=[[1,0],[-1,0],[0,-1],[0,1]];
+const actors=Array.from({length:30},(_,i)=>({x:0,y:0,angle:0,weaponId:weapons[i%6],moveSpeed:70}));
+let last=0,paused=false,step=false;
+document.getElementById('pause').onclick=()=>{paused=!paused;document.getElementById('pause').textContent=paused?'继续动作':'暂停动作';};
+document.getElementById('step').onclick=()=>{paused=true;step=true;document.getElementById('pause').textContent='继续动作';};
+document.getElementById('quality').onclick=()=>state.textureQuality=state.textureQuality==='low'?'high':'low';
+function actor(p,x,y,scale,id,now){ctx.save();ctx.translate(x,y);ctx.rotate(p.angle);ctx.scale(scale,scale);if(!art.draw(ctx,p,state,id,now)){ctx.fillStyle='#75ddd0';ctx.beginPath();ctx.moveTo(14,0);ctx.lineTo(-8,-8);ctx.lineTo(-5,0);ctx.lineTo(-8,8);ctx.closePath();ctx.fill();}ctx.restore();}
+function frame(now){const dt=Math.min(.05,(now-last)/1000||0);last=now;state.coop.hostPaused=paused&&!step;ctx.clearRect(0,0,1200,800);ctx.font='15px system-ui';ctx.textAlign='center';ctx.fillStyle='#c2dfe8';
+for(let row=0;row<4;row++)for(let col=0;col<6;col++){const i=row*6+col,p=actors[i];if(!paused||step){const d=step?8.75:70*dt;p.x+=vectors[row][0]*d;p.y+=vectors[row][1]*d;}actor(p,100+col*200,80+row*150,2.8,'motion-'+i,now);ctx.fillText(names[col]+' · '+modes[row],100+col*200,140+row*150);}
+for(let col=0;col<6;col++){const p=actors[24+col];p.angle=col<4?col*Math.PI/2:0;p.downed=col===5;p.weaponId=col===5?'pistol':weapons[col];actor(p,100+col*200,700,col===4?1.25:2.8,'static-'+col,now);ctx.fillText(col<4?['朝右','朝下','朝左','朝上'][col]:col===4?'基础1.25倍':'倒地副武器',100+col*200,770);}
+step=false;requestAnimationFrame(frame);}
+requestAnimationFrame(frame);
+</script>
+</html>
